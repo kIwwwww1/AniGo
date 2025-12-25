@@ -1,0 +1,12 @@
+from . import Base
+from datetime import datetime
+from sqlalchemy import BigInteger, DateTime, func, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+class WatchHistoryModel(Base):
+    __tablename__ = 'watch_history'
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(nullable=False)
+    anime_id: Mapped[int] = mapped_column(nullable=False)
+    episode_number: Mapped[int] = mapped_column(nullable=False)
