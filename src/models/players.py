@@ -11,3 +11,6 @@ class PlayerModel(Base):
     type: Mapped[str] = mapped_column(default='iframe')
     base_url: Mapped[str] = mapped_column(nullable=False, unique=True)
     is_active: Mapped[bool] = mapped_column(default=True)
+
+    anime_links: Mapped[list['AnimePlayerModel']] = relationship(back_populates="player")
+    users_preferred: Mapped[list['UserPlayerSettingsModel']] = relationship(back_populates="player")

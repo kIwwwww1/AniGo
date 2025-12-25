@@ -16,12 +16,12 @@ class AnimeModel(Base):
     status: Mapped[str]
     
     # Cвязи
-    players: Mapped[list["AnimePlayerModel"]] = relationship(back_populates="anime")
-    episodes: Mapped[list["EpisodeModel"]] = relationship(back_populates="anime")
-    favorites: Mapped[list["FavoriteModel"]] = relationship(back_populates="anime")
-    ratings: Mapped[list["RatingModel"]] = relationship(back_populates="anime")
-    comments: Mapped[list["CommentModel"]] = relationship(back_populates="anime")
-    watch_history: Mapped[list["WatchHistoryModel"]] = relationship(back_populates="anime")
+    players: Mapped[list['AnimePlayerModel']] = relationship(back_populates="anime")
+    episodes: Mapped[list['EpisodeModel']] = relationship(back_populates="anime")
+    favorites: Mapped[list['FavoriteModel']] = relationship(back_populates="anime")
+    ratings: Mapped[list['RatingModel']] = relationship(back_populates="anime")
+    comments: Mapped[list['CommentModel']] = relationship(back_populates="anime")
+    watch_history: Mapped[list['WatchHistoryModel']] = relationship(back_populates="anime")
 
 
 

@@ -12,3 +12,7 @@ class FavoriteModel(Base):
         DateTime(timezone=True),
         server_default=func.now()
         )
+    
+    user: Mapped['UserModel'] = relationship(back_populates='favorites')
+    anime: Mapped['AnimeModel'] = relationship(back_populates='favorites')
+

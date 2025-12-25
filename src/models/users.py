@@ -20,6 +20,6 @@ class UserModel(Base):
     # Связи
     favorites: Mapped[list['FavoriteModel']] = relationship(back_populates='user')
     ratings: Mapped[list['RatingModel']] = relationship(back_populates='user')
-    comments: Mapped[list["CommentModel"]] = relationship(back_populates="user")
-    watch_history: Mapped[list["WatchHistoryModel"]] = relationship(back_populates="user")
-    preferred_player: Mapped["UserPlayerSettingsModel"] = relationship(back_populates="user")
+    comments: Mapped[list['CommentModel']] = relationship(back_populates="user")
+    watch_history: Mapped[list['WatchHistoryModel']] = relationship(back_populates="user")
+    # preferred_player: Mapped['UserPlayerSettingsModel'] = relationship(back_populates="user")

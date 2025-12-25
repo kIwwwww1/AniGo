@@ -10,3 +10,7 @@ class WatchHistoryModel(Base):
     user_id: Mapped[int] = mapped_column(nullable=False)
     anime_id: Mapped[int] = mapped_column(nullable=False)
     episode_number: Mapped[int] = mapped_column(nullable=False)
+
+    user: Mapped['UserModel'] = relationship(back_populates='watch_history')
+    anime: Mapped['AnimeModel'] = relationship(back_populates='watch_history')
+    

@@ -8,4 +8,8 @@ class RatingModel(Base):
 
     user_id: Mapped[int] = mapped_column(nullable=False)
     anime_id: Mapped[int] = mapped_column(nullable=False)
+
     rating: Mapped[int] = mapped_column(nullable=False)
+
+    user: Mapped['UserModel'] = relationship(back_populates='ratings')
+    anime: Mapped['AnimeModel'] = relationship(back_populates='ratings')
