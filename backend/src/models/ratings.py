@@ -6,8 +6,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 class RatingModel(Base):
     __tablename__ = 'ratings'
 
-    user_id: Mapped[int] = mapped_column(nullable=False)
-    anime_id: Mapped[int] = mapped_column(nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('user.id'))
+    anime_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('anime.id'))
 
     rating: Mapped[int] = mapped_column(nullable=False)
 

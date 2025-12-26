@@ -7,8 +7,9 @@ class WatchHistoryModel(Base):
     __tablename__ = 'watch_history'
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    user_id: Mapped[int] = mapped_column(nullable=False)
-    anime_id: Mapped[int] = mapped_column(nullable=False)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('user.id'))
+    anime_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('anime.id'))
+
     episode_number: Mapped[int] = mapped_column(nullable=False)
 
     user: Mapped['UserModel'] = relationship(back_populates='watch_history')

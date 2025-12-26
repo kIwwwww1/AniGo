@@ -1,0 +1,53 @@
+
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: anigo-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/requirements.txt:/app/requirements.txt:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+      - POSTGRES_DB=anigo
+      - DB_HOST=db
+      - DB_PORT=5432
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      - db
+    networks:
+      - anigo-network
+
+# Placeholders for future services (DB, frontend). Uncomment and configure when needed.
+  db:
+    image: postgres:15
+    container_name: anigo-db
+    environment:
+      POSTGRES_DB: anigo
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5440:5432"
+    networks:
+      - anigo-network
+
+#  frontend:
+#    build: ./frontend
+#    ports:
+#      - "3000:3000"
+
+volumes:
+  db_data:
+    driver: local
+
+networks:
+  anigo-network:
+    driver: bridge

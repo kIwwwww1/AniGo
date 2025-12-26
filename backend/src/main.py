@@ -3,10 +3,12 @@ import uvicorn
 from loguru import logger
 from typing import Callable
 from fastapi import FastAPI, Request
+# 
+from src.api.crud_database import database_router
 
 app = FastAPI()
 
-# app.include_router(...)
+app.include_router(database_router)
 
 # @app.middleware('http')
 # async def middleware_main_app(request: Request, call_next: Callable):
