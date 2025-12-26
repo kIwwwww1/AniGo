@@ -1,6 +1,6 @@
 from . import Base
 from datetime import datetime
-from sqlalchemy import BigInteger, DateTime, func
+from sqlalchemy import BigInteger, DateTime, func, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 class UserModel(Base):
@@ -18,8 +18,7 @@ class UserModel(Base):
         )
     
     # Связи
-    favorites: Mapped[list['FavoriteModel']] = relationship(back_populates='user')
-    ratings: Mapped[list['RatingModel']] = relationship(back_populates='user')
-    comments: Mapped[list['CommentModel']] = relationship(back_populates="user")
-    watch_history: Mapped[list['WatchHistoryModel']] = relationship(back_populates="user")
-    # preferred_player: Mapped['UserPlayerSettingsModel'] = relationship(back_populates="user")
+    favorites: Mapped[list['FavoriteModel']] = relationship(back_populates='user', lazy='selectin')
+    ratings: Mapped[list['RatingModel']] = relationship(back_populates='user', lazy='selectin')
+    comments: Mapped[list['CommentModel']] = relationship(back_populates="user", lazy='selectin')
+    watch_history: Mapped[list['WatchHistoryModel']] = relationship(back_populates="user", lazy='selectin')

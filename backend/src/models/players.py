@@ -13,4 +13,3 @@ class PlayerModel(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
 
     anime_links: Mapped[list['AnimePlayerModel']] = relationship(back_populates="player")
-    users_preferred: Mapped[list['UserPlayerSettingsModel']] = relationship(back_populates="player")
