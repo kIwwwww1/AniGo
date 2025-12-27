@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.users import UserModel
 from src.schemas.user import CreateNewUser
 from src.auth.auth import (add_token_in_cookie, hashed_password)
+from src.services.database import restart_database
+from src.db.database import engine, new_session
 
 
 async def get_user_by_name(name: str, session: AsyncSession):
@@ -51,7 +53,7 @@ async def add_user(new_user: CreateNewUser, response: Response, session: AsyncSe
         user = (await session.execute(select(UserModel).filter_by(email=new_user.email))).scalar_one()
         await add_token_in_cookie(sub=user.id, role=user.role, response=response)
         await session.commit()
-        return 'User add'
+        return 'True: User add'
 
 
 

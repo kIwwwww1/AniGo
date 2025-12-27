@@ -6,11 +6,14 @@ from fastapi import FastAPI, Request
 # 
 from src.api.crud_database import database_router
 from src.api.crud_users import user_router
+from src.api.crud_anime import anime_router
+
 
 app = FastAPI()
 
 app.include_router(database_router)
 app.include_router(user_router)
+app.include_router(anime_router)
 
 # @app.middleware('http')
 # async def middleware_main_app(request: Request, call_next: Callable):

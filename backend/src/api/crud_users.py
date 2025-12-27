@@ -6,8 +6,18 @@ from src.models.users import UserModel
 from src.dependencies.all_dep import SessionDep
 from src.services.users import add_user, get_all_users
 from src.schemas.user import CreateNewUser
+from src.db.database import engine, new_session
+from src.services.database import restart_database
+
 
 user_router = APIRouter(prefix='/user', tags=['UserPanel'])
+
+@user_router.delete('restart_all')
+async def restart_db():
+    resp = await restart_database(engine)
+    return {'message': resp}
+
+
 
 @user_router.get('all-users')
 async def get__all_users(session: SessionDep):
