@@ -4,14 +4,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 # 
 from src.dependencies.all_dep import SessionDep
-from src.parsers.kodik import (add_anime_in_db, get_anime_all)
-from src.parsers.shikimori import (_add_anime_in_db)
+from src.parsers.kodik import (get_id_and_players, get_anime_all, get_anime_by_title)
+from src.parsers.shikimori import shikimori_get_anime
+from src.parsers.shikimori import get_anime_exists
 
 anime_router = APIRouter(prefix='/anime-panel', tags=['AnimePanel'])
 
 @anime_router.get('/anime/{anime_name}')
 async def get_anime_by_name(anime_name: str, session: SessionDep):
-    resp = await add_anime_in_db(anime_name, session)
+    resp = await shikimori_get_anime(anime_name, session)
     return {'message': resp}
 
 
@@ -21,7 +22,10 @@ async def get_all_anime(session: SessionDep):
     return {'message': resp}
 
 
-@anime_router.get('/animeee_sh/{anime_name}')
-async def anime_sh(anime_name):
-    resp = await _add_anime_in_db(anime_name)
+@anime_router.get('all-anime_by_title/{title}')
+async def get_anime(title: str, session: SessionDep):
+    resp = await get_anime_exists(title, session)
     return {'message': resp}
+
+
+
