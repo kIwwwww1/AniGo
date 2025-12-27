@@ -2,7 +2,7 @@ import asyncio
 from loguru import logger
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from anime_parsers_ru import ShikimoriParserAsync
 # 
 from src.parsers.kodik import get_anime_by_title, get_id_and_players
@@ -21,12 +21,14 @@ base_get_url = 'https://shikimori.one/animes/'
 async def get_anime_exists(anime_name: str, session: AsyncSession):
     original_ru_anime: list[dict] = await parser_shikimori.search(anime_name)
     anime_id_db = (await session.execute(
-        select(AnimeModel).filter_by(title=anime_name))
-        ).scalar_one_or_none()
+        select(AnimeModel).where(
+            AnimeModel.title.op("~*")(rf"\m{anime_name}\M")))).scalars().all()
+
+
     
     if anime_id_db is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
-                            detail='НЕ нашли аниме в базе')
+                            detail='Не нашли аниме в базе')
     return anime_id_db
 
 
