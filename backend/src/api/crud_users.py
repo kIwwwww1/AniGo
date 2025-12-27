@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 # 
@@ -16,6 +16,6 @@ async def get__all_users(session: SessionDep):
 
 
 @user_router.post('create')
-async def create_new_user(new_user: CreateNewUser, session: SessionDep):
-    resp = await add_user(new_user, session)
+async def create_new_user(new_user: CreateNewUser, response: Response, session: SessionDep):
+    resp = await add_user(new_user, response, session)
     return {'message': resp}

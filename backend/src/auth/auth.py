@@ -11,7 +11,7 @@ from jose import jwt, JWTError
 load_dotenv()
 
 SECRET_KEY = str(getenv('SECRET_KEY'))
-SECRET_ALGORITHM = str(getenv('ALGORITHM'))
+SECRET_ALGORITHM = str(getenv('ALGORITHM', 'HS256'))    
 COOKIES_SESSION_ID_KEY = str(getenv('COOKIES_SESSION_ID_KEY'))
 THIRTY_DAYS = 30 * 24 * 60 * 60 
 
@@ -19,7 +19,7 @@ bcrypt_context = CryptContext(schemes=['argon2'], deprecated='auto')
 oauth2_bearer = OAuth2PasswordBearer(tokenUrl='auth/token')
     
 
-async def create_token(cls, sub: int, role: str) -> str:
+async def create_token(sub: int, role: str) -> str:
     '''Create access user token'''
 
     encode = {'sub': sub, 'role': role}
@@ -27,10 +27,10 @@ async def create_token(cls, sub: int, role: str) -> str:
     return jwt.encode(encode, SECRET_KEY, SECRET_ALGORITHM)
 
 
-async def add_token_in_cookie(cls, sub: int, role: str,  str, response: Response):
+async def add_token_in_cookie(sub: int, role: str, response: Response):
     '''add access user token in cookies'''
 
-    token = await cls.create_token(sub, role)
+    token = await create_token(sub, role)
     response.set_cookie(
         key=COOKIES_SESSION_ID_KEY, 
         value=token,
@@ -39,7 +39,6 @@ async def add_token_in_cookie(cls, sub: int, role: str,  str, response: Response
         samesite='lax')
     logger.info('Создание и добавление токена в куки')
     return token
-
 
 
 async def get_token(request: Request):
@@ -60,10 +59,22 @@ async def get_token(request: Request):
     return payload
 
 
-
 async def delete_token(response: Response):
     '''delete access user token in cookies'''
 
     response.delete_cookie(COOKIES_SESSION_ID_KEY)
     logger.info('Удаление токена из куков')
     return 'user logout'
+
+
+async def hashed_password(password: str) -> str:
+    '''hashing user password'''
+
+    user_hashed_password = bcrypt_context.hash(password)
+    return user_hashed_password
+
+
+async def password_verification(db_password: str, user_password: str) -> bool:
+    '''cheack hashing user password'''
+
+    return bcrypt_context.verify(user_password, db_password)
