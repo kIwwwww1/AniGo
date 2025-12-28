@@ -74,10 +74,12 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
     """
     try:
         if resp:=await get_anime_exists(anime_name, session):
+            
             '''Если нашли аниме в бд то выдаем из бд
             если не нашли то парсим сайт и добавляем все аниме в бд и потом выдаем (может занять много времени)
             '''
             return resp
+        
     except Exception:
         animes = await get_id_and_players(await get_anime_by_title(anime_name))
 
