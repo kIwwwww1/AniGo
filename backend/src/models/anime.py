@@ -7,7 +7,7 @@ class AnimeModel(Base):
     __tablename__ = 'anime'
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    title: Mapped[str] = mapped_column(unique=True, nullable=False)
+    title: Mapped[str] = mapped_column(unique=True, nullable=False, index=True)
     title_original: Mapped[str] = mapped_column(unique=True, nullable=False)
     poster_url: Mapped[str]
     description: Mapped[str | None]

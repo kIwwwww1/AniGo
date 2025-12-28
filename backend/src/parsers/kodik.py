@@ -12,6 +12,7 @@ parser_kodik = KodikParserAsync()
 async def get_anime_by_title(anime_name: str):
     id_shikimori_players = await parser_kodik.search(title=anime_name, strict=True, 
                                                    include_material_data=True, only_anime=True)
+    logger.info(id_shikimori_players)
     
     return id_shikimori_players
 
@@ -21,6 +22,8 @@ async def get_id_and_players(animes: list[dict]):
     for anime in animes:
         id_and_playes[anime.get('shikimori_id')] = anime.get('link')
 
+    logger.info(id_and_playes)
+    
     return id_and_playes
 
 

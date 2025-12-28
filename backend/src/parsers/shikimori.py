@@ -5,6 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from anime_parsers_ru import ShikimoriParserAsync
+from anime_parsers_ru.errors import ServiceError
 # 
 from src.parsers.kodik import get_anime_by_title, get_id_and_players
 from src.models.anime import AnimeModel
@@ -19,17 +20,6 @@ parser_shikimori = ShikimoriParserAsync()
 base_get_url = 'https://shikimori.one/animes/'
 
 
-async def get_anime_exists(anime_name: str, session: AsyncSession):
-    '''Поиск аниме по названию'''
-
-    words = anime_name.split()
-    conditions = [AnimeModel.title.ilike(f"%{word}%")for word in words]
-
-    query = select(AnimeModel).where(and_(*conditions))
-    result = (await session.execute(query)).scalars().all()
-    if result:
-        return result
-    raise HTTPException(status_code=status.HTTP_404, detail='Не найдено')
 
 
 async def get_or_create_genre(session: AsyncSession, genre_name: str) -> GenreModel:
@@ -49,7 +39,6 @@ async def get_or_create_genre(session: AsyncSession, genre_name: str) -> GenreMo
 
 
 async def get_or_create_theme(session: AsyncSession, theme_name: str) -> ThemeModel:
-
     """Получить или создать тему по названию"""
 
     result = await session.execute(
@@ -65,110 +54,140 @@ async def get_or_create_theme(session: AsyncSession, theme_name: str) -> ThemeMo
     return theme
 
 
+async def get_anime_exists(anime_name: str, session: AsyncSession):
+    '''Поиск аниме по названию'''
+
+    words = anime_name.split()
+    conditions = [AnimeModel.title.ilike(f"%{word}%")for word in words]
+
+    query = select(AnimeModel).where(and_(*conditions))
+    result = (await session.execute(query)).scalars().all()
+    if result:
+        return result
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Не найдено')
+
+
 async def shikimori_get_anime(anime_name: str, session: AsyncSession):
     """
     Парсер аниме из Shikimori и добавление в БД
-    
     Входные данные: название аниме
-    Выходные данные: добавленное аниме в БД
+    Выходные данные: аниме из БД или статус добавления
     """
+
+    # 1️⃣ Проверяем наличие аниме в БД
     try:
-        if resp:=await get_anime_exists(anime_name, session):
-            
-            '''Если нашли аниме в бд то выдаем из бд
-            если не нашли то парсим сайт и добавляем все аниме в бд и потом выдаем (может занять много времени)
-            '''
-            return resp
-        
+        resp = await get_anime_exists(anime_name, session)
+        logger.info(resp)
+        return resp
+    
+    except ServiceError:
+        return 'Аниме не найдено'
+    
     except Exception:
-        animes = await get_id_and_players(await get_anime_by_title(anime_name))
+        # 2️⃣ Получаем список ID аниме и плееров
+        animes = await get_id_and_players(
+            await get_anime_by_title(anime_name)
+        )
+        logger.info(animes)
 
-        logger.warning(animes)
+        if not animes:
+            raise HTTPException(
+                status_code=404,
+                detail="Аниме не найдено"
+            )
 
+        # 3️⃣ Парсим каждое аниме и сохраняем в БД
         for sh_id, player_url in animes.items():
-            # Получаем информацию об аниме из Shikimori
-            anime = await parser_shikimori.anime_info(
-                shikimori_link=f'{base_get_url}{sh_id}'
-            )
 
-            logger.info(anime)
+            # 🔹 Получаем данные из Shikimori
+            try:
+                anime = await parser_shikimori.anime_info(
+                    shikimori_link=f"{base_get_url}{sh_id}"
+                )
+            except ServiceError as e:
+                logger.warning(
+                    f"❌ Shikimori вернул ошибку для ID {sh_id}: {e}"
+                )
+                continue
 
-            # Преобразуем количество эпизодов в число
+            logger.info(f"📥 Получено аниме: {anime.get('title')}")
+
+            # 4️⃣ Преобразование данных
             episodes_count = None
-            if anime.get('episodes'):
+            if anime.get("episodes"):
                 try:
-                    episodes_count = int(anime.get('episodes'))
+                    episodes_count = int(anime["episodes"])
                 except (ValueError, TypeError):
-                    episodes_count = None
+                    pass
 
-            # Преобразуем оценку в float
             score = None
-            if anime.get('score'):
+            if anime.get("score"):
                 try:
-                    score = float(anime.get('score'))
+                    score = float(anime["score"])
                 except (ValueError, TypeError):
-                    score = None
+                    pass
 
-            # Создаём новое аниме
+            # 5️⃣ Создаём модель Anime
             new_anime = AnimeModel(
-                title=anime.get('title'),
-                title_original=anime.get('original_title'),
-                poster_url=anime.get('picture'),
-                description=anime.get('description', ''),
-                year=anime.get('year'),
-                type=anime.get('type', 'TV'),
+                title=anime.get("title"),
+                title_original=anime.get("original_title"),
+                poster_url=anime.get("picture"),
+                description=anime.get("description", ""),
+                year=anime.get("year"),
+                type=anime.get("type", "TV"),
                 episodes_count=episodes_count,
-                rating=anime.get('rating'),
+                rating=anime.get("rating"),
                 score=score,
-                studio=anime.get('studio'),
-                status=anime.get('status', 'unknown'),
+                studio=anime.get("studio"),
+                status=anime.get("status", "unknown"),
             )
 
-            # Добавляем жанры
-            if anime.get('genres'):
-                for genre_name in anime['genres']:
+            # 6️⃣ Жанры
+            if anime.get("genres"):
+                for genre_name in anime["genres"]:
                     genre = await get_or_create_genre(session, genre_name)
                     new_anime.genres.append(genre)
 
-            # Добавляем темы
-            if anime.get('themes'):
-                for theme_name in anime['themes']:
+            # 7️⃣ Темы
+            if anime.get("themes"):
+                for theme_name in anime["themes"]:
                     theme = await get_or_create_theme(session, theme_name)
                     new_anime.themes.append(theme)
 
-            # Создаём плеер (если его нет)
+            # 8️⃣ Плеер
             existing_player = (
                 await session.execute(
-                    select(PlayerModel).where(PlayerModel.base_url == player_url)
+                    select(PlayerModel).where(
+                        PlayerModel.base_url == player_url
+                    )
                 )
             ).scalar_one_or_none()
 
             if not existing_player:
-                new_player = PlayerModel(
+                existing_player = PlayerModel(
                     base_url=player_url,
-                    name='kodik',
-                    type='iframe'
+                    name="kodik",
+                    type="iframe"
                 )
-                session.add(new_player)
+                session.add(existing_player)
                 await session.flush()
-                existing_player = new_player
 
-            # Создаём связь между аниме и плеером
+            # 9️⃣ Связь аниме ↔ плеер
             anime_player = AnimePlayerModel(
                 external_id=f"{sh_id}_{player_url}",
                 embed_url=player_url,
-                translator='Russian',
-                quality='720p'
+                translator="Russian",
+                quality="720p",
+                anime=new_anime,
+                player=existing_player,
             )
-            anime_player.anime = new_anime
-            anime_player.player = existing_player
 
-            session.add(anime_player)
-            session.add(new_anime)
-
+            session.add_all([new_anime, anime_player])
             await session.commit()
+
             logger.info(f"✅ Добавлено аниме: {anime.get('title')}")
+
+            # ⏳ Антибан
             await asyncio.sleep(2)
 
-        return 'Все аниме успешно добавлены в БД'
-
+        return "Все аниме успешно добавлены в БД"
