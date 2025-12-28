@@ -21,14 +21,15 @@ base_get_url = 'https://shikimori.one/animes/'
 
 async def get_anime_exists(anime_name: str, session: AsyncSession):
     '''Поиск аниме по названию'''
-    
+
     words = anime_name.split()
     conditions = [AnimeModel.title.ilike(f"%{word}%")for word in words]
 
     query = select(AnimeModel).where(and_(*conditions))
     result = (await session.execute(query)).scalars().all()
-
-    return result
+    if result:
+        return result
+    raise HTTPException(status_code=status.HTTP_404, detail='Не найдено')
 
 
 async def get_or_create_genre(session: AsyncSession, genre_name: str) -> GenreModel:
@@ -72,8 +73,11 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
     Выходные данные: добавленное аниме в БД
     """
     try:
-        if get_anime_exists(anime_name, session):
-            return
+        if resp:=await get_anime_exists(anime_name, session):
+            '''Если нашли аниме в бд то выдаем из бд
+            если не нашли то парсим сайт и добавляем все аниме в бд и потом выдаем (может занять много времени)
+            '''
+            return resp
     except Exception:
         animes = await get_id_and_players(await get_anime_by_title(anime_name))
 
