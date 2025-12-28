@@ -74,7 +74,7 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
     Выходные данные: аниме из БД или статус добавления
     """
 
-    # 1️⃣ Проверяем наличие аниме в БД
+    # Проверяем наличие аниме в БД
     try:
         resp = await get_anime_exists(anime_name, session)
         logger.info(resp)
@@ -84,7 +84,8 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
         return 'Аниме не найдено'
     
     except Exception:
-        # 2️⃣ Получаем список ID аниме и плееров
+        # Получаем список ID аниме и плееров
+
         animes = await get_id_and_players(
             await get_anime_by_title(anime_name)
         )
@@ -96,7 +97,7 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
                 detail="Аниме не найдено"
             )
 
-        # 3️⃣ Парсим каждое аниме и сохраняем в БД
+        #  Парсим каждое аниме и сохраняем в БД
         for sh_id, player_url in animes.items():
 
             # 🔹 Получаем данные из Shikimori
@@ -112,7 +113,7 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
 
             logger.info(f"📥 Получено аниме: {anime.get('title')}")
 
-            # 4️⃣ Преобразование данных
+            #  Преобразование данных
             episodes_count = None
             if anime.get("episodes"):
                 try:
@@ -127,7 +128,7 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
                 except (ValueError, TypeError):
                     pass
 
-            # 5️⃣ Создаём модель Anime
+            #  Создаём модель Anime
             new_anime = AnimeModel(
                 title=anime.get("title"),
                 title_original=anime.get("original_title"),
@@ -142,19 +143,19 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
                 status=anime.get("status", "unknown"),
             )
 
-            # 6️⃣ Жанры
+            #  Жанры
             if anime.get("genres"):
                 for genre_name in anime["genres"]:
                     genre = await get_or_create_genre(session, genre_name)
                     new_anime.genres.append(genre)
 
-            # 7️⃣ Темы
+            #  Темы
             if anime.get("themes"):
                 for theme_name in anime["themes"]:
                     theme = await get_or_create_theme(session, theme_name)
                     new_anime.themes.append(theme)
 
-            # 8️⃣ Плеер
+            #  Плеер
             existing_player = (
                 await session.execute(
                     select(PlayerModel).where(
@@ -172,7 +173,7 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
                 session.add(existing_player)
                 await session.flush()
 
-            # 9️⃣ Связь аниме ↔ плеер
+            #  Связь аниме ↔ плеер
             anime_player = AnimePlayerModel(
                 external_id=f"{sh_id}_{player_url}",
                 embed_url=player_url,

@@ -13,3 +13,7 @@ database_router = APIRouter(prefix='/admin-panel', tags=['AdminPanel'])
 
 #     resp = await database_manager.restart_database(engine)
 #     return {'message': resp}
+
+
+async def updata_all_anime_data():
+    pass

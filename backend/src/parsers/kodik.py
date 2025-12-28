@@ -25,8 +25,3 @@ async def get_id_and_players(animes: list[dict]):
     logger.info(id_and_playes)
     
     return id_and_playes
-
-
-async def get_anime_all(session: AsyncSession):
-    animes = (await session.execute(select(AnimeModel))).scalars().all()
-    return animes
