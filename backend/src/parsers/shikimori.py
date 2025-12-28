@@ -1,8 +1,9 @@
+import re
 import asyncio
 from loguru import logger
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
 from anime_parsers_ru import ShikimoriParserAsync
 # 
 from src.parsers.kodik import get_anime_by_title, get_id_and_players
@@ -19,23 +20,20 @@ base_get_url = 'https://shikimori.one/animes/'
 
 
 async def get_anime_exists(anime_name: str, session: AsyncSession):
-    original_ru_anime: list[dict] = await parser_shikimori.search(anime_name)
-    anime_id_db = (await session.execute(
-        select(AnimeModel).where(
-            AnimeModel.title.op("~*")(rf"\m{anime_name}\M")))).scalars().all()
-
-
+    '''Поиск аниме по названию'''
     
-    if anime_id_db is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
-                            detail='Не нашли аниме в базе')
-    return anime_id_db
+    words = anime_name.split()
+    conditions = [AnimeModel.title.ilike(f"%{word}%")for word in words]
 
+    query = select(AnimeModel).where(and_(*conditions))
+    result = (await session.execute(query)).scalars().all()
 
+    return result
 
 
 async def get_or_create_genre(session: AsyncSession, genre_name: str) -> GenreModel:
     """Получить или создать жанр по названию"""
+
     result = await session.execute(
         select(GenreModel).where(GenreModel.name == genre_name)
     )
