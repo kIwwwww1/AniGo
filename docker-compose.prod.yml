@@ -1,16 +1,13 @@
-
+version: '3.8'
 
 services:
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: anigo-backend
+    container_name: anigo-backend-prod
     ports:
       - "8000:8000"
-    volumes:
-      - ./backend/src:/app/src
-      - ./backend/requirements.txt:/app/requirements.txt:ro
     environment:
       - PYTHONUNBUFFERED=1
       - POSTGRES_USER=user
@@ -18,15 +15,15 @@ services:
       - POSTGRES_DB=anigo
       - DB_HOST=db
       - DB_PORT=5432
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       - db
     networks:
       - anigo-network
+    restart: unless-stopped
 
   db:
     image: postgres:15
-    container_name: anigo-db
+    container_name: anigo-db-prod
     environment:
       POSTGRES_DB: anigo
       POSTGRES_USER: user
@@ -37,30 +34,20 @@ services:
       - "5440:5432"
     networks:
       - anigo-network
+    restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.dev
-    container_name: anigo-frontend
+      dockerfile: Dockerfile
+    container_name: anigo-frontend-prod
     ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
-      - ./frontend/index.html:/app/index.html
-      - ./frontend/vite.config.js:/app/vite.config.js
-      - ./frontend/package.json:/app/package.json
-      - /app/node_modules
-    environment:
-      - NODE_ENV=development
-      - VITE_API_URL=http://backend:8000
+      - "80:80"
     depends_on:
       - backend
     networks:
       - anigo-network
-    stdin_open: true
-    tty: true
+    restart: unless-stopped
 
 volumes:
   db_data:
@@ -69,3 +56,4 @@ volumes:
 networks:
   anigo-network:
     driver: bridge
+

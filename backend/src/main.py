@@ -3,6 +3,7 @@ import uvicorn
 from loguru import logger
 from typing import Callable
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 # 
 from src.api.crud_database import database_router
 from src.api.crud_users import user_router
@@ -10,6 +11,21 @@ from src.api.crud_anime import anime_router
 
 
 app = FastAPI()
+
+# Настройка CORS для работы с фронтендом
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://frontend:3000",
+        "http://localhost:80",
+        "http://127.0.0.1:80",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(database_router)
 app.include_router(user_router)
