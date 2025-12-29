@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
 import { animeAPI } from '../services/api'
 import AnimeCard from '../components/AnimeCard'
+import PopularAnimeCarousel from '../components/PopularAnimeCarousel'
 import './HomePage.css'
 
 function HomePage() {
@@ -19,13 +19,30 @@ function HomePage() {
     try {
       setLoading(true)
       const response = await animeAPI.getAnimePaginated(limit, offset)
-      if (response.message) {
-        setAnimeList(response.message)
+      
+      // Обрабатываем ответ - может быть массив или объект с message
+      const animeData = Array.isArray(response.message) 
+        ? response.message 
+        : (response.message || [])
+      
+      if (animeData.length > 0 || offset === 0) {
+        if (offset === 0) {
+          setAnimeList(animeData)
+        } else {
+          setAnimeList(prev => [...prev, ...animeData])
+        }
       }
       setError(null)
     } catch (err) {
-      setError('Ошибка загрузки аниме')
-      console.error(err)
+      const errorMessage = err.response?.data?.detail || err.message || 'Ошибка загрузки аниме'
+      setError(errorMessage)
+      console.error('Ошибка загрузки аниме:', err)
+      console.error('Детали ошибки:', err.response?.data)
+      
+      // При первой загрузке устанавливаем пустой список
+      if (offset === 0) {
+        setAnimeList([])
+      }
     } finally {
       setLoading(false)
     }
@@ -35,16 +52,6 @@ function HomePage() {
     setOffset(prev => prev + limit)
   }
 
-  if (loading && animeList.length === 0) {
-    return (
-      <div className="home-page">
-        <div className="container">
-          <div className="loading">Загрузка...</div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="home-page">
       <div className="container">
@@ -52,6 +59,9 @@ function HomePage() {
           <h2 className="hero-title">Добро пожаловать в AniGo</h2>
           <p className="hero-subtitle">Смотрите лучшие аниме онлайн</p>
         </section>
+
+        {/* Карусель популярных аниме */}
+        <PopularAnimeCarousel />
 
         <section className="anime-section">
           <h2 className="section-title">Каталог аниме</h2>

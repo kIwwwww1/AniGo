@@ -59,6 +59,21 @@ async def watch_anime_by_id(anime_id: int, session: SessionDep):
 
 
 @anime_router.get('/popular')
-async def get_popular_anime_data(page: PaginatorData, session: SessionDep):
-    resp = await get_popular_anime(page, session)
-    return {'message': resp}
+async def get_popular_anime_data(
+    limit: int = 6,
+    offset: int = 0,
+    session: SessionDep = None
+):
+    '''Получить популярные аниме с пагинацией'''
+    from src.schemas.anime import PaginatorData
+    
+    logger.info(f'Запрос популярных аниме: limit={limit}, offset={offset}')
+    
+    try:
+        paginator_data = PaginatorData(limit=limit, offset=offset)
+        resp = await get_popular_anime(paginator_data, session)
+        logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
+        return {'message': resp}
+    except Exception as e:
+        logger.error(f'Ошибка при получении популярных аниме: {e}')
+        return {'message': []}

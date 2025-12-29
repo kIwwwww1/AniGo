@@ -8,7 +8,24 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000, // 10 секунд таймаут
 })
+
+// Обработка ошибок сети
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.code === 'ECONNABORTED' || error.message === 'Network Error') {
+      console.error('Ошибка сети:', error)
+      return Promise.reject({
+        ...error,
+        isNetworkError: true,
+        message: 'Ошибка подключения к серверу'
+      })
+    }
+    return Promise.reject(error)
+  }
+)
 
 export const animeAPI = {
   // Получить аниме по названию
@@ -34,6 +51,14 @@ export const animeAPI = {
   // Получить аниме по ID
   getAnimeById: async (id) => {
     const response = await api.get(`/anime/id/${id}`)
+    return response.data
+  },
+
+  // Получить популярные аниме
+  getPopularAnime: async (limit = 6, offset = 0) => {
+    const response = await api.get('/anime/popular', {
+      params: { limit, offset },
+    })
     return response.data
   },
 }

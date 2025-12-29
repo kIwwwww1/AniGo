@@ -21,26 +21,22 @@ async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession):
 
 
 async def get_popular_anime(paginator_data: PaginatorData, session: AsyncSession):
-    '''Получить популярное аниме'''
+    '''Получить популярное аниме (все аниме из базы, отсортированные по популярности)'''
 
+    # Получаем все аниме, отсортированные по рейтингу (если есть) или по ID
+    # Убираем строгие фильтры, чтобы показывать все аниме из базы
     animes = (await session.execute(
         select(AnimeModel)
-            .outerjoin(RatingModel)
-            .where(
-                AnimeModel.status.in_(['идёт', 'вышло']),
-                AnimeModel.score>=7.5,
+            .order_by(
+                AnimeModel.score.desc().nulls_last(),  # Сначала по рейтингу (высокий -> низкий)
+                AnimeModel.id.desc()  # Потом по ID (новые -> старые)
             )
-            .group_by(AnimeModel.id)
-            .having(func.count(RatingModel.anime_id)>=0)
-            .order_by(AnimeModel.id)
             .limit(paginator_data.limit)
             .offset(paginator_data.offset)
     )).scalars().all()
 
-    if animes:
-        return animes
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
-                        detail='Не удалось отфильтровать аниме')
+    # Возвращаем пустой список вместо ошибки, если ничего не найдено
+    return animes if animes else []
 
 
 async def pagination_get_anime(paginator_data: PaginatorData, session: AsyncSession):

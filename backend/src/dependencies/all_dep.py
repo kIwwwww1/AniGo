@@ -15,10 +15,7 @@ PaginatorAnimeDep = Annotated[PaginatorData, Depends(PaginatorData)]
 CookieDataDep = Annotated[dict, Depends(get_token)]
 
 
-async def get_current_user(
-    request: Request,
-    session: SessionDep
-) -> UserModel:
+async def get_current_user(request: Request, session: SessionDep) -> UserModel:
     '''Получить текущего пользователя из токена'''
     token_data = await get_token(request)
     user_id = int(token_data.get('sub'))

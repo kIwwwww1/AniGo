@@ -1,0 +1,236 @@
+.popular-anime-section {
+  margin-bottom: 4rem;
+  padding: 2rem 0;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.section-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.carousel-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.carousel-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.carousel-btn:hover:not(:disabled) {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.05);
+}
+
+.carousel-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.carousel-wrapper {
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.carousel-container {
+  display: flex;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+}
+
+.carousel-page {
+  display: flex;
+  gap: 1.5rem;
+  flex: 0 0 100%;
+  min-width: 0;
+}
+
+.popular-anime-card {
+  flex: 0 0 calc(16.666% - 1.25rem);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-card);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: transform 0.3s, box-shadow 0.3s;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+
+.popular-anime-card:hover:not(.placeholder-card) {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5);
+}
+
+.popular-anime-card.placeholder-card {
+  background-color: #2a2a2a;
+  border: 1px solid var(--border);
+  cursor: default;
+  opacity: 0.6;
+}
+
+.popular-anime-card.placeholder-card:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.popular-anime-card .anime-card-poster {
+  position: relative;
+  width: 100%;
+  padding-top: 142.86%; /* 7:10 aspect ratio */
+  overflow: hidden;
+  background-color: var(--bg-secondary);
+}
+
+.placeholder-poster {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #1a1a1a;
+  color: #666;
+}
+
+.placeholder-card .anime-card-poster {
+  background-color: #1a1a1a;
+}
+
+.popular-anime-card .anime-card-poster img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.popular-anime-card .anime-card-score {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #ffd700;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.popular-anime-card .anime-card-score span {
+  font-size: 0.75rem;
+}
+
+.popular-anime-card .anime-card-title {
+  padding: 1rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 3rem;
+  line-height: 1.4;
+}
+
+.carousel-indicators {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--border);
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s;
+  padding: 0;
+}
+
+.indicator:hover {
+  background-color: var(--text-secondary);
+  transform: scale(1.2);
+}
+
+.indicator.active {
+  background-color: var(--accent);
+  width: 24px;
+  border-radius: 4px;
+}
+
+.loading {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+@media (max-width: 1400px) {
+  .popular-anime-card {
+    flex: 0 0 calc(20% - 1.2rem);
+  }
+}
+
+@media (max-width: 1200px) {
+  .popular-anime-card {
+    flex: 0 0 calc(25% - 1.125rem);
+  }
+}
+
+@media (max-width: 900px) {
+  .popular-anime-card {
+    flex: 0 0 calc(33.333% - 1rem);
+  }
+  
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .popular-anime-card {
+    flex: 0 0 calc(50% - 0.75rem);
+  }
+  
+  .section-title {
+    font-size: 1.5rem;
+  }
+}
+
