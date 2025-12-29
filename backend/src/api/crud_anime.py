@@ -1,15 +1,16 @@
 from loguru import logger
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
 # 
 from src.dependencies.all_dep import (SessionDep, PaginatorAnimeDep, 
                                       CookieDataDep)
 from src.parsers.kodik import (get_id_and_players, get_anime_by_title)
 from src.parsers.shikimori import (shikimori_get_anime)
 from src.services.animes import (get_anime_in_db_by_id, pagination_get_anime, 
-                                 get_popular_anime)
-from src.schemas.anime import PaginatorData
+                                 get_popular_anime, get_random_anime)
+from src.schemas.anime import PaginatorData, AnimeResponse, AnimeDetailResponse
 from src.auth.auth import get_token
 
 anime_router = APIRouter(prefix='/anime', tags=['AnimePanel'])
@@ -32,13 +33,36 @@ async def get_anime_by_name(anime_name: str, session: SessionDep):
 #     return {'message': resp}
 
 
-@anime_router.get('/get/paginators')
+@anime_router.get('/get/paginators', response_model=dict)
 async def get_anime_paginators(pagin_data: PaginatorAnimeDep, 
                                session: SessionDep):
     '''Показать аниме с пагинацией в бд'''
 
     resp = await pagination_get_anime(pagin_data, session)
-    return {'message': resp}
+    # Конвертируем SQLAlchemy модели в Pydantic схемы
+    # Используем ручную конвертацию, чтобы избежать проблем с relationships
+    anime_list = []
+    for anime in resp:
+        try:
+            anime_dict = {
+                'id': anime.id,
+                'title': anime.title,
+                'title_original': anime.title_original,
+                'poster_url': anime.poster_url,
+                'description': anime.description,
+                'year': anime.year,
+                'type': anime.type,
+                'episodes_count': anime.episodes_count,
+                'rating': anime.rating,
+                'score': anime.score,
+                'studio': anime.studio,
+                'status': anime.status,
+            }
+            anime_list.append(AnimeResponse(**anime_dict))
+        except Exception as err:
+            logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
+            continue
+    return {'message': anime_list}
 
 
 # @anime_router.get('/{anime_name}')
@@ -50,15 +74,120 @@ async def get_anime_paginators(pagin_data: PaginatorAnimeDep,
 #     return {'message': resp}
 
 
-@anime_router.get('/{anime_id:int}')
+@anime_router.get('/{anime_id:int}', response_model=dict)
 async def watch_anime_by_id(anime_id: int, session: SessionDep):
-    '''Поиск аниме в базе по id'''
+    '''Поиск аниме в базе по id с полными данными'''
 
-    resp = await get_anime_in_db_by_id(anime_id, session)
-    return {'message': resp}
+    try:
+        anime = await get_anime_in_db_by_id(anime_id, session)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f'Ошибка при получении аниме {anime_id}: {e}', exc_info=True)
+        raise HTTPException(status_code=500, detail=f'Ошибка при получении аниме: {str(e)}')
+    
+    # Конвертируем в Pydantic схему
+    try:
+        logger.info(f'Начало конвертации аниме {anime_id}')
+        
+        # Конвертируем genres
+        genres = []
+        try:
+            if anime.genres:
+                for genre in anime.genres:
+                    genres.append({
+                        'id': genre.id,
+                        'name': genre.name
+                    })
+            logger.info(f'Конвертировано жанров: {len(genres)}')
+        except Exception as e:
+            logger.error(f'Ошибка при конвертации жанров: {e}', exc_info=True)
+        
+        # Конвертируем players
+        players = []
+        try:
+            if anime.players:
+                for player in anime.players:
+                    players.append({
+                        'id': player.id,
+                        'embed_url': player.embed_url,
+                        'translator': player.translator,
+                        'quality': player.quality
+                    })
+            logger.info(f'Конвертировано плееров: {len(players)}')
+        except Exception as e:
+            logger.error(f'Ошибка при конвертации плееров: {e}', exc_info=True)
+        
+        # Конвертируем comments
+        comments = []
+        try:
+            if anime.comments:
+                for comment in anime.comments:
+                    try:
+                        # Проверяем, что user загружен
+                        user_data = None
+                        if hasattr(comment, 'user') and comment.user:
+                            user_data = {
+                                'id': comment.user.id,
+                                'username': comment.user.username,
+                                'avatar_url': getattr(comment.user, 'avatar_url', None)
+                            }
+                        else:
+                            # Если user не загружен, пропускаем комментарий
+                            logger.warning(f'User not loaded for comment {getattr(comment, "id", "unknown")}')
+                            continue
+                        
+                        # Конвертируем datetime в строку
+                        created_at_str = None
+                        if hasattr(comment, 'created_at') and comment.created_at:
+                            if isinstance(comment.created_at, str):
+                                created_at_str = comment.created_at
+                            else:
+                                created_at_str = comment.created_at.isoformat()
+                        
+                        comments.append({
+                            'id': comment.id,
+                            'text': comment.text,
+                            'created_at': created_at_str,
+                            'user': user_data
+                        })
+                    except Exception as e:
+                        logger.error(f'Ошибка при конвертации комментария {getattr(comment, "id", "unknown")}: {e}', exc_info=True)
+                        continue
+            logger.info(f'Конвертировано комментариев: {len(comments)}')
+        except Exception as e:
+            logger.error(f'Ошибка при конвертации комментариев: {e}', exc_info=True)
+        
+        # Создаем полный объект
+        try:
+            anime_dict = {
+                'id': anime.id,
+                'title': anime.title,
+                'title_original': anime.title_original,
+                'poster_url': anime.poster_url,
+                'description': anime.description,
+                'year': anime.year,
+                'type': anime.type,
+                'episodes_count': anime.episodes_count,
+                'rating': anime.rating,
+                'score': anime.score,
+                'studio': anime.studio,
+                'status': anime.status,
+                'genres': genres,
+                'players': players,
+                'comments': comments
+            }
+            logger.info(f'Успешно создан словарь для аниме {anime_id}')
+            return {'message': anime_dict}
+        except Exception as e:
+            logger.error(f'Ошибка при создании словаря аниме: {e}', exc_info=True)
+            raise
+    except Exception as e:
+        logger.error(f'Ошибка при конвертации аниме {anime_id}: {e}', exc_info=True)
+        raise HTTPException(status_code=500, detail=f'Ошибка при получении данных аниме: {str(e)}')
 
 
-@anime_router.get('/popular')
+@anime_router.get('/popular', response_model=dict)
 async def get_popular_anime_data(
     limit: int = 6,
     offset: int = 0,
@@ -73,7 +202,69 @@ async def get_popular_anime_data(
         paginator_data = PaginatorData(limit=limit, offset=offset)
         resp = await get_popular_anime(paginator_data, session)
         logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
-        return {'message': resp}
+        # Конвертируем SQLAlchemy модели в Pydantic схемы
+        # Используем from_attributes=True для правильной работы с SQLAlchemy
+        anime_list = []
+        for anime in resp:
+            try:
+                anime_dict = {
+                    'id': anime.id,
+                    'title': anime.title,
+                    'title_original': anime.title_original,
+                    'poster_url': anime.poster_url,
+                    'description': anime.description,
+                    'year': anime.year,
+                    'type': anime.type,
+                    'episodes_count': anime.episodes_count,
+                    'rating': anime.rating,
+                    'score': anime.score,
+                    'studio': anime.studio,
+                    'status': anime.status,
+                }
+                anime_list.append(AnimeResponse(**anime_dict))
+            except Exception as err:
+                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
+                continue
+        return {'message': anime_list}
     except Exception as e:
-        logger.error(f'Ошибка при получении популярных аниме: {e}')
+        logger.error(f'Ошибка при получении популярных аниме: {e}', exc_info=True)
+        return {'message': []}
+
+
+@anime_router.get('/random', response_model=dict)
+async def get_random_anime_data(
+    limit: int = 3,
+    session: SessionDep = None
+):
+    '''Получить случайные аниме'''
+    logger.info(f'Запрос случайных аниме: limit={limit}')
+    
+    try:
+        resp = await get_random_anime(limit, session)
+        logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
+        # Конвертируем SQLAlchemy модели в Pydantic схемы
+        anime_list = []
+        for anime in resp:
+            try:
+                anime_dict = {
+                    'id': anime.id,
+                    'title': anime.title,
+                    'title_original': anime.title_original,
+                    'poster_url': anime.poster_url,
+                    'description': anime.description,
+                    'year': anime.year,
+                    'type': anime.type,
+                    'episodes_count': anime.episodes_count,
+                    'rating': anime.rating,
+                    'score': anime.score,
+                    'studio': anime.studio,
+                    'status': anime.status,
+                }
+                anime_list.append(AnimeResponse(**anime_dict))
+            except Exception as err:
+                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
+                continue
+        return {'message': anime_list}
+    except Exception as e:
+        logger.error(f'Ошибка при получении случайных аниме: {e}', exc_info=True)
         return {'message': []}
