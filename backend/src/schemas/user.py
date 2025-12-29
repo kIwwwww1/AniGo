@@ -11,3 +11,6 @@ class LoginUser(UserName):
 
 class CreateNewUser(LoginUser, UserEmail):
     pass
+
+class CreateUserComment(BaseModel):
+    text: str = Field(min_length=1, max_length=150)

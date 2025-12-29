@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 # 
 from src.models.users import UserModel
-from src.schemas.user import CreateNewUser
+from src.schemas.user import CreateNewUser, CreateUserComment
 from src.auth.auth import (add_token_in_cookie, hashed_password)
 from src.services.database import restart_database
 from src.db.database import engine, new_session
@@ -57,6 +57,5 @@ async def add_user(new_user: CreateNewUser, response: Response, session: AsyncSe
 
 
 
-async def get_all_users(session: AsyncSession):
-    users = (await session.execute(select(UserModel))).scalars().all()
-    return users
+async def create_comment(text: CreateUserComment, session: AsyncSession):
+    pass

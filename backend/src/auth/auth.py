@@ -12,22 +12,22 @@ load_dotenv()
 
 SECRET_KEY = str(getenv('SECRET_KEY'))
 SECRET_ALGORITHM = str(getenv('ALGORITHM', 'HS256'))    
-COOKIES_SESSION_ID_KEY = str(getenv('COOKIES_SESSION_ID_KEY'))
+COOKIES_SESSION_ID_KEY = str(getenv('COOKIES_SESSION_ID_KEY', 'session_id'))
 THIRTY_DAYS = 30 * 24 * 60 * 60 
 
 bcrypt_context = CryptContext(schemes=['argon2'], deprecated='auto')
 oauth2_bearer = OAuth2PasswordBearer(tokenUrl='auth/token')
     
 
-async def create_token(sub: int, role: str) -> str:
+async def create_token(sub: str, role: str) -> str:
     '''Create access user token'''
 
-    encode = {'sub': sub, 'role': role}
+    _encode = {'sub': str(sub), 'role': role}
     logger.info('Создание токена')
-    return jwt.encode(encode, SECRET_KEY, SECRET_ALGORITHM)
+    return jwt.encode(_encode, SECRET_KEY, SECRET_ALGORITHM)
 
 
-async def add_token_in_cookie(sub: int, role: str, response: Response):
+async def add_token_in_cookie(sub: str, role: str, response: Response):
     '''add access user token in cookies'''
 
     token = await create_token(sub, role)
@@ -44,19 +44,19 @@ async def add_token_in_cookie(sub: int, role: str, response: Response):
 async def get_token(request: Request):
     '''get access user token in cookies'''
 
+    token = request.cookies.get(COOKIES_SESSION_ID_KEY)
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
+                            detail='User not authenticated')
     try:
-        token = request.cookies.get(COOKIES_SESSION_ID_KEY)
-        '''get data in access user token in cookies'''
-
-        if not token:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail='user not in account')
-        payload = jwt.decode(token, SECRET_KEY, SECRET_ALGORITHM)
-    except JWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    logger.info('Поиск токена в куках')
-    return payload
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[SECRET_ALGORITHM])
+        return payload
+    except JWTError as e:
+        logger.error(e)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
 
 
 async def delete_token(response: Response):
