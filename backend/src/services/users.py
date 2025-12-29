@@ -3,7 +3,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 # 
 from src.models.users import UserModel
-from src.schemas.user import CreateNewUser, CreateUserComment
+from src.models.ratings import RatingModel
+from src.models.comments import CommentModel
+from src.schemas.user import CreateNewUser, CreateUserComment, CreateUserRating
 from src.auth.auth import (add_token_in_cookie, hashed_password)
 from src.services.database import restart_database
 from src.db.database import engine, new_session
@@ -57,5 +59,38 @@ async def add_user(new_user: CreateNewUser, response: Response, session: AsyncSe
 
 
 
-async def create_comment(text: CreateUserComment, session: AsyncSession):
-    pass
+async def get_all_users(session: AsyncSession):
+    '''Получить всех пользователей'''
+    users = (await session.execute(select(UserModel))).scalars().all()
+    return users
+
+
+async def create_comment(comment_data: CreateUserComment, user_id: int, session: AsyncSession):
+    '''Создать комментарий к аниме'''
+
+    new_comment = CommentModel(
+        user_id=user_id,
+        anime_id=comment_data.anime_id,
+        text=comment_data.text
+    )
+    
+    session.add(new_comment)
+    await session.commit()
+    await session.refresh(new_comment)
+    
+    return new_comment
+
+async def create_rating(rating_data: CreateUserRating, user_id: int, session: AsyncSession):
+    '''Создать рейтинг аниме'''
+
+    new_rating = RatingModel(
+        user_id=user_id,
+        rating=rating_data.rating,
+        anime_id=rating_data.anime_id,
+    )
+    
+    session.add(new_rating)
+    await session.commit()
+    await session.refresh(new_rating)
+    
+    return new_rating

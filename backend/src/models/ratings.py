@@ -10,7 +10,7 @@ class RatingModel(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('user.id'))
     anime_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('anime.id'))
 
-    rating: Mapped[int] = mapped_column(nullable=False)
+    rating: Mapped[float] = mapped_column(nullable=False)
 
     user: Mapped['UserModel'] = relationship(back_populates='ratings')
     anime: Mapped['AnimeModel'] = relationship(back_populates='ratings')

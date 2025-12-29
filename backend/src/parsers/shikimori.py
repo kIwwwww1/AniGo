@@ -18,6 +18,7 @@ from src.models.themes import ThemeModel
 parser_shikimori = ShikimoriParserAsync()
 
 base_get_url = 'https://shikimori.one/animes/'
+new_base_get_url = 'https://shikimori.one/animes/z'
 
 
 
@@ -89,7 +90,7 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
         animes = await get_id_and_players(
             await get_anime_by_title(anime_name)
         )
-        logger.info(animes)
+
 
         if not animes:
             raise HTTPException(
@@ -97,14 +98,12 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
                 detail="Аниме не найдено"
             )
 
-        #  Парсим каждое аниме и сохраняем в БД
+        #  Парсим каждое аниме и сохраняем в БД (Без ошибки с id аниме)
         for sh_id, player_url in animes.items():
 
             # 🔹 Получаем данные из Shikimori
             try:
-                anime = await parser_shikimori.anime_info(
-                    shikimori_link=f"{base_get_url}{sh_id}"
-                )
+                anime = await parser_shikimori.anime_info(shikimori_link=f"{base_get_url}{sh_id}")
             except ServiceError as e:
                 logger.warning(
                     f"❌ Shikimori вернул ошибку для ID {sh_id}: {e}"

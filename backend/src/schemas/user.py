@@ -14,3 +14,8 @@ class CreateNewUser(LoginUser, UserEmail):
 
 class CreateUserComment(BaseModel):
     text: str = Field(min_length=1, max_length=150)
+    anime_id: int
+
+class CreateUserRating(BaseModel):
+    rating: int = Field(ge=1, le=10)
+    anime_id: int

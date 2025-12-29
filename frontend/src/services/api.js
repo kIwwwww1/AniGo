@@ -38,5 +38,16 @@ export const animeAPI = {
   },
 }
 
+export const userAPI = {
+  // Создать комментарий к аниме
+  createComment: async (animeId, text) => {
+    const response = await api.post('/user/create/comment', {
+      anime_id: animeId,
+      text: text,
+    })
+    return response.data
+  },
+}
+
 export default api
 

@@ -21,7 +21,5 @@ async def get_id_and_players(animes: list[dict]):
     id_and_playes = {}
     for anime in animes:
         id_and_playes[anime.get('shikimori_id')] = anime.get('link')
-
-    logger.info(id_and_playes)
     
     return id_and_playes
