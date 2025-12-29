@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from anime_parsers_ru import ShikimoriParserAsync
-from anime_parsers_ru.errors import ServiceError
+from anime_parsers_ru.errors import ServiceError, NoResults
 # 
 from src.parsers.kodik import get_anime_by_title, get_id_and_players
 from src.models.anime import AnimeModel
@@ -79,7 +79,7 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
         logger.info(resp)
         return resp
     
-    except ServiceError:
+    except (ServiceError, NoResults):
         return 'Аниме не найдено'
     
     except Exception:
@@ -206,4 +206,5 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
             # ⏳ Антибан
             await asyncio.sleep(1.5)
 
-        return "Все аниме успешно добавлены в БД"
+        new_animes = await get_anime_by_title_db(anime_name, session)
+        return new_animes
