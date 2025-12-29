@@ -3,17 +3,19 @@ from fastapi import APIRouter, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 # 
-from src.dependencies.all_dep import SessionDep, PaginatorAnimeDep, CookieDataDep
+from src.dependencies.all_dep import (SessionDep, PaginatorAnimeDep, 
+                                      CookieDataDep)
 from src.parsers.kodik import (get_id_and_players, get_anime_by_title)
-from src.parsers.shikimori import (shikimori_get_anime, get_anime_exists)
-from src.services.animes import (get_anime_in_db_by_id, pagination_get_anime,
-                                 get_user_anime, get_popular_anime)
+from src.parsers.shikimori import (shikimori_get_anime)
+from src.services.animes import (get_anime_in_db_by_id, pagination_get_anime, 
+                                 get_popular_anime)
+from src.schemas.anime import PaginatorData
 from src.auth.auth import get_token
 
 anime_router = APIRouter(prefix='/anime', tags=['AnimePanel'])
 
 
-@anime_router.get('/{anime_name}')
+@anime_router.get('/search/{anime_name}')
 async def get_anime_by_name(anime_name: str, session: SessionDep):
     '''Поиск аниме по названию
     (Если нашли аниме в бд то выдаем из бд
@@ -24,30 +26,31 @@ async def get_anime_by_name(anime_name: str, session: SessionDep):
     return {'message': resp}
 
 
-@anime_router.get('/user/my/animes')
-async def get_user_favorit_anime(user: CookieDataDep, request: Request, session: SessionDep):
-    resp = await get_user_anime(user.get('sub', 'None'), session) 
-    return {'message': resp}
+# @anime_router.get('/user/my/animes')
+# async def get_user_favorit_anime(user: CookieDataDep, request: Request, session: SessionDep):
+#     resp = await get_user_anime(user.get('sub', 'None'), session) 
+#     return {'message': resp}
 
 
 @anime_router.get('/get/paginators')
-async def get_anime_paginators(pagin_data: PaginatorAnimeDep, session: SessionDep):
+async def get_anime_paginators(pagin_data: PaginatorAnimeDep, 
+                               session: SessionDep):
     '''Показать аниме с пагинацией в бд'''
 
     resp = await pagination_get_anime(pagin_data, session)
     return {'message': resp}
 
 
-@anime_router.get('/{anime_name}/exists')
-async def get_anime(anime_name: str, session: SessionDep):
-    '''Поиск аниме в базе по названию 
-    (если не нашли говорим что нету)'''
+# @anime_router.get('/{anime_name}')
+# async def get_anime(anime_name: str, session: SessionDep):
+#     '''Поиск аниме в базе по названию 
+#     (если не нашли говорим что нету)'''
 
-    resp = await get_anime_exists(anime_name, session)
-    return {'message': resp}
+#     resp = await get_anime_exists(anime_name, session)
+#     return {'message': resp}
 
 
-@anime_router.get('/id/{anime_id}')
+@anime_router.get('/{anime_id:int}')
 async def watch_anime_by_id(anime_id: int, session: SessionDep):
     '''Поиск аниме в базе по id'''
 
@@ -55,7 +58,7 @@ async def watch_anime_by_id(anime_id: int, session: SessionDep):
     return {'message': resp}
 
 
-@anime_router.get('/search/get-popular-anime')
-async def get_popular_anime_data(session: SessionDep):
-    resp = await get_popular_anime(session)
+@anime_router.get('/popular')
+async def get_popular_anime_data(page: PaginatorData, session: SessionDep):
+    resp = await get_popular_anime(page, session)
     return {'message': resp}

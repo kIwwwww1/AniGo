@@ -7,6 +7,8 @@ from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from passlib.hash import bcrypt
 from jose import jwt, JWTError
+from sqlalchemy.ext.asyncio import AsyncSession
+# 
 
 load_dotenv()
 
@@ -20,15 +22,16 @@ oauth2_bearer = OAuth2PasswordBearer(tokenUrl='auth/token')
     
 
 async def create_token(sub: str, role: str) -> str:
-    '''Create access user token'''
+    '''Создать токен'''
 
     _encode = {'sub': str(sub), 'role': role}
     logger.info('Создание токена')
     return jwt.encode(_encode, SECRET_KEY, SECRET_ALGORITHM)
 
 
-async def add_token_in_cookie(sub: str, role: str, response: Response):
-    '''add access user token in cookies'''
+async def add_token_in_cookie(sub: str, role: str, 
+                              response: Response):
+    '''Добавление токена в куки'''
 
     token = await create_token(sub, role)
     response.set_cookie(
@@ -42,7 +45,7 @@ async def add_token_in_cookie(sub: str, role: str, response: Response):
 
 
 async def get_token(request: Request):
-    '''get access user token in cookies'''
+    '''Поиск токена в куках'''
 
     token = request.cookies.get(COOKIES_SESSION_ID_KEY)
     if not token:
@@ -60,7 +63,7 @@ async def get_token(request: Request):
 
 
 async def delete_token(response: Response):
-    '''delete access user token in cookies'''
+    '''Удалить токен из куков'''
 
     response.delete_cookie(COOKIES_SESSION_ID_KEY)
     logger.info('Удаление токена из куков')
@@ -68,13 +71,21 @@ async def delete_token(response: Response):
 
 
 async def hashed_password(password: str) -> str:
-    '''hashing user password'''
+    '''Хеширование пароля'''
 
     user_hashed_password = bcrypt_context.hash(password)
     return user_hashed_password
 
 
 async def password_verification(db_password: str, user_password: str) -> bool:
-    '''cheack hashing user password'''
+    '''Проверка херированного пароля с паролем пользователя'''
 
     return bcrypt_context.verify(user_password, db_password)
+
+
+# async def get_user_by_token(request: Request, session: AsyncSession):
+#     '''Поиск пользователя в базе по токену'''
+
+#     token_data = await get_token(request)
+#     user_id = int(token_data.get('sub'))
+#     return await get_user_by_id(user_id, session)

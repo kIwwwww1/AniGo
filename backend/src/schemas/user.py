@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 class UserName(BaseModel):
     username: str = Field(min_length=3, max_length=15)
@@ -18,4 +18,34 @@ class CreateUserComment(BaseModel):
 
 class CreateUserRating(BaseModel):
     rating: int = Field(ge=1, le=10)
-    anime_id: int
+    anime_id: int = Field(gt=0)
+    
+    @field_validator('rating', mode='before')
+    @classmethod
+    def validate_rating(cls, v):
+        """Конвертируем rating в целое число, если это возможно"""
+        if isinstance(v, str):
+            try:
+                return int(v)
+            except ValueError:
+                raise ValueError('rating должен быть целым числом от 1 до 10')
+        if isinstance(v, float):
+            if v.is_integer():
+                return int(v)
+            raise ValueError('rating должен быть целым числом, не дробным')
+        return v
+    
+    @field_validator('anime_id', mode='before')
+    @classmethod
+    def validate_anime_id(cls, v):
+        """Конвертируем anime_id в целое число, если это возможно"""
+        if isinstance(v, str):
+            try:
+                return int(v)
+            except ValueError:
+                raise ValueError('anime_id должен быть целым числом')
+        if isinstance(v, float):
+            if v.is_integer():
+                return int(v)
+            raise ValueError('anime_id должен быть целым числом, не дробным')
+        return v

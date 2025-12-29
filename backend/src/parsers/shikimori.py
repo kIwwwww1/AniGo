@@ -21,9 +21,7 @@ base_get_url = 'https://shikimori.one/animes/'
 new_base_get_url = 'https://shikimori.one/animes/z'
 
 
-
-
-async def get_or_create_genre(session: AsyncSession, genre_name: str) -> GenreModel:
+async def get_or_create_genre(session: AsyncSession, genre_name: str):
     """Получить или создать жанр по названию"""
 
     result = await session.execute(
@@ -39,7 +37,7 @@ async def get_or_create_genre(session: AsyncSession, genre_name: str) -> GenreMo
     return genre
 
 
-async def get_or_create_theme(session: AsyncSession, theme_name: str) -> ThemeModel:
+async def get_or_create_theme(session: AsyncSession, theme_name: str):
     """Получить или создать тему по названию"""
 
     result = await session.execute(
@@ -55,17 +53,17 @@ async def get_or_create_theme(session: AsyncSession, theme_name: str) -> ThemeMo
     return theme
 
 
-async def get_anime_exists(anime_name: str, session: AsyncSession):
-    '''Поиск аниме по названию'''
+async def get_anime_by_title_db(anime_name: str, session: AsyncSession):
+    '''Поиск аниме в базе по названию'''
 
     words = anime_name.split()
     conditions = [AnimeModel.title.ilike(f"%{word}%")for word in words]
-
     query = select(AnimeModel).where(and_(*conditions))
     result = (await session.execute(query)).scalars().all()
     if result:
         return result
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Не найдено')
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
+                        detail='Аниме не найдено')
 
 
 async def shikimori_get_anime(anime_name: str, session: AsyncSession):
@@ -77,7 +75,7 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
 
     # Проверяем наличие аниме в БД
     try:
-        resp = await get_anime_exists(anime_name, session)
+        resp = await get_anime_by_title_db(anime_name, session)
         logger.info(resp)
         return resp
     
@@ -101,13 +99,31 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
         #  Парсим каждое аниме и сохраняем в БД (Без ошибки с id аниме)
         for sh_id, player_url in animes.items():
 
-            # 🔹 Получаем данные из Shikimori
+            # 🔹 Получаем данные из Shikimori (сначала пробуем основной URL)
+            anime = None
             try:
                 anime = await parser_shikimori.anime_info(shikimori_link=f"{base_get_url}{sh_id}")
+                if anime:
+                    logger.info(f"📥 Получено аниме: Без ошибки")
             except ServiceError as e:
                 logger.warning(
-                    f"❌ Shikimori вернул ошибку для ID {sh_id}: {e}"
+                    f"❌ Shikimori вернул ошибку для ID {sh_id} на основном URL: {e}"
                 )
+                # Пробуем альтернативный URL
+                try:
+                    logger.info(f"🔄 Пробуем альтернативный URL для ID {sh_id}")
+                    anime = await parser_shikimori.anime_info(shikimori_link=f"{new_base_get_url}{sh_id}")
+                    if anime:
+                        logger.info(f"✅ Получено аниме через альтернативный URL: {anime.get('title', 'Без названия')}")
+                except ServiceError as e2:
+                    logger.warning(
+                        f"❌ Shikimori вернул ошибку для ID {sh_id} на альтернативном URL: {e2}"
+                    )
+                    continue
+            
+            # Если anime всё ещё None после всех попыток, пропускаем
+            if not anime:
+                logger.warning(f"⚠️ Не удалось получить данные для ID {sh_id}, пропускаем")
                 continue
 
             logger.info(f"📥 Получено аниме: {anime.get('title')}")
@@ -188,6 +204,6 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
             logger.info(f"✅ Добавлено аниме: {anime.get('title')}")
 
             # ⏳ Антибан
-            await asyncio.sleep(2)
+            await asyncio.sleep(1.5)
 
         return "Все аниме успешно добавлены в БД"
