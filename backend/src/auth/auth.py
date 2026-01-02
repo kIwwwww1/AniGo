@@ -38,8 +38,9 @@ async def add_token_in_cookie(sub: str, role: str,
         key=COOKIES_SESSION_ID_KEY, 
         value=token,
         max_age=THIRTY_DAYS,
-        httponly=True, 
-        samesite='lax')
+        httponly=True,
+        samesite='lax',
+        path='/')
     logger.info('Создание и добавление токена в куки')
     return token
 
@@ -65,7 +66,7 @@ async def get_token(request: Request):
 async def delete_token(response: Response):
     '''Удалить токен из куков'''
 
-    response.delete_cookie(COOKIES_SESSION_ID_KEY)
+    response.delete_cookie(COOKIES_SESSION_ID_KEY, path='/')
     logger.info('Удаление токена из куков')
     return 'user logout'
 

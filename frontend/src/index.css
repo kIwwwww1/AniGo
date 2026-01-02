@@ -4,6 +4,16 @@
   box-sizing: border-box;
 }
 
+/* Скрытие scrollbar для всех браузеров */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE и Edge */
+}
+
+*::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
 :root {
   --bg-primary: #0a0a0a;
   --bg-secondary: #141414;

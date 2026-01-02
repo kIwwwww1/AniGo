@@ -1,7 +1,18 @@
-.video-player {
+.video-player-container {
   width: 100%;
   height: 100%;
   position: relative;
+  background-color: #000;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.video-player-iframe-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
   background-color: #000;
 }
 
@@ -9,8 +20,192 @@
   width: 100%;
   height: 100%;
   border: none;
+  border-radius: 12px;
+  position: relative;
+  display: block;
 }
 
+/* Стили для iframe Kodik в стиле YouTube */
+.kodik-iframe-wrapper {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: #000;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.custom-video-player {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  cursor: pointer;
+}
+
+.video-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  padding: 0 12px 12px;
+}
+
+.video-controls.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* Прогресс бар */
+.progress-container {
+  position: relative;
+  height: 4px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  background-color: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  transition: height 0.1s ease;
+}
+
+.progress-container:hover {
+  height: 6px;
+}
+
+.progress-bar {
+  height: 100%;
+  background-color: #ff0000;
+  border-radius: 2px;
+  transition: width 0.1s ease;
+}
+
+.progress-handle {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  background-color: #ff0000;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.progress-container:hover .progress-handle {
+  opacity: 1;
+}
+
+/* Нижняя панель контролов */
+.controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.controls-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.controls-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Кнопки */
+.control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background-color 0.2s ease;
+  padding: 0;
+}
+
+.control-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.control-btn svg {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
+.play-pause-btn {
+  width: 48px;
+  height: 48px;
+}
+
+.play-pause-btn svg {
+  width: 28px;
+  height: 28px;
+}
+
+/* Контроль громкости */
+.volume-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.volume-btn {
+  flex-shrink: 0;
+}
+
+.volume-slider {
+  width: 80px;
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+  transition: height 0.1s ease;
+}
+
+.volume-slider:hover {
+  height: 6px;
+}
+
+.volume-bar {
+  height: 100%;
+  background-color: #fff;
+  border-radius: 2px;
+  transition: width 0.1s ease;
+}
+
+/* Время */
+.time-display {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Полноэкранный режим */
+.video-player-container:fullscreen {
+  border-radius: 0;
+}
+
+.video-player-container:fullscreen .video-iframe {
+  border-radius: 0;
+}
+
+/* Сообщение об отсутствии видео */
 .no-video {
   display: flex;
   align-items: center;
@@ -18,5 +213,37 @@
   height: 100%;
   color: var(--text-secondary);
   font-size: 1.25rem;
+  background-color: var(--bg-card);
+  border-radius: 12px;
 }
 
+/* Адаптивность */
+@media (max-width: 768px) {
+  .volume-slider {
+    width: 60px;
+  }
+
+  .time-display {
+    font-size: 12px;
+  }
+
+  .control-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .control-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .play-pause-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .play-pause-btn svg {
+    width: 24px;
+    height: 24px;
+  }
+}

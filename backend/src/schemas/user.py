@@ -13,7 +13,7 @@ class CreateNewUser(LoginUser, UserEmail):
     pass
 
 class CreateUserComment(BaseModel):
-    text: str = Field(min_length=1, max_length=150)
+    text: str = Field(min_length=1, max_length=100)
     anime_id: int
 
 class CreateUserRating(BaseModel):
@@ -34,6 +34,24 @@ class CreateUserRating(BaseModel):
                 return int(v)
             raise ValueError('rating должен быть целым числом, не дробным')
         return v
+    
+    @field_validator('anime_id', mode='before')
+    @classmethod
+    def validate_anime_id(cls, v):
+        """Конвертируем anime_id в целое число, если это возможно"""
+        if isinstance(v, str):
+            try:
+                return int(v)
+            except ValueError:
+                raise ValueError('anime_id должен быть целым числом')
+        if isinstance(v, float):
+            if v.is_integer():
+                return int(v)
+            raise ValueError('anime_id должен быть целым числом, не дробным')
+        return v
+
+class CreateUserFavorite(BaseModel):
+    anime_id: int = Field(gt=0)
     
     @field_validator('anime_id', mode='before')
     @classmethod

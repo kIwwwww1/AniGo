@@ -9,8 +9,11 @@ function PopularAnimeCarousel() {
   const [currentPage, setCurrentPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
   const [hasError, setHasError] = useState(false)
+  const [totalCount, setTotalCount] = useState(0)
+  const [showAll, setShowAll] = useState(false)
   const carouselRef = useRef(null)
   const itemsPerPage = 6
+  const maxPagesToShow = 3
 
   // Функция для создания пустых карточек
   const createEmptyCards = (count) => {
@@ -24,8 +27,20 @@ function PopularAnimeCarousel() {
   }
 
   useEffect(() => {
+    loadAnimeCount()
     loadAnime(0)
   }, [])
+
+  const loadAnimeCount = async () => {
+    try {
+      const response = await animeAPI.getAnimeCount()
+      const count = response.message || 0
+      setTotalCount(count)
+    } catch (err) {
+      console.error('Ошибка загрузки количества популярных аниме:', err)
+      setTotalCount(0)
+    }
+  }
 
   const loadAnime = async (offset) => {
     try {
@@ -104,19 +119,46 @@ function PopularAnimeCarousel() {
   const scrollToPage = (page) => {
     if (carouselRef.current) {
       const scrollAmount = page * 100
-      carouselRef.current.style.transform = `translateX(-${scrollAmount}%)`
+      // Используем translate3d для GPU ускорения
+      carouselRef.current.style.transform = `translate3d(-${scrollAmount}%, 0, 0)`
     }
   }
 
   // Всегда показываем секцию, даже если данных нет
   const displayList = animeList.length > 0 ? animeList : createEmptyCards(itemsPerPage)
-  const totalPages = Math.ceil(displayList.length / itemsPerPage)
+  const totalPages = totalCount > 0 ? Math.ceil(totalCount / itemsPerPage) : Math.ceil(displayList.length / itemsPerPage)
 
   return (
     <section className="popular-anime-section">
       <div className="container">
         <div className="section-header">
-          <h2 className="section-title">Популярное аниме</h2>
+          <div className="section-title-wrapper">
+            <h2 className="section-title">Популярное аниме</h2>
+            {totalCount > 0 && Math.ceil(totalCount / itemsPerPage) > maxPagesToShow && !showAll && (
+              <button 
+                className="section-expand-btn"
+                onClick={async () => {
+                  setShowAll(true)
+                  // Загружаем данные для всех страниц, если их еще нет
+                  const totalPages = Math.ceil(totalCount / itemsPerPage)
+                  const neededItems = totalPages * itemsPerPage
+                  if (animeList.length < neededItems && hasMore) {
+                    // Загружаем данные порциями
+                    let currentOffset = animeList.length
+                    while (currentOffset < neededItems && hasMore) {
+                      await loadAnime(currentOffset)
+                      currentOffset += itemsPerPage
+                    }
+                  }
+                }}
+                aria-label="Показать все аниме"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </button>
+            )}
+          </div>
           <div className="carousel-controls">
             <button 
               className="carousel-btn prev" 
@@ -128,12 +170,12 @@ function PopularAnimeCarousel() {
                 <path d="M15 18l-6-6 6-6"/>
               </svg>
             </button>
-            <button 
-              className="carousel-btn next" 
-              onClick={handleNext}
-              disabled={currentPage >= totalPages - 1 && !hasMore}
-              aria-label="Следующая страница"
-            >
+              <button 
+                className="carousel-btn next" 
+                onClick={handleNext}
+                disabled={totalCount > 0 && currentPage >= (showAll ? Math.ceil(totalCount / itemsPerPage) : Math.min(maxPagesToShow, Math.ceil(totalCount / itemsPerPage))) - 1 && !hasMore}
+                aria-label="Следующая страница"
+              >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M9 18l6-6-6-6"/>
               </svg>
@@ -143,59 +185,77 @@ function PopularAnimeCarousel() {
 
         <div className="carousel-wrapper">
           <div className="carousel-container" ref={carouselRef}>
-            {Array.from({ length: Math.ceil(displayList.length / itemsPerPage) }, (_, pageIndex) => (
+            {totalCount > 0 && Array.from({ length: showAll ? Math.ceil(totalCount / itemsPerPage) : Math.min(maxPagesToShow, Math.ceil(totalCount / itemsPerPage)) }, (_, pageIndex) => (
               <div key={pageIndex} className="carousel-page">
                 {displayList.slice(pageIndex * itemsPerPage, (pageIndex + 1) * itemsPerPage).map((anime) => {
                   const isPlaceholder = anime.isPlaceholder || !anime.poster_url
                   
-                  const cardContent = (
-                    <>
-                      <div className="anime-card-poster">
-                        {isPlaceholder ? (
-                          <div className="placeholder-poster">
-                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                              <path d="M9 9h6v6H9z"/>
-                            </svg>
-                          </div>
-                        ) : (
-                          <>
-                            <img 
-                              src={anime.poster_url || '/placeholder.jpg'} 
-                              alt={anime.title}
-                              loading="lazy"
-                            />
-                            {anime.score && (
-                              <div className="anime-card-score">
-                                <span>★</span> {anime.score.toFixed(1)}
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                      <div className="anime-card-title">{anime.title || 'Не определено'}</div>
-                    </>
+                  // Определяем класс оценки в зависимости от значения
+                  const getScoreClass = (scoreValue) => {
+                    if (!scoreValue) return ''
+                    const score = parseFloat(scoreValue)
+                    if (score === 10) return 'score-perfect'
+                    if (score >= 7 && score < 10) return 'score-high'
+                    if (score >= 4 && score < 7) return 'score-medium'
+                    if (score >= 1 && score < 4) return 'score-low'
+                    return ''
+                  }
+                  
+                  const score = anime.score ? parseFloat(anime.score) : null
+                  const scoreClass = getScoreClass(score)
+                  const scoreDisplay = score ? score.toFixed(1) : null
+                  
+                  const posterContent = (
+                    <div className="anime-card-poster">
+                      {isPlaceholder ? (
+                        <div className="placeholder-poster">
+                          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                            <path d="M9 9h6v6H9z"/>
+                          </svg>
+                        </div>
+                      ) : (
+                        <>
+                          <img 
+                            src={anime.poster_url || '/placeholder.jpg'} 
+                            alt={anime.title}
+                            loading="lazy"
+                          />
+                          {score && (
+                            <div className={`anime-card-score ${scoreClass}`}>
+                              {score === 10 ? <span className="star-icon">🌟</span> : <span>★</span>}
+                              {scoreDisplay}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
                   )
                   
                   if (isPlaceholder) {
                     return (
                       <div
                         key={anime.id}
-                        className="popular-anime-card placeholder-card"
+                        className="popular-anime-card-wrapper"
                       >
-                        {cardContent}
+                        <div className="popular-anime-card placeholder-card">
+                          {posterContent}
+                        </div>
+                        <div className="anime-card-title">{anime.title || 'Не определено'}</div>
                       </div>
                     )
                   }
                   
                   return (
-                    <Link
-                      key={anime.id}
-                      to={`/watch/${anime.id}`}
-                      className="popular-anime-card"
-                    >
-                      {cardContent}
-                    </Link>
+                    <div key={anime.id} className="popular-anime-card-wrapper">
+                      <Link
+                        to={`/watch/${anime.id}`}
+                        className="popular-anime-card"
+                      >
+                        {posterContent}
+                      </Link>
+                      <div className="anime-card-title">{anime.title || 'Не определено'}</div>
+                    </div>
                   )
                 })}
               </div>
@@ -203,13 +263,18 @@ function PopularAnimeCarousel() {
           </div>
         </div>
 
-        {Math.ceil(displayList.length / itemsPerPage) > 1 && (
+        {totalCount > 0 && (showAll ? Math.ceil(totalCount / itemsPerPage) : Math.min(maxPagesToShow, Math.ceil(totalCount / itemsPerPage))) > 1 && (
           <div className="carousel-indicators">
-            {Array.from({ length: Math.ceil(displayList.length / itemsPerPage) }, (_, i) => (
+            {Array.from({ length: showAll ? Math.ceil(totalCount / itemsPerPage) : Math.min(maxPagesToShow, Math.ceil(totalCount / itemsPerPage)) }, (_, i) => (
               <button
                 key={i}
                 className={`indicator ${i === currentPage ? 'active' : ''}`}
                 onClick={() => {
+                  const targetOffset = i * itemsPerPage
+                  // Если у нас нет данных для этой страницы, загружаем их
+                  if (targetOffset >= animeList.length && hasMore) {
+                    loadAnime(targetOffset)
+                  }
                   setCurrentPage(i)
                   scrollToPage(i)
                 }}

@@ -1,6 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from datetime import datetime
 from loguru import logger
 # 
 from src.models.anime import AnimeModel
@@ -28,6 +29,10 @@ async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession):
             )).scalar_one_or_none()
         
         if anime:
+            # Сортируем комментарии от новых к старым
+            if anime.comments:
+                anime.comments.sort(key=lambda c: c.created_at if c.created_at else datetime.min, reverse=True)
+            
             logger.info(f'Аниме {anime_id} загружено. Players: {len(anime.players) if anime.players else 0}, Genres: {len(anime.genres) if anime.genres else 0}, Comments: {len(anime.comments) if anime.comments else 0}')
             return anime
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
@@ -129,3 +134,12 @@ async def get_random_anime(limit: int = 3, session: AsyncSession = None):
     )).scalars().all()
     
     return animes if animes else []
+
+
+async def get_anime_total_count(session: AsyncSession):
+    '''Получить общее количество аниме в базе'''
+    count = (await session.execute(
+        select(func.count(AnimeModel.id))
+    )).scalar()
+    
+    return count if count else 0

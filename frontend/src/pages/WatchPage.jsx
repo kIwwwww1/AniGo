@@ -14,10 +14,18 @@ function WatchPage() {
   const [selectedPlayer, setSelectedPlayer] = useState(null)
   const [commentText, setCommentText] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+  const [userRating, setUserRating] = useState(null)
+  const [submittingRating, setSubmittingRating] = useState(false)
+  const [isRatingMenuOpen, setIsRatingMenuOpen] = useState(false)
+  const [isFavorite, setIsFavorite] = useState(false)
 
   useEffect(() => {
+    // Прокручиваем страницу вверх при переходе на страницу аниме
+    window.scrollTo(0, 0)
     loadAnime()
     loadRandomAnime()
+    checkFavoriteStatus()
   }, [animeId])
 
   useEffect(() => {
@@ -32,6 +40,20 @@ function WatchPage() {
       }
     }
   }, [anime])
+
+  useEffect(() => {
+    // Закрываем меню рейтинга при клике вне его
+    const handleClickOutside = (event) => {
+      if (isRatingMenuOpen && !event.target.closest('.rating-button-wrapper')) {
+        setIsRatingMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isRatingMenuOpen])
 
   const loadAnime = async () => {
     try {
@@ -60,6 +82,20 @@ function WatchPage() {
     }
   }
 
+  const checkFavoriteStatus = async () => {
+    try {
+      const response = await userAPI.checkFavorite(parseInt(animeId))
+      if (response.message && response.message.is_favorite !== undefined) {
+        setIsFavorite(response.message.is_favorite)
+      }
+    } catch (err) {
+      // Если пользователь не авторизован, просто игнорируем ошибку
+      if (err.response?.status !== 401) {
+        console.error('Ошибка проверки избранного:', err)
+      }
+    }
+  }
+
   const handleSubmitComment = async (e) => {
     e.preventDefault()
     if (!commentText.trim()) return
@@ -75,6 +111,40 @@ function WatchPage() {
       alert('Ошибка при отправке комментария')
     } finally {
       setSubmittingComment(false)
+    }
+  }
+
+  const handleSubmitRating = async (rating) => {
+    if (rating < 1 || rating > 10) return
+
+    try {
+      setSubmittingRating(true)
+      await userAPI.createRating(parseInt(animeId), rating)
+      setUserRating(rating)
+      setIsRatingMenuOpen(false)
+      // Перезагружаем аниме, чтобы получить обновленный рейтинг
+      await loadAnime()
+    } catch (err) {
+      console.error('Ошибка при отправке рейтинга:', err)
+      alert(err.response?.data?.detail || 'Ошибка при отправке рейтинга')
+    } finally {
+      setSubmittingRating(false)
+    }
+  }
+
+  const handleToggleFavorite = async () => {
+    try {
+      const response = await userAPI.toggleFavorite(parseInt(animeId))
+      if (response.message && response.message.is_favorite !== undefined) {
+        setIsFavorite(response.message.is_favorite)
+      }
+    } catch (err) {
+      if (err.response?.status === 401) {
+        alert('Необходимо войти в аккаунт для добавления в избранное')
+      } else {
+        console.error('Ошибка при работе с избранным:', err)
+        alert('Ошибка при работе с избранным')
+      }
     }
   }
 
@@ -127,22 +197,66 @@ function WatchPage() {
           </div>
           
           <div className="anime-info-section">
-            <h1 className="anime-title-main">{anime.title}</h1>
-            {anime.title_original && (
-              <p className="anime-original-title">{anime.title_original}</p>
-            )}
+            <div className="anime-title-wrapper">
+              <h1 className="anime-title-main">{anime.title}</h1>
+              {anime.title_original && (
+                <p className="anime-original-title">{anime.title_original}</p>
+              )}
+            </div>
             
             <div className="anime-details-grid">
+              {anime.score && (
+                <div className="detail-row">
+                  <span className="detail-label">Оценка</span>
+                  <span className="detail-value">★ {anime.score.toFixed(1)}</span>
+                </div>
+              )}
+              
               {anime.status && (
                 <div className="detail-row">
-                  <span className="detail-label">Статус:</span>
+                  <span className="detail-label">Статус</span>
                   <span className="detail-value">{anime.status}</span>
                 </div>
               )}
               
-              {anime.genres && anime.genres.length > 0 && (
+              {anime.type && (
                 <div className="detail-row">
-                  <span className="detail-label">Жанры:</span>
+                  <span className="detail-label">Тип</span>
+                  <span className="detail-value">{anime.type}</span>
+                </div>
+              )}
+              
+              {anime.year && (
+                <div className="detail-row">
+                  <span className="detail-label">Год</span>
+                  <span className="detail-value">{anime.year}</span>
+                </div>
+              )}
+              
+              {anime.episodes_count && (
+                <div className="detail-row">
+                  <span className="detail-label">Эпизодов</span>
+                  <span className="detail-value">{anime.episodes_count}</span>
+                </div>
+              )}
+              
+              {anime.studio && (
+                <div className="detail-row">
+                  <span className="detail-label">Студия</span>
+                  <span className="detail-value">{anime.studio}</span>
+                </div>
+              )}
+              
+              {anime.rating && (
+                <div className="detail-row">
+                  <span className="detail-label">Рейтинг</span>
+                  <span className="detail-value">{anime.rating}</span>
+                </div>
+              )}
+              
+              {anime.genres && anime.genres.length > 0 && (
+                <div className="detail-row" style={{ gridColumn: '1 / -1' }}>
+                  <span className="detail-label">Жанры</span>
                   <div className="genres-tags">
                     {anime.genres.map((genre) => (
                       <span key={genre.id} className="genre-tag">
@@ -152,33 +266,36 @@ function WatchPage() {
                   </div>
                 </div>
               )}
-              
-              {anime.studio && (
-                <div className="detail-row">
-                  <span className="detail-label">Студия:</span>
-                  <span className="detail-value">{anime.studio}</span>
-                </div>
-              )}
-              
-              {anime.year && (
-                <div className="detail-row">
-                  <span className="detail-label">Год:</span>
-                  <span className="detail-value">{anime.year}</span>
-                </div>
-              )}
-              
-              {anime.type && (
-                <div className="detail-row">
-                  <span className="detail-label">Тип:</span>
-                  <span className="detail-value">{anime.type}</span>
-                </div>
-              )}
             </div>
             
             {anime.description && (
               <div className="anime-description-section">
                 <h3 className="section-title">Обзор</h3>
-                <p className="anime-description-text">{anime.description}</p>
+                <div className={`description-wrapper ${isDescriptionExpanded ? 'expanded' : ''}`}>
+                  <p className="anime-description-text">
+                    {isDescriptionExpanded || anime.description.length <= 250
+                      ? anime.description
+                      : `${anime.description.substring(0, 250)}...`}
+                  </p>
+                  {anime.description.length > 250 && (
+                    <button
+                      onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                      className={`description-toggle-btn ${isDescriptionExpanded ? 'expanded' : ''}`}
+                      aria-label={isDescriptionExpanded ? 'Свернуть' : 'Развернуть'}
+                    >
+                      <svg 
+                        width="20" 
+                        height="20" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2"
+                      >
+                        <path d="M9 18l6-6-6-6"/>
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -196,19 +313,91 @@ function WatchPage() {
               )}
             </div>
 
+            {/* Кнопки действий: Оценить и Избранное */}
+            <div className="player-actions">
+              <div className="rating-button-wrapper">
+                <button
+                  type="button"
+                  onClick={() => setIsRatingMenuOpen(!isRatingMenuOpen)}
+                  className="rate-button"
+                  disabled={submittingRating}
+                >
+                  {userRating ? `Оценка: ${userRating}` : 'Оценить'}
+                </button>
+                {isRatingMenuOpen && (
+                  <div className="rating-menu">
+                    <div className="rating-stars-menu">
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((rating) => (
+                        <button
+                          key={rating}
+                          type="button"
+                          onClick={() => handleSubmitRating(rating)}
+                          disabled={submittingRating}
+                          className={`rating-star-btn-menu ${userRating === rating ? 'selected' : ''}`}
+                          title={`Оценить на ${rating}`}
+                        >
+                          <span className="rating-star">★</span>
+                          <span className="rating-number">{rating}</span>
+                        </button>
+                      ))}
+                    </div>
+                    {submittingRating && (
+                      <p className="rating-submitting">Отправка...</p>
+                    )}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleFavorite}
+                className={`favorite-button ${isFavorite ? 'active' : ''}`}
+                aria-label={isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'}
+              >
+                <svg 
+                  width="24" 
+                  height="24" 
+                  viewBox="0 0 24 24" 
+                  fill={isFavorite ? "#e50914" : "none"}
+                  stroke={isFavorite ? "#e50914" : "currentColor"}
+                  strokeWidth="2"
+                >
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+              </button>
+            </div>
+
             {/* Комментарии */}
             <div className="comments-section">
               <h3 className="section-title">Комментарии</h3>
               
               {/* Форма для нового комментария */}
               <form onSubmit={handleSubmitComment} className="comment-form">
-                <textarea
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  placeholder="Оставьте пару слов..."
-                  className="comment-input"
-                  rows="3"
-                />
+                <div className="comment-input-wrapper">
+                  <textarea
+                    value={commentText}
+                    onChange={(e) => {
+                      if (e.target.value.length <= 100) {
+                        setCommentText(e.target.value)
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      // Отправка при нажатии Enter/Return без Shift
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        if (commentText.trim() && !submittingComment) {
+                          handleSubmitComment(e)
+                        }
+                      }
+                    }}
+                    placeholder="Оставьте пару слов..."
+                    className="comment-input"
+                    rows="3"
+                    maxLength={100}
+                  />
+                  <div className="comment-char-count">
+                    {commentText.length}/100
+                  </div>
+                </div>
                 <button
                   type="submit"
                   disabled={submittingComment || !commentText.trim()}
@@ -221,24 +410,31 @@ function WatchPage() {
               {/* Список комментариев */}
               <div className="comments-list">
                 {anime.comments && anime.comments.length > 0 ? (
-                  anime.comments.map((comment) => (
-                    <div key={comment.id} className="comment-item">
-                      <div className="comment-header">
-                        <div className="comment-user">
-                          {comment.user.avatar_url && (
-                            <img
-                              src={comment.user.avatar_url}
-                              alt={comment.user.username}
-                              className="comment-avatar"
-                            />
-                          )}
-                          <span className="comment-username">{comment.user.username}</span>
+                  [...anime.comments]
+                    .sort((a, b) => {
+                      // Сортируем от нового к старому
+                      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0
+                      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
+                      return dateB - dateA // Обратный порядок (новые первыми)
+                    })
+                    .map((comment) => (
+                      <div key={comment.id} className="comment-item">
+                        <div className="comment-header">
+                          <div className="comment-user">
+                            {comment.user.avatar_url && (
+                              <img
+                                src={comment.user.avatar_url}
+                                alt={comment.user.username}
+                                className="comment-avatar"
+                              />
+                            )}
+                            <span className="comment-username">{comment.user.username}</span>
+                          </div>
+                          <span className="comment-date">{formatDate(comment.created_at)}</span>
                         </div>
-                        <span className="comment-date">{formatDate(comment.created_at)}</span>
+                        <p className="comment-text">{comment.text}</p>
                       </div>
-                      <p className="comment-text">{comment.text}</p>
-                    </div>
-                  ))
+                    ))
                 ) : (
                   <p className="no-comments">Пока нет комментариев. Будьте первым!</p>
                 )}

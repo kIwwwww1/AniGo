@@ -9,7 +9,7 @@ from src.dependencies.all_dep import (SessionDep, PaginatorAnimeDep,
 from src.parsers.kodik import (get_id_and_players, get_anime_by_title)
 from src.parsers.shikimori import (shikimori_get_anime)
 from src.services.animes import (get_anime_in_db_by_id, pagination_get_anime, 
-                                 get_popular_anime, get_random_anime)
+                                 get_popular_anime, get_random_anime, get_anime_total_count)
 from src.schemas.anime import PaginatorData, AnimeResponse, AnimeDetailResponse
 from src.auth.auth import get_token
 
@@ -268,3 +268,14 @@ async def get_random_anime_data(
     except Exception as e:
         logger.error(f'Ошибка при получении случайных аниме: {e}', exc_info=True)
         return {'message': []}
+
+
+@anime_router.get('/count', response_model=dict)
+async def get_anime_count(session: SessionDep):
+    '''Получить общее количество аниме в базе'''
+    try:
+        count = await get_anime_total_count(session)
+        return {'message': count}
+    except Exception as e:
+        logger.error(f'Ошибка при получении количества аниме: {e}', exc_info=True)
+        return {'message': 0}

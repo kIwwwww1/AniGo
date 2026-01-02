@@ -27,17 +27,136 @@
   margin-bottom: 3rem;
 }
 
-.section-title {
-  font-size: 2rem;
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 2rem;
-  color: var(--text-primary);
 }
 
-.anime-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 2rem;
-  margin-bottom: 3rem;
+.section-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.section-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.section-expand-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s, color 0.3s;
+  border-radius: 8px;
+}
+
+.section-expand-btn:hover {
+  transform: translateX(4px);
+  color: var(--accent-hover);
+  background-color: rgba(229, 9, 20, 0.1);
+}
+
+.carousel-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.carousel-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.carousel-btn:hover:not(:disabled) {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.05);
+}
+
+.carousel-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.carousel-wrapper {
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 1.5rem;
+  padding-top: 8px;
+  margin-top: -8px;
+}
+
+.carousel-container {
+  display: flex;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+  overflow: visible;
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+.carousel-page {
+  display: flex;
+  gap: 1.5rem;
+  flex: 0 0 100%;
+  min-width: 0;
+  overflow: visible;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+.carousel-page .anime-card-wrapper {
+  flex: 0 0 calc(16.666% - 1.25rem);
+  min-width: 0;
+}
+
+.carousel-indicators {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: var(--border);
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s;
+  padding: 0;
+}
+
+.indicator:hover {
+  background-color: var(--text-secondary);
+  transform: scale(1.2);
+}
+
+.indicator.active {
+  background-color: var(--accent);
+  width: 24px;
+  border-radius: 6px;
 }
 
 .load-more-container {
@@ -49,7 +168,7 @@
   background-color: var(--accent);
   color: var(--text-primary);
   padding: 1rem 2rem;
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 1rem;
   font-weight: 600;
   transition: background-color 0.3s;
@@ -76,9 +195,43 @@
   border: 1px solid var(--accent);
   color: var(--accent);
   padding: 1rem;
-  border-radius: 8px;
+  border-radius: 12px;
   margin-bottom: 2rem;
   text-align: center;
+}
+
+@media (max-width: 1400px) {
+  .carousel-page .anime-card-wrapper {
+    flex: 0 0 calc(20% - 1.2rem);
+  }
+}
+
+@media (max-width: 1200px) {
+  .carousel-page .anime-card-wrapper {
+    flex: 0 0 calc(25% - 1.125rem);
+  }
+}
+
+@media (max-width: 900px) {
+  .carousel-page .anime-card-wrapper {
+    flex: 0 0 calc(33.333% - 1rem);
+  }
+  
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .carousel-page .anime-card-wrapper {
+    flex: 0 0 calc(50% - 0.75rem);
+  }
+  
+  .section-title {
+    font-size: 1.5rem;
+  }
 }
 
 @media (max-width: 768px) {
@@ -88,11 +241,6 @@
 
   .hero-subtitle {
     font-size: 1rem;
-  }
-
-  .anime-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 1rem;
   }
 }
 
