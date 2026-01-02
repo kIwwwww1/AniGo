@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom'
-import { useState, useEffect } from 'react'
-import { userAPI } from '../services/api'
+import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { userAPI, animeAPI } from '../services/api'
 import './Layout.css'
 
 function Layout({ children }) {
@@ -23,6 +23,14 @@ function Layout({ children }) {
   const [user, setUser] = useState(null)
   const [loadingUser, setLoadingUser] = useState(true)
   const [showUserDropdown, setShowUserDropdown] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const searchInputRef = useRef(null)
+  const searchLinkRef = useRef(null)
+  const searchResultsRef = useRef(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     const handleScroll = () => {
@@ -63,10 +71,83 @@ function Layout({ children }) {
       if (showUserDropdown && !event.target.closest('.user-menu-container')) {
         setShowUserDropdown(false)
       }
+      // Закрываем поиск только если клик был вне search-container и результатов
+      if (showSearch && 
+          !event.target.closest('.search-container') && 
+          !event.target.closest('.search-results')) {
+        setShowSearch(false)
+        setSearchQuery('')
+        setSearchResults([])
+      }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showUserDropdown])
+  }, [showUserDropdown, showSearch])
+
+  // Фокусируемся на поле ввода при открытии поиска
+  useEffect(() => {
+    if (showSearch && searchInputRef.current) {
+      setTimeout(() => {
+        searchInputRef.current?.focus()
+      }, 300) // Задержка для анимации
+    }
+  }, [showSearch])
+
+  // Поиск в реальном времени с debounce
+  useEffect(() => {
+    if (!showSearch) {
+      setSearchResults([])
+      return
+    }
+
+    const trimmedQuery = searchQuery.trim()
+    if (trimmedQuery.length < 2) {
+      setSearchResults([])
+      return
+    }
+
+    const searchTimeout = setTimeout(async () => {
+      try {
+        setSearchLoading(true)
+        const response = await animeAPI.getAnimeBySearchName(trimmedQuery)
+        if (response.message && Array.isArray(response.message)) {
+          setSearchResults(response.message.slice(0, 10)) // Ограничиваем до 10 результатов
+        } else {
+          setSearchResults([])
+        }
+      } catch (err) {
+        console.error('Ошибка поиска:', err)
+        setSearchResults([])
+      } finally {
+        setSearchLoading(false)
+      }
+    }, 500) // Debounce 500ms
+
+    return () => clearTimeout(searchTimeout)
+  }, [searchQuery, showSearch])
+
+  const handleSearchClick = (e) => {
+    e.stopPropagation()
+    if (!showSearch) {
+      setShowSearch(true)
+    }
+  }
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault()
+    if (searchQuery.trim()) {
+      navigate(`/watch/search/${encodeURIComponent(searchQuery.trim())}`)
+      setShowSearch(false)
+      setSearchQuery('')
+      setSearchResults([])
+    }
+  }
+
+  const handleSearchClose = () => {
+    setShowSearch(false)
+    setSearchQuery('')
+    setSearchResults([])
+  }
 
   const handleLogout = async () => {
     try {
@@ -202,12 +283,88 @@ function Layout({ children }) {
             <nav className="nav">
               <Link to="/" className="nav-link">Главная</Link>
               <Link to="/my" className="nav-link">Моё</Link>
-              <Link to="/search" className="nav-link search-link">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <path d="m21 21-4.35-4.35"></path>
-                </svg>
-              </Link>
+              <div className="search-container">
+                <button 
+                  ref={searchLinkRef}
+                  type="button"
+                  className={`search-link ${showSearch ? 'search-active' : ''}`}
+                  onClick={handleSearchClick}
+                  aria-label="Поиск"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                  </svg>
+                </button>
+                <form 
+                  className={`search-form ${showSearch ? 'search-form-active' : ''}`}
+                  onSubmit={handleSearchSubmit}
+                >
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    className="search-input"
+                    placeholder="Поиск аниме..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="search-close-btn"
+                    onClick={handleSearchClose}
+                    aria-label="Закрыть поиск"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </form>
+                {/* Результаты поиска */}
+                {showSearch && (searchResults.length > 0 || searchLoading || (searchQuery.trim().length >= 2 && !searchLoading)) && (
+                  <div className="search-results" ref={searchResultsRef}>
+                    {searchLoading ? (
+                      <div className="search-results-loading">
+                        <div className="loading-cat">
+                          <span className="cat-emoji">🐱</span>
+                        </div>
+                        <div className="loading-text">Поиск...</div>
+                      </div>
+                    ) : searchResults.length > 0 ? (
+                      <div className="search-results-list">
+                        {searchResults.map((anime) => (
+                          <Link
+                            key={anime.id}
+                            to={`/watch/${anime.id}`}
+                            className="search-result-item"
+                            onClick={() => {
+                              setShowSearch(false)
+                              setSearchQuery('')
+                              setSearchResults([])
+                            }}
+                          >
+                            <div className="search-result-poster">
+                              <img
+                                src={anime.poster_url || '/placeholder.jpg'}
+                                alt={anime.title}
+                                loading="lazy"
+                              />
+                            </div>
+                            <div className="search-result-info">
+                              <div className="search-result-title">{anime.title || 'Без названия'}</div>
+                              {anime.year && (
+                                <div className="search-result-year">{anime.year}</div>
+                              )}
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    ) : searchQuery.trim().length >= 2 ? (
+                      <div className="search-results-empty">Ничего не найдено</div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
             </nav>
           </div>
           <div className="header-right">
