@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { animeAPI } from '../services/api'
-import AnimeCard from '../components/AnimeCard'
 import PopularAnimeCarousel from '../components/PopularAnimeCarousel'
 import './HomePage.css'
 
@@ -105,6 +105,17 @@ function HomePage() {
     }
   }
 
+  // Определяем класс оценки в зависимости от значения
+  const getScoreClass = (scoreValue) => {
+    if (!scoreValue) return ''
+    const score = parseFloat(scoreValue)
+    if (score === 10) return 'score-perfect'
+    if (score >= 7 && score < 10) return 'score-high'
+    if (score >= 4 && score < 7) return 'score-medium'
+    if (score >= 1 && score < 4) return 'score-low'
+    return ''
+  }
+
   return (
     <div className="home-page">
       <div className="container">
@@ -175,9 +186,35 @@ function HomePage() {
             <div className="carousel-container" ref={carouselRef}>
               {totalCount > 0 && Array.from({ length: showAll ? Math.ceil(totalCount / itemsPerPage) : Math.min(maxPagesToShow, Math.ceil(totalCount / itemsPerPage)) }, (_, pageIndex) => (
                 <div key={pageIndex} className="carousel-page">
-                  {animeList.slice(pageIndex * itemsPerPage, (pageIndex + 1) * itemsPerPage).map((anime) => (
-                    <AnimeCard key={anime.id} anime={anime} />
-                  ))}
+                  {animeList.slice(pageIndex * itemsPerPage, (pageIndex + 1) * itemsPerPage).map((anime) => {
+                    const score = anime.score ? parseFloat(anime.score) : null
+                    const scoreClass = getScoreClass(score)
+                    const scoreDisplay = score ? score.toFixed(1) : null
+
+                    return (
+                      <div key={anime.id} className="popular-anime-card-wrapper">
+                        <Link
+                          to={`/watch/${anime.id}`}
+                          className="popular-anime-card"
+                        >
+                          <div className="anime-card-poster">
+                            <img 
+                              src={anime.poster_url || '/placeholder.jpg'} 
+                              alt={anime.title}
+                              loading="lazy"
+                            />
+                            {score && (
+                              <div className={`anime-card-score ${scoreClass}`}>
+                                {score === 10 ? <span className="star-icon">🌟</span> : <span>★</span>}
+                                {scoreDisplay}
+                              </div>
+                            )}
+                          </div>
+                        </Link>
+                        <div className="anime-card-title">{anime.title || 'Без названия'}</div>
+                      </div>
+                    )
+                  })}
                 </div>
               ))}
             </div>
