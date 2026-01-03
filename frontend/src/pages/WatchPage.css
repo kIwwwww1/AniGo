@@ -426,6 +426,7 @@
 }
 
 .comment-form {
+  margin-top: 1rem;
   margin-bottom: 2rem;
   display: flex;
   flex-direction: column;
@@ -534,9 +535,70 @@
   color: var(--text-primary);
 }
 
+.comment-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .comment-date {
   font-size: 0.875rem;
   color: var(--text-secondary);
+}
+
+.comment-menu-wrapper {
+  position: relative;
+}
+
+.comment-menu-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  opacity: 0.7;
+}
+
+.comment-menu-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  opacity: 1;
+  color: var(--text-primary);
+}
+
+.comment-report-menu {
+  position: absolute;
+  left: 100%;
+  bottom: 0;
+  margin-left: 0.5rem;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  min-width: 150px;
+  overflow: hidden;
+}
+
+.comment-report-btn {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.875rem;
+  transition: background-color 0.2s ease;
+}
+
+.comment-report-btn:hover {
+  background-color: rgba(229, 9, 20, 0.1);
+  color: var(--accent);
 }
 
 .comment-text {

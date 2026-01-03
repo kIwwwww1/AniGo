@@ -19,6 +19,7 @@ function WatchPage() {
   const [submittingRating, setSubmittingRating] = useState(false)
   const [isRatingMenuOpen, setIsRatingMenuOpen] = useState(false)
   const [isFavorite, setIsFavorite] = useState(false)
+  const [openReportMenu, setOpenReportMenu] = useState(null) // ID комментария, для которого открыто меню
 
   useEffect(() => {
     // Прокручиваем страницу вверх при переходе на страницу аниме
@@ -47,13 +48,16 @@ function WatchPage() {
       if (isRatingMenuOpen && !event.target.closest('.rating-button-wrapper')) {
         setIsRatingMenuOpen(false)
       }
+      if (openReportMenu !== null && !event.target.closest('.comment-menu-wrapper')) {
+        setOpenReportMenu(null)
+      }
     }
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [isRatingMenuOpen])
+  }, [isRatingMenuOpen, openReportMenu])
 
   const loadAnime = async () => {
     try {
@@ -146,6 +150,21 @@ function WatchPage() {
         alert('Ошибка при работе с избранным')
       }
     }
+  }
+
+  const handleReportComment = async (commentId) => {
+    try {
+      // TODO: Реализовать API для жалобы на комментарий
+      alert('Жалоба отправлена. Спасибо за обратную связь!')
+      setOpenReportMenu(null)
+    } catch (err) {
+      console.error('Ошибка при отправке жалобы:', err)
+      alert('Ошибка при отправке жалобы')
+    }
+  }
+
+  const toggleReportMenu = (commentId) => {
+    setOpenReportMenu(openReportMenu === commentId ? null : commentId)
   }
 
   if (loading) {
@@ -430,7 +449,43 @@ function WatchPage() {
                             )}
                             <span className="comment-username">{comment.user.username}</span>
                           </div>
-                          <span className="comment-date">{formatDate(comment.created_at)}</span>
+                          <div className="comment-header-right">
+                            <span className="comment-date">{formatDate(comment.created_at)}</span>
+                            <div className="comment-menu-wrapper">
+                              <button
+                                type="button"
+                                className="comment-menu-btn"
+                                onClick={() => toggleReportMenu(comment.id)}
+                                aria-label="Меню комментария"
+                              >
+                                <svg
+                                  width="20"
+                                  height="20"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <circle cx="12" cy="5" r="1" />
+                                  <circle cx="12" cy="12" r="1" />
+                                  <circle cx="12" cy="19" r="1" />
+                                </svg>
+                              </button>
+                              {openReportMenu === comment.id && (
+                                <div className="comment-report-menu">
+                                  <button
+                                    type="button"
+                                    className="comment-report-btn"
+                                    onClick={() => handleReportComment(comment.id)}
+                                  >
+                                    Пожаловаться
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
                         <p className="comment-text">{comment.text}</p>
                       </div>

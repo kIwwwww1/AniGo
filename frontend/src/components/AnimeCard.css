@@ -216,11 +216,15 @@
   background-color: transparent;
   border-radius: 0;
   box-shadow: none;
+  transition: transform 0.3s, box-shadow 0.3s;
+  position: relative;
+  z-index: 1;
 }
 
 .random-anime-list .anime-card:hover {
-  transform: none;
-  box-shadow: none;
+  transform: translateY(-8px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5);
+  z-index: 10;
 }
 
 .random-anime-list .anime-card-poster {
