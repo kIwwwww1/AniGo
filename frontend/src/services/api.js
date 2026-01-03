@@ -89,6 +89,14 @@ export const animeAPI = {
     const response = await api.get('/anime/count')
     return response.data
   },
+
+  // Получить все популярные аниме (по 12 штук)
+  getAllPopularAnime: async (limit = 12, offset = 0) => {
+    const response = await api.get('/anime/all/popular', {
+      params: { limit, offset },
+    })
+    return response.data
+  },
 }
 
 export const userAPI = {

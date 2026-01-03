@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { animeAPI } from '../services/api'
 import AnimeGrid from './AnimeGrid'
 import './PopularAnimeCarousel.css'
 
 function PopularAnimeCarousel() {
+  const navigate = useNavigate()
   const [animeList, setAnimeList] = useState([])
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(true)
@@ -94,19 +96,9 @@ function PopularAnimeCarousel() {
     }
   }
 
-  const handleExpand = async () => {
-    setShowAll(true)
-    // Загружаем данные для всех страниц, если их еще нет
-    const totalPages = Math.ceil(totalCount / itemsPerPage)
-    const neededItems = totalPages * itemsPerPage
-    if (animeList.length < neededItems && hasMore) {
-      // Загружаем данные порциями
-      let currentOffset = animeList.length
-      while (currentOffset < neededItems && hasMore) {
-        await loadAnime(currentOffset)
-        currentOffset += itemsPerPage
-      }
-    }
+  const handleExpand = () => {
+    // Переходим на страницу со всеми популярными аниме
+    navigate('/anime/all/popular')
   }
 
   const handlePageChange = (page, offset) => {
