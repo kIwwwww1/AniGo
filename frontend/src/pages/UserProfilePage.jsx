@@ -65,9 +65,17 @@ function UserProfilePage() {
   }
 
   // Преобразуем избранное в формат аниме
-  const favoritesAnime = user.favorites 
-    ? user.favorites.map(fav => fav.anime || fav).filter(Boolean)
-    : []
+  // favorites теперь уже массив объектов аниме, а не массив объектов с полем anime
+  const favoritesAnime = user.favorites || []
+
+  // Получаем статистику из ответа API
+  const stats = user.stats || {
+    favorites_count: favoritesAnime.length,
+    ratings_count: 0,
+    comments_count: 0,
+    watch_history_count: 0,
+    unique_watched_anime: 0
+  }
 
   return (
     <div className="user-profile-page">
@@ -112,8 +120,16 @@ function UserProfilePage() {
 
         <div className="profile-stats">
           <div className="stat-card">
-            <div className="stat-value">{favoritesAnime.length}</div>
+            <div className="stat-value">{stats.favorites_count}</div>
             <div className="stat-label">Избранное</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-value">{stats.ratings_count}</div>
+            <div className="stat-label">Оценок</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-value">{stats.comments_count}</div>
+            <div className="stat-label">Комментариев</div>
           </div>
         </div>
 

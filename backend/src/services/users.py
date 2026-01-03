@@ -129,13 +129,17 @@ async def get_user_by_username(username: str, session: AsyncSession):
     from sqlalchemy.orm import selectinload
     from src.models.favorites import FavoriteModel
     from src.models.anime import AnimeModel
+    from src.models.watch_history import WatchHistoryModel
+    from src.models.ratings import RatingModel
+    from src.models.comments import CommentModel
     
     user = (await session.execute(
         select(UserModel)
             .options(
                 selectinload(UserModel.favorites).selectinload(FavoriteModel.anime),
-                selectinload(UserModel.ratings),
-                selectinload(UserModel.comments)
+                selectinload(UserModel.ratings).selectinload(RatingModel.anime),
+                selectinload(UserModel.comments).selectinload(CommentModel.anime),
+                selectinload(UserModel.watch_history).selectinload(WatchHistoryModel.anime)
             )
             .filter_by(username=username)
     )).scalar_one_or_none()

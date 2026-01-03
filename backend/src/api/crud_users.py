@@ -144,4 +144,52 @@ async def user_profile(username: str, session: SessionDep):
     '''получение данных пользователя по username'''
     
     user = await get_user_by_username(username, session)
-    return {'message': user}
+    
+    # Подсчитываем статистику
+    favorites_count = len(user.favorites) if user.favorites else 0
+    ratings_count = len(user.ratings) if user.ratings else 0
+    comments_count = len(user.comments) if user.comments else 0
+    watch_history_count = len(user.watch_history) if user.watch_history else 0
+    
+    # Подсчитываем уникальные аниме в истории просмотров
+    unique_watched_anime = len(set(wh.anime_id for wh in user.watch_history)) if user.watch_history else 0
+    
+    # Преобразуем favorites в список словарей с аниме
+    favorites_list = []
+    if user.favorites:
+        for favorite in user.favorites:
+            if favorite.anime:
+                anime_dict = {
+                    'id': favorite.anime.id,
+                    'title': favorite.anime.title,
+                    'title_original': favorite.anime.title_original,
+                    'poster_url': favorite.anime.poster_url,
+                    'description': favorite.anime.description,
+                    'year': favorite.anime.year,
+                    'type': favorite.anime.type,
+                    'episodes_count': favorite.anime.episodes_count,
+                    'rating': favorite.anime.rating,
+                    'score': favorite.anime.score,
+                    'studio': favorite.anime.studio,
+                    'status': favorite.anime.status,
+                }
+                favorites_list.append(anime_dict)
+    
+    return {
+        'message': {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'avatar_url': user.avatar_url,
+            'role': user.role,
+            'created_at': user.created_at.isoformat() if user.created_at else None,
+            'favorites': favorites_list,
+            'stats': {
+                'favorites_count': favorites_count,
+                'ratings_count': ratings_count,
+                'comments_count': comments_count,
+                'watch_history_count': watch_history_count,
+                'unique_watched_anime': unique_watched_anime
+            }
+        }
+    }
