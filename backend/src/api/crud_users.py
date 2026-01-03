@@ -102,7 +102,8 @@ async def toggle_user_favorite(user: UserExistsDep, favorite_data: CreateUserFav
 
     try:
         result = await toggle_favorite(favorite_data, user.id, session)
-        return {'message': result}
+        # Возвращаем результат напрямую, чтобы фронтенд мог получить is_favorite
+        return result
     except Exception as e:
         raise HTTPException(
             status_code=500,

@@ -381,6 +381,54 @@
   }
 }
 
+/* Премиум стили для пользователей с ID < 100 */
+.anime-card-grid-section.premium-anime-grid .anime-card-grid-card,
+.premium-anime-grid .anime-card-grid-card {
+  border: 2px solid transparent;
+  background: linear-gradient(var(--bg-card), var(--bg-card)) padding-box,
+              linear-gradient(135deg, #ffc800 0%, #fff200 25%, #ffd700 50%, #fff200 75%, #ffc800 100%) border-box;
+  background-size: 200% 200%;
+  animation: gold-border-shimmer 3s ease-in-out infinite;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.15), 0 0 10px rgba(255, 215, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.anime-card-grid-section.premium-anime-grid .anime-card-grid-card:hover,
+.premium-anime-grid .anime-card-grid-card:hover {
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.25), 0 0 15px rgba(255, 215, 0, 0.2);
+  transform: translateY(-4px);
+}
+
+@keyframes gold-border-shimmer {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.anime-card-grid-section.premium-anime-grid .anime-card-grid-item .anime-card-title,
+.premium-anime-grid .anime-card-grid-item .anime-card-title {
+  background: linear-gradient(135deg, #ffc800 0%, #fff200 25%, #ffd700 50%, #fff200 75%, #ffc800 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gold-text-shimmer 3s ease-in-out infinite;
+  font-weight: 700;
+  color: transparent;
+}
+
+@keyframes gold-text-shimmer {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
 .anime-card-grid-item .anime-card-title {
   padding: 0.75rem 0 0 0;
   font-size: 0.95rem;

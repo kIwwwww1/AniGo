@@ -289,6 +289,47 @@
   }
 }
 
+@keyframes gold-text-shimmer {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.crown-icon-small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.25rem;
+  vertical-align: middle;
+  animation: crown-glow-small 2s ease-in-out infinite;
+}
+
+.crown-icon-small svg {
+  filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.8));
+  animation: crown-svg-glow-small 2s ease-in-out infinite;
+}
+
+@keyframes crown-glow-small {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
+
+@keyframes crown-svg-glow-small {
+  0%, 100% {
+    filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.8));
+  }
+  50% {
+    filter: drop-shadow(0 0 6px rgba(255, 215, 0, 1));
+  }
+}
+
 @keyframes pulse {
   0%, 100% {
     opacity: 0.6;
@@ -383,6 +424,16 @@
   color: var(--text-primary);
   font-weight: 500;
   font-size: 0.95rem;
+}
+
+.user-username.premium-user {
+  background: linear-gradient(135deg, #ffc800 0%, #fff200 25%, #ffd700 50%, #fff200 75%, #ffc800 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gold-text-shimmer 3s ease-in-out infinite;
+  font-weight: 700;
 }
 
 .user-avatar {
@@ -821,6 +872,15 @@
   .dropdown-avatar {
     width: 40px;
     height: 40px;
+  }
+
+  .user-username.premium-user {
+    font-size: 0.875rem;
+  }
+
+  .crown-icon-small {
+    font-size: 0.75rem;
+    margin-left: 0.2rem;
   }
 
   .dropdown-username {

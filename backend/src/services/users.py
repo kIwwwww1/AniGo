@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status, Response, Request
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 # 
 from src.models.users import UserModel
@@ -289,9 +289,15 @@ async def toggle_favorite(favorite_data: CreateUserFavorite, user_id: int,
     )).scalar_one_or_none()
     
     if existing_favorite:
-        # Удаляем из избранного
-        session.delete(existing_favorite)
+        # Удаляем из избранного через запрос
+        await session.execute(
+            delete(FavoriteModel).where(
+                FavoriteModel.user_id == user_id,
+                FavoriteModel.anime_id == favorite_data.anime_id
+            )
+        )
         await session.commit()
+        # После удаления is_favorite должен быть False
         return {'message': 'Аниме удалено из избранного', 'is_favorite': False}
     else:
         # Добавляем в избранное
@@ -301,6 +307,7 @@ async def toggle_favorite(favorite_data: CreateUserFavorite, user_id: int,
         )
         session.add(new_favorite)
         await session.commit()
+        await session.refresh(new_favorite)
         return {'message': 'Аниме добавлено в избранное', 'is_favorite': True}
 
 

@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { userAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
 import AnimeGrid from '../components/AnimeGrid'
+import CrownIcon from '../components/CrownIcon'
 import '../components/AnimeCardGrid.css'
 import './UserProfilePage.css'
 import '../pages/HomePage.css'
@@ -33,6 +34,7 @@ function UserProfilePage() {
   const [themeColor2, setThemeColor2] = useState(null)
   const [gradientDirection, setGradientDirection] = useState('diagonal-right')
   const [avatarError, setAvatarError] = useState(false)
+  const [isPremiumProfile, setIsPremiumProfile] = useState(false)
   const itemsPerPage = 6
   const maxPagesToShow = 3
   
@@ -71,6 +73,13 @@ function UserProfilePage() {
     loadThemeColor()
     loadCurrentUser()
   }, [username])
+
+  useEffect(() => {
+    // Загружаем премиум профиль после загрузки user
+    if (user) {
+      loadPremiumProfile()
+    }
+  }, [user, username])
   
   const loadThemeColor = () => {
     const savedThemeColor1 = localStorage.getItem('site-theme-color-1')
@@ -219,6 +228,10 @@ function UserProfilePage() {
   window.applyCustomTheme = applyCustomTheme
   
   const handleThemeColor1Change = (color) => {
+    // Не позволяем менять градиент при активном премиум профиле
+    if ((user && user.id < 100 && isPremiumProfile !== false) || isPremiumProfile) {
+      return
+    }
     setThemeColor1(color)
     const color2 = themeColor2 || color
     setThemeColor2(color2)
@@ -231,6 +244,10 @@ function UserProfilePage() {
   }
   
   const handleThemeColor2Change = (color) => {
+    // Не позволяем менять градиент при активном премиум профиле
+    if ((user && user.id < 100 && isPremiumProfile !== false) || isPremiumProfile) {
+      return
+    }
     setThemeColor2(color)
     const color1 = themeColor1 || color
     setThemeColor1(color1)
@@ -243,6 +260,10 @@ function UserProfilePage() {
   }
   
   const handleGradientDirectionChange = (direction) => {
+    // Не позволяем менять градиент при активном премиум профиле
+    if ((user && user.id < 100 && isPremiumProfile !== false) || isPremiumProfile) {
+      return
+    }
     setGradientDirection(direction)
     if (themeColor1 && themeColor2) {
       applyCustomTheme(themeColor1, themeColor2, direction)
@@ -252,6 +273,10 @@ function UserProfilePage() {
   }
   
   const handleResetTheme = () => {
+    // Не позволяем сбрасывать градиент при активном премиум профиле
+    if ((user && user.id < 100 && isPremiumProfile !== false) || isPremiumProfile) {
+      return
+    }
     setThemeColor1(null)
     setThemeColor2(null)
     setGradientDirection('diagonal-right')
@@ -295,7 +320,44 @@ function UserProfilePage() {
     }
   }
 
+  const loadPremiumProfile = () => {
+    if (username) {
+      const savedPremium = localStorage.getItem(`user_${username}_premium_profile`)
+      // Для пользователей с ID < 100 по умолчанию премиум включен, но можно отключить
+      // Если в localStorage явно указано 'false', то отключаем
+      if (savedPremium === 'false') {
+        setIsPremiumProfile(false)
+      } else if (savedPremium === 'true') {
+        setIsPremiumProfile(true)
+      } else {
+        // Если нет сохраненного значения, для пользователей с ID < 100 включаем по умолчанию
+        // Но только если user уже загружен
+        if (user && user.id < 100) {
+          setIsPremiumProfile(true)
+        } else {
+          setIsPremiumProfile(false)
+        }
+      }
+    }
+  }
+
+  const togglePremiumProfile = () => {
+    const newPremiumState = !isPremiumProfile
+    console.log('Toggle premium profile:', newPremiumState, 'Current state:', isPremiumProfile, 'username:', username)
+    setIsPremiumProfile(newPremiumState)
+    if (username) {
+      localStorage.setItem(`user_${username}_premium_profile`, newPremiumState.toString())
+      console.log('Saved to localStorage:', `user_${username}_premium_profile = ${newPremiumState}`)
+    } else {
+      console.warn('Cannot save premium profile: username is not available')
+    }
+  }
+
   const saveUsernameColor = (color) => {
+    // Не позволяем менять цвет при активном премиум профиле
+    if ((user && user.id < 100 && isPremiumProfile !== false) || isPremiumProfile) {
+      return
+    }
     setUsernameColor(color)
     if (username) {
       localStorage.setItem(`user_${username}_username_color`, color)
@@ -487,8 +549,8 @@ function UserProfilePage() {
     <div className="user-profile-page">
       <div className="container">
         <div 
-          className="profile-header"
-          style={{
+          className={`profile-header ${(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? 'premium-header' : ''}`}
+          style={(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? undefined : {
             borderColor: avatarBorderColor,
             boxShadow: `0 8px 48px ${hexToRgba(avatarBorderColor, 0.4)}, 0 0 0 1px ${avatarBorderColor}`
           }}
@@ -529,6 +591,7 @@ function UserProfilePage() {
                         onClick={() => saveUsernameColor(color.value)}
                         title={color.name}
                         aria-label={color.name}
+                        disabled={((user && user.id < 100 && isPremiumProfile !== false) || isPremiumProfile)}
                       >
                         {usernameColor === color.value && (
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -538,6 +601,11 @@ function UserProfilePage() {
                       </button>
                     ))}
                   </div>
+                  {((user && user.id < 100 && isPremiumProfile !== false) || isPremiumProfile) && (
+                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+                      Недоступно при активном премиум профиле
+                    </p>
+                  )}
                 </div>
                 <div className="color-picker-group">
                   <label>Цвет обводки аватарки:</label>
@@ -567,6 +635,7 @@ function UserProfilePage() {
                       className={`theme-color-reset-btn ${themeColor1 === null ? 'active' : ''}`}
                       onClick={handleResetTheme}
                       title="Темная тема по умолчанию"
+                      disabled={(user && user.id < 100) || isPremiumProfile}
                     >
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
@@ -585,6 +654,7 @@ function UserProfilePage() {
                           onClick={() => handleThemeColor1Change(color.value)}
                           title={color.name}
                           aria-label={color.name}
+                          disabled={((user && user.id < 100 && isPremiumProfile !== false) || isPremiumProfile)}
                         >
                           {themeColor1 === color.value && (
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -606,6 +676,7 @@ function UserProfilePage() {
                           onClick={() => handleThemeColor2Change(color.value)}
                           title={color.name}
                           aria-label={color.name}
+                          disabled={((user && user.id < 100 && isPremiumProfile !== false) || isPremiumProfile)}
                         >
                           {themeColor2 === color.value && (
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -626,12 +697,44 @@ function UserProfilePage() {
                           onClick={() => handleGradientDirectionChange(dir.value)}
                           title={dir.title}
                           aria-label={dir.title}
+                          disabled={((user && user.id < 100 && isPremiumProfile !== false) || isPremiumProfile)}
                         >
                           {dir.label}
                         </button>
                       ))}
                     </div>
                   </div>
+                  {((user && user.id < 100 && isPremiumProfile !== false) || isPremiumProfile) && (
+                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+                      Недоступно при активном премиум профиле
+                    </p>
+                  )}
+                </div>
+                <div className="premium-profile-group">
+                  <label>Премиум оформление:</label>
+                  <button
+                    className={`premium-profile-toggle ${(user && user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? 'active' : ''}`}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      console.log('Premium button clicked, current state:', isPremiumProfile, 'user:', user)
+                      togglePremiumProfile()
+                    }}
+                    type="button"
+                  >
+                    <span className="premium-toggle-label">
+                      {(user && user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? '✓ Премиум профиль активен' : 'Премиум профиль'}
+                    </span>
+                    {((user && user.id < 100 && isPremiumProfile !== false) || isPremiumProfile) && (
+                      <CrownIcon size={20} />
+                    )}
+                  </button>
+                  <p className="premium-profile-description">
+                    {user && user.id < 100 
+                      ? 'Вы один из первых 100 пользователей - можете включать/отключать премиум оформление'
+                      : 'Включает золотой градиент для имени пользователя и карточек аниме'
+                    }
+                  </p>
                 </div>
               </div>
             </div>
@@ -651,8 +754,8 @@ function UserProfilePage() {
                   <img 
                     src={avatarUrl} 
                     alt={user.username}
-                    className="profile-avatar"
-                    style={{ 
+                    className={`profile-avatar ${(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? 'premium-avatar' : ''}`}
+                    style={(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? undefined : { 
                       borderColor: avatarBorderColor,
                       boxShadow: `0 8px 24px ${hexToRgba(avatarBorderColor, 0.3)}`
                     }}
@@ -674,8 +777,13 @@ function UserProfilePage() {
                 })
                 return (
                   <div 
-                    className="profile-avatar profile-avatar-fallback" 
-                    style={{
+                    className={`profile-avatar profile-avatar-fallback ${(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? 'premium-avatar' : ''}`}
+                    style={(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? {
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: '#000000'
+                    } : {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -692,12 +800,18 @@ function UserProfilePage() {
           </div>
           <div className="profile-info-section">
             <h1 
-              className="profile-username"
-              style={{ 
+              className={`profile-username ${(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? 'premium-user' : ''}`}
+              style={(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? undefined : { 
                 color: usernameColor
               }}
+              data-premium={(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile}
             >
               {user.username}
+              {user.id < 100 && (
+                <span className="crown-icon">
+                  <CrownIcon size={28} />
+                </span>
+              )}
             </h1>
             <div className="profile-badges">
               {user.role && (
@@ -710,40 +824,45 @@ function UserProfilePage() {
                   {formatDate(user.created_at)}
                 </span>
               )}
+              {user.id < 100 && (
+                <span className="profile-role profile-premium-badge">
+                  Один из 100
+                </span>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="profile-stats">
+        <div className={`profile-stats ${(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? 'premium-stats' : ''}`}>
           <div 
             className="stat-card" 
-            style={{ 
+            style={(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? undefined : { 
               '--stat-color': avatarBorderColor,
               '--stat-color-shadow': hexToRgba(avatarBorderColor, 0.3)
             }}
           >
-            <div className="stat-value" style={{ color: avatarBorderColor }}>{stats.favorites_count}</div>
-            <div className="stat-label">Избранное</div>
+            <div className="stat-value" style={(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? undefined : { color: avatarBorderColor }}>{stats.favorites_count}</div>
+            <div className={`stat-label ${(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? 'premium-label' : ''}`}>Избранное</div>
           </div>
           <div 
             className="stat-card" 
-            style={{ 
+            style={(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? undefined : { 
               '--stat-color': avatarBorderColor,
               '--stat-color-shadow': hexToRgba(avatarBorderColor, 0.3)
             }}
           >
-            <div className="stat-value" style={{ color: avatarBorderColor }}>{stats.ratings_count}</div>
-            <div className="stat-label">Оценок</div>
+            <div className="stat-value" style={(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? undefined : { color: avatarBorderColor }}>{stats.ratings_count}</div>
+            <div className={`stat-label ${(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? 'premium-label' : ''}`}>Оценок</div>
           </div>
           <div 
             className="stat-card" 
-            style={{ 
+            style={(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? undefined : { 
               '--stat-color': avatarBorderColor,
               '--stat-color-shadow': hexToRgba(avatarBorderColor, 0.3)
             }}
           >
-            <div className="stat-value" style={{ color: avatarBorderColor }}>{stats.comments_count}</div>
-            <div className="stat-label">Комментариев</div>
+            <div className="stat-value" style={(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? undefined : { color: avatarBorderColor }}>{stats.comments_count}</div>
+            <div className={`stat-label ${(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? 'premium-label' : ''}`}>Комментариев</div>
           </div>
         </div>
 
@@ -757,7 +876,7 @@ function UserProfilePage() {
             showControls={favoritesAnime.length > itemsPerPage}
             showIndicators={favoritesAnime.length > itemsPerPage}
             emptyMessage="Нет избранных аниме"
-            className="popular-anime-section"
+            className={user && ((user.id < 100 && isPremiumProfile !== false) || isPremiumProfile) ? 'premium-anime-grid' : ''}
           />
         ) : (
           <section className="popular-anime-section">

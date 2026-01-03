@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import { userAPI, animeAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
+import CrownIcon from './CrownIcon'
 import './Layout.css'
 
 function Layout({ children }) {
@@ -345,7 +346,14 @@ function Layout({ children }) {
               <div className="user-loading">Загрузка...</div>
             ) : (user && user.username) ? (
               <div className="user-menu-container">
-                <span className="user-username">{user.username}</span>
+                <span className={`user-username ${user.id < 100 ? 'premium-user' : ''}`}>
+                  {user.username}
+                  {user.id < 100 && (
+                    <span className="crown-icon-small">
+                      <CrownIcon size={14} />
+                    </span>
+                  )}
+                </span>
                 <div 
                   className="user-avatar"
                   onClick={() => setShowUserDropdown(!showUserDropdown)}

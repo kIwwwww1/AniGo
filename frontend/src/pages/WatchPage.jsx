@@ -4,6 +4,7 @@ import { animeAPI, userAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
 import VideoPlayer from '../components/VideoPlayer'
 import AnimeCard from '../components/AnimeCard'
+import CrownIcon from '../components/CrownIcon'
 import './WatchPage.css'
 
 function WatchPage() {
@@ -249,8 +250,16 @@ function WatchPage() {
   const handleToggleFavorite = async () => {
     try {
       const response = await userAPI.toggleFavorite(parseInt(animeId))
-      if (response.message && response.message.is_favorite !== undefined) {
+      console.log('Toggle favorite response:', response)
+      
+      // Обновляем состояние на основе ответа
+      if (response && 'is_favorite' in response) {
+        setIsFavorite(response.is_favorite)
+      } else if (response.message && typeof response.message === 'object' && 'is_favorite' in response.message) {
         setIsFavorite(response.message.is_favorite)
+      } else {
+        // Если структура неожиданная, перепроверяем статус
+        await checkFavoriteStatus()
       }
     } catch (err) {
       if (err.response?.status === 401) {
@@ -259,6 +268,8 @@ function WatchPage() {
         console.error('Ошибка при работе с избранным:', err)
         alert('Ошибка при работе с избранным')
       }
+      // В случае ошибки перепроверяем статус
+      await checkFavoriteStatus()
     }
   }
 
@@ -572,8 +583,16 @@ function WatchPage() {
                           })()}
                           <div className="comment-user-info">
                             {comment.user?.username ? (
-                              <Link to={`/profile/${comment.user.username}`} className="comment-username">
+                              <Link 
+                                to={`/profile/${comment.user.username}`} 
+                                className={`comment-username ${comment.user?.id < 100 ? 'premium-user' : ''}`}
+                              >
                                 {comment.user.username}
+                                {comment.user?.id < 100 && (
+                                  <span className="crown-icon-small">
+                                    <CrownIcon size={14} />
+                                  </span>
+                                )}
                               </Link>
                             ) : (
                               <span className="comment-username">Неизвестный</span>
