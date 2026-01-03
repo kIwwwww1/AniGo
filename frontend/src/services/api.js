@@ -97,6 +97,14 @@ export const animeAPI = {
     })
     return response.data
   },
+
+  // Получить все аниме (по 12 штук)
+  getAllAnime: async (limit = 12, offset = 0) => {
+    const response = await api.get('/anime/all/anime', {
+      params: { limit, offset },
+    })
+    return response.data
+  },
 }
 
 export const userAPI = {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { animeAPI } from '../services/api'
 import PopularAnimeCarousel from '../components/PopularAnimeCarousel'
 import AnimeGrid from '../components/AnimeGrid'
@@ -6,6 +7,7 @@ import '../components/AnimeCardGrid.css'
 import './HomePage.css'
 
 function HomePage() {
+  const navigate = useNavigate()
   const [animeList, setAnimeList] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -72,19 +74,9 @@ function HomePage() {
     }
   }
 
-  const handleExpand = async () => {
-    setShowAll(true)
-    // Загружаем данные для всех страниц, если их еще нет
-    const totalPages = Math.ceil(totalCount / itemsPerPage)
-    const neededItems = totalPages * itemsPerPage
-    if (animeList.length < neededItems && hasMore) {
-      // Загружаем данные порциями
-      let currentOffset = animeList.length
-      while (currentOffset < neededItems && hasMore) {
-        await loadAnime(currentOffset)
-        currentOffset += limit
-      }
-    }
+  const handleExpand = () => {
+    // Переходим на страницу со всеми аниме
+    navigate('/anime/all/anime')
   }
 
   const handlePageChange = (page, offset) => {

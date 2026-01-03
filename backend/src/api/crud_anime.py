@@ -28,11 +28,6 @@ async def get_anime_by_name(anime_name: str, session: SessionDep):
     return {'message': resp}
 
 
-# @anime_router.get('/user/my/animes')
-# async def get_user_favorit_anime(user: CookieDataDep, request: Request, session: SessionDep):
-#     resp = await get_user_anime(user.get('sub', 'None'), session) 
-#     return {'message': resp}
-
 
 @anime_router.get('/get/paginators', response_model=dict)
 async def get_anime_paginators(pagin_data: PaginatorAnimeDep, 
@@ -273,6 +268,7 @@ async def get_anime_count(session: SessionDep):
         logger.error(f'Ошибка при получении количества аниме: {e}', exc_info=True)
         return {'message': 0}
     
+
 @anime_router.get('/all/popular', response_model=dict)
 async def get_all_popular_anime(limit: int = 12, offset: int = 0, 
                                 session: SessionDep = None):
@@ -311,3 +307,85 @@ async def get_all_popular_anime(limit: int = 12, offset: int = 0,
     except Exception as e:
         logger.error(f'Ошибка при получении всех популярных аниме: {e}', exc_info=True)
         return {'message': []}
+
+
+@anime_router.get('/all/anime', response_model=dict)
+async def get_all_anime(limit: int = 12, offset: int = 0, 
+                        session: SessionDep = None):
+    '''Получить все аниме с пагинацией'''
+    
+    logger.info(f'Запрос всех аниме: limit={limit}, offset={offset}')
+    
+    try:
+        paginator_data = PaginatorData(limit=limit, offset=offset)
+        resp = await pagination_get_anime(paginator_data, session)
+        logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
+        
+        # Конвертируем SQLAlchemy модели в Pydantic схемы
+        anime_list = []
+        for anime in resp:
+            try:
+                anime_dict = {
+                    'id': anime.id,
+                    'title': anime.title,
+                    'title_original': anime.title_original,
+                    'poster_url': anime.poster_url,
+                    'description': anime.description,
+                    'year': anime.year,
+                    'type': anime.type,
+                    'episodes_count': anime.episodes_count,
+                    'rating': anime.rating,
+                    'score': anime.score,
+                    'studio': anime.studio,
+                    'status': anime.status,
+                }
+                anime_list.append(AnimeResponse(**anime_dict))
+            except Exception as err:
+                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
+                continue
+        return {'message': anime_list}
+    except Exception as e:
+        logger.error(f'Ошибка при получении всех аниме: {e}', exc_info=True)
+        return {'message': []}
+    
+
+@anime_router.get('/all/anime', response_model=dict)
+async def get_all_animes(limit: int = 12, offset: int = 0, 
+                                session: SessionDep = None):
+    '''Показать все аниме с пагинацией в бд
+    (по 12 популярных аниме)'''
+    try:
+        paginator_data = PaginatorData(limit=limit, offset=offset)
+        resp = await pagination_get_anime(paginator_data, session)
+        logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
+        
+        # Конвертируем SQLAlchemy модели в Pydantic схемы
+        anime_list = []
+        for anime in resp:
+            try:
+                anime_dict = {
+                    'id': anime.id,
+                    'title': anime.title,
+                    'title_original': anime.title_original,
+                    'poster_url': anime.poster_url,
+                    'description': anime.description,
+                    'year': anime.year,
+                    'type': anime.type,
+                    'episodes_count': anime.episodes_count,
+                    'rating': anime.rating,
+                    'score': anime.score,
+                    'studio': anime.studio,
+                    'status': anime.status,
+                }
+                anime_list.append(AnimeResponse(**anime_dict))
+            except Exception as err:
+                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
+                continue
+        return {'message': anime_list}
+    except Exception as e:
+        logger.error(f'Ошибка при получении всех популярных аниме: {e}', exc_info=True)
+        return {'message': []}
+
+
+
+

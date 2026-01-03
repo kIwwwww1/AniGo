@@ -1,9 +1,9 @@
-.popular-anime-page {
+.all-anime-page {
   min-height: 100vh;
   padding: 2rem 0;
 }
 
-.popular-anime-section {
+.all-anime-section {
   margin-bottom: 3rem;
 }
 
@@ -24,19 +24,19 @@
   margin: 0;
 }
 
-.popular-anime-grid {
+.all-anime-grid {
   display: flex;
   flex-direction: column;
   gap: 2rem;
 }
 
-.popular-anime-row {
+.all-anime-row {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 1.5rem;
 }
 
-.popular-anime-item {
+.all-anime-item {
   display: flex;
   flex-direction: column;
 }
@@ -90,25 +90,25 @@
 
 /* Адаптивность для мобильных устройств */
 @media (max-width: 1400px) {
-  .popular-anime-row {
+  .all-anime-row {
     grid-template-columns: repeat(5, 1fr);
   }
 }
 
 @media (max-width: 1200px) {
-  .popular-anime-row {
+  .all-anime-row {
     grid-template-columns: repeat(4, 1fr);
   }
 }
 
 @media (max-width: 900px) {
-  .popular-anime-row {
+  .all-anime-row {
     grid-template-columns: repeat(3, 1fr);
   }
 }
 
 @media (max-width: 600px) {
-  .popular-anime-row {
+  .all-anime-row {
     grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
   }
