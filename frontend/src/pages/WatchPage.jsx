@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { animeAPI, userAPI } from '../services/api'
+import { normalizeAvatarUrl } from '../utils/avatarUtils'
 import VideoPlayer from '../components/VideoPlayer'
 import AnimeCard from '../components/AnimeCard'
 import './WatchPage.css'
@@ -25,6 +26,7 @@ function WatchPage() {
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [commentsHasMore, setCommentsHasMore] = useState(true)
   const [hasAnyComments, setHasAnyComments] = useState(false) // Есть ли комментарии вообще
+  const [avatarErrors, setAvatarErrors] = useState({}) // Ошибки загрузки аватарок комментариев
   const commentsLimit = 4 // Количество комментариев на странице
 
   useEffect(() => {
@@ -529,13 +531,30 @@ function WatchPage() {
                     <div key={comment.id} className="comment-item">
                       <div className="comment-header">
                         <div className="comment-user">
-                          {comment.user?.avatar_url && (
-                            <img
-                              src={comment.user.avatar_url}
-                              alt={comment.user.username}
-                              className="comment-avatar"
-                            />
-                          )}
+                          {(() => {
+                            const avatarUrl = normalizeAvatarUrl(comment.user?.avatar_url)
+                            const hasError = avatarErrors[comment.id]
+                            if (avatarUrl && !hasError) {
+                              return (
+                                <img
+                                  src={avatarUrl}
+                                  alt={comment.user?.username || 'User'}
+                                  className="comment-avatar"
+                                  onError={() => setAvatarErrors(prev => ({ ...prev, [comment.id]: true }))}
+                                  onLoad={() => setAvatarErrors(prev => {
+                                    const newErrors = { ...prev }
+                                    delete newErrors[comment.id]
+                                    return newErrors
+                                  })}
+                                />
+                              )
+                            }
+                            return (
+                              <div className="comment-avatar avatar-fallback" style={{ backgroundColor: '#000000' }}>
+                                <span style={{ fontSize: '1.5rem', lineHeight: '1' }}>🐱</span>
+                              </div>
+                            )
+                          })()}
                           <span className="comment-username">{comment.user?.username || 'Неизвестный'}</span>
                         </div>
                         <div className="comment-header-right">

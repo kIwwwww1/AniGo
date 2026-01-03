@@ -1,47 +1,59 @@
 import { useState, useEffect, useRef } from 'react'
 import './LoadingScreen.css'
 
-function LoadingScreen({ isLoading, onComplete }) {
-  const [shouldShow, setShouldShow] = useState(true)
-  const fadeTimeoutRef = useRef(null)
-  const prevLoadingRef = useRef(isLoading)
+function LoadingScreen({ isLoading }) {
+  const [visible, setVisible] = useState(true)
+  const timeoutRef = useRef(null)
+  const mountedRef = useRef(true)
 
   useEffect(() => {
-    // Очищаем предыдущий таймер если есть
-    if (fadeTimeoutRef.current) {
-      clearTimeout(fadeTimeoutRef.current)
-      fadeTimeoutRef.current = null
+    mountedRef.current = true
+    
+    // Очищаем предыдущий таймер
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
     }
 
     if (isLoading) {
-      // Если начинается загрузка, сразу показываем экран
-      setShouldShow(true)
-      prevLoadingRef.current = true
-    } else if (!isLoading && prevLoadingRef.current) {
-      // Если загрузка закончилась и мы были в состоянии загрузки, начинаем fade out
-      prevLoadingRef.current = false
-      fadeTimeoutRef.current = setTimeout(() => {
-        setShouldShow(false)
-        if (onComplete) {
-          onComplete()
+      // Показываем экран
+      setVisible(true)
+    } else {
+      // Скрываем экран через небольшую задержку для fade out
+      timeoutRef.current = setTimeout(() => {
+        if (mountedRef.current) {
+          setVisible(false)
         }
-      }, 1000) // Время анимации рассеивания
+      }, 400) // Время для плавного fade out
     }
+
+    // Резервный таймер - гарантированно скрываем через 4 секунды
+    const safetyTimer = setTimeout(() => {
+      if (mountedRef.current) {
+        console.warn('LoadingScreen: Safety timer fired, forcing hide')
+        setVisible(false)
+      }
+    }, 4000)
 
     return () => {
-      if (fadeTimeoutRef.current) {
-        clearTimeout(fadeTimeoutRef.current)
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
       }
+      clearTimeout(safetyTimer)
     }
-  }, [isLoading, onComplete])
+  }, [isLoading])
 
-  // Не рендерим если не нужно показывать
-  if (!shouldShow && !isLoading) {
+  // Не рендерим если не видим
+  if (!visible && !isLoading) {
     return null
   }
 
   return (
-    <div className={`loading-screen ${!isLoading && shouldShow ? 'fading-out' : ''}`}>
+    <div 
+      className={`loading-screen ${!isLoading && visible ? 'fading-out' : ''}`}
+      style={!visible && !isLoading ? { display: 'none' } : {}}
+    >
       <div className="loading-screen-content">
         <div className="loading-logo">
           <h1>AniGo</h1>
@@ -57,4 +69,3 @@ function LoadingScreen({ isLoading, onComplete }) {
 }
 
 export default LoadingScreen
-

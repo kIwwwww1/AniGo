@@ -127,8 +127,34 @@ const loadUserAccentColor = async () => {
   }
 }
 
+// Функция для загрузки темы (теперь только для темной темы по умолчанию)
+export const loadTheme = () => {
+  const savedThemeColor = localStorage.getItem('site-theme-color')
+  if (!savedThemeColor) {
+    document.documentElement.setAttribute('data-theme', 'dark')
+  }
+  // Кастомная тема загружается через UserProfilePage
+}
+
 function App() {
   useEffect(() => {
+    // Загружаем кастомную тему при загрузке приложения
+    const savedThemeColor1 = localStorage.getItem('site-theme-color-1')
+    const savedThemeColor2 = localStorage.getItem('site-theme-color-2')
+    const savedGradientDirection = localStorage.getItem('site-gradient-direction') || 'diagonal-right'
+    
+    if (savedThemeColor1 && savedThemeColor2) {
+      // Используем глобальную функцию из UserProfilePage
+      if (window.applyCustomTheme) {
+        window.applyCustomTheme(savedThemeColor1, savedThemeColor2, savedGradientDirection)
+      } else {
+        // Если функция еще не загружена, устанавливаем темную тему
+        document.documentElement.setAttribute('data-theme', 'dark')
+      }
+    } else {
+      document.documentElement.setAttribute('data-theme', 'dark')
+    }
+    
     // Загружаем цвет при загрузке приложения
     loadUserAccentColor()
     
@@ -136,6 +162,15 @@ function App() {
     const handleStorageChange = (e) => {
       if (e.key && e.key.startsWith('user_') && e.key.endsWith('_avatar_border_color')) {
         loadUserAccentColor()
+      } else if (e.key === 'site-theme-color-1' || e.key === 'site-theme-color-2' || e.key === 'site-gradient-direction') {
+        const savedThemeColor1 = localStorage.getItem('site-theme-color-1')
+        const savedThemeColor2 = localStorage.getItem('site-theme-color-2')
+        const savedGradientDirection = localStorage.getItem('site-gradient-direction') || 'diagonal-right'
+        if (savedThemeColor1 && savedThemeColor2 && window.applyCustomTheme) {
+          window.applyCustomTheme(savedThemeColor1, savedThemeColor2, savedGradientDirection)
+        } else {
+          document.documentElement.setAttribute('data-theme', 'dark')
+        }
       }
     }
     
@@ -148,9 +183,22 @@ function App() {
     
     window.addEventListener('userAccentColorUpdated', handleColorUpdate)
     
+    // Слушаем изменения темы (кастомная тема обрабатывается в UserProfilePage)
+    const handleThemeUpdate = () => {
+      // Кастомная тема обрабатывается в UserProfilePage через applyCustomTheme
+      // Здесь просто проверяем, нужно ли сбросить на темную
+      const savedThemeColor = localStorage.getItem('site-theme-color')
+      if (!savedThemeColor) {
+        document.documentElement.setAttribute('data-theme', 'dark')
+      }
+    }
+    
+    window.addEventListener('siteThemeUpdated', handleThemeUpdate)
+    
     return () => {
       window.removeEventListener('storage', handleStorageChange)
       window.removeEventListener('userAccentColorUpdated', handleColorUpdate)
+      window.removeEventListener('siteThemeUpdated', handleThemeUpdate)
     }
   }, [])
 

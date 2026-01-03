@@ -545,6 +545,13 @@
   object-fit: cover;
 }
 
+.comment-avatar.avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  object-fit: none;
+}
+
 .comment-username {
   font-weight: 600;
   color: var(--text-primary);

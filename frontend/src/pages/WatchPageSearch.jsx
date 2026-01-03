@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { animeAPI, userAPI } from '../services/api'
+import { normalizeAvatarUrl } from '../utils/avatarUtils'
 import VideoPlayer from '../components/VideoPlayer'
 import AnimeCard from '../components/AnimeCard'
 import './WatchPage.css'
@@ -241,14 +242,31 @@ function WatchPageSearch() {
                     <div key={comment.id} className="comment-item">
                       <div className="comment-header">
                         <div className="comment-user">
-                          {comment.user.avatar_url && (
-                            <img
-                              src={comment.user.avatar_url}
-                              alt={comment.user.username}
-                              className="comment-avatar"
-                            />
-                          )}
-                          <span className="comment-username">{comment.user.username}</span>
+                          {(() => {
+                            const avatarUrl = normalizeAvatarUrl(comment.user?.avatar_url)
+                            const hasError = avatarErrors[comment.id]
+                            if (avatarUrl && !hasError) {
+                              return (
+                                <img
+                                  src={avatarUrl}
+                                  alt={comment.user?.username || 'User'}
+                                  className="comment-avatar"
+                                  onError={() => setAvatarErrors(prev => ({ ...prev, [comment.id]: true }))}
+                                  onLoad={() => setAvatarErrors(prev => {
+                                    const newErrors = { ...prev }
+                                    delete newErrors[comment.id]
+                                    return newErrors
+                                  })}
+                                />
+                              )
+                            }
+                            return (
+                              <div className="comment-avatar avatar-fallback" style={{ backgroundColor: '#000000' }}>
+                                <span style={{ fontSize: '1.5rem', lineHeight: '1' }}>🐱</span>
+                              </div>
+                            )
+                          })()}
+                          <span className="comment-username">{comment.user?.username || 'User'}</span>
                         </div>
                         <span className="comment-date">{formatDate(comment.created_at)}</span>
                       </div>

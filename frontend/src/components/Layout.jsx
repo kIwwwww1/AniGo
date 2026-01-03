@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import { userAPI, animeAPI } from '../services/api'
+import { normalizeAvatarUrl } from '../utils/avatarUtils'
 import './Layout.css'
 
 function Layout({ children }) {
@@ -22,6 +23,7 @@ function Layout({ children }) {
   const [registerLoading, setRegisterLoading] = useState(false)
   const [user, setUser] = useState(null)
   const [loadingUser, setLoadingUser] = useState(true)
+  const [avatarError, setAvatarError] = useState(false)
   const [showUserDropdown, setShowUserDropdown] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -40,30 +42,55 @@ function Layout({ children }) {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
+  // Функция для проверки авторизации
+  const checkAuth = async () => {
+    try {
+      setLoadingUser(true)
+      setAvatarError(false) // Сбрасываем ошибку аватарки
+      // Небольшая задержка для установки cookie после перезагрузки
+      await new Promise(resolve => setTimeout(resolve, 200))
+      
+      const response = await userAPI.getCurrentUser()
+      console.log('Auth check response:', response)
+      
+      if (response && response.message) {
+        console.log('Setting user:', response.message)
+        const userData = {
+          id: response.message.id,
+          username: response.message.username,
+          email: response.message.email,
+          avatar: response.message.avatar_url || '/Users/kiww1/AniGo/6434d6b8c1419741cb26ec1cd842aca8.jpg',
+          role: response.message.role
+        }
+        console.log('User data to set:', userData)
+        setUser(userData)
+        console.log('User state should be updated now')
+      } else {
+        console.log('No user data in response, setting user to null')
+        setUser(null)
+      }
+    } catch (err) {
+      // Пользователь не авторизован
+      console.log('User not authenticated:', err.response?.status, err.response?.data)
+      setUser(null)
+    } finally {
+      setLoadingUser(false)
+      console.log('Loading user set to false, user state:', user)
+    }
+  }
+
   // Проверяем авторизацию при загрузке
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        setLoadingUser(true)
-        const response = await userAPI.getCurrentUser()
-        if (response.message) {
-          setUser({
-            id: response.message.id,
-            username: response.message.username,
-            email: response.message.email,
-            avatar: response.message.avatar_url || '/Users/kiww1/AniGo/6434d6b8c1419741cb26ec1cd842aca8.jpg',
-            role: response.message.role
-          })
-        }
-      } catch (err) {
-        // Пользователь не авторизован
-        setUser(null)
-      } finally {
-        setLoadingUser(false)
-      }
-    }
     checkAuth()
   }, [])
+  
+  // Логируем изменения состояния user для отладки
+  useEffect(() => {
+    console.log('User state changed:', user)
+    console.log('Loading user:', loadingUser)
+    console.log('Should show user menu:', user && user.username)
+    console.log('Should show auth buttons:', !loadingUser && (!user || !user.username))
+  }, [user, loadingUser])
 
   // Закрываем dropdown при клике вне его
   useEffect(() => {
@@ -179,40 +206,11 @@ function Layout({ children }) {
       setLoginForm({ username: '', password: '' })
       // Небольшая задержка для установки cookie
       await new Promise(resolve => setTimeout(resolve, 500))
-      // Проверяем авторизацию после входа
-      try {
-        const response = await userAPI.getCurrentUser()
-        if (response.message) {
-          setUser({
-            id: response.message.id,
-            username: response.message.username,
-            email: response.message.email,
-            avatar: response.message.avatar_url || '/Users/kiww1/AniGo/6434d6b8c1419741cb26ec1cd842aca8.jpg',
-            role: response.message.role
-          })
-        }
-      } catch (authErr) {
-        // Если не получилось получить пользователя, пробуем еще раз через секунду
-        setTimeout(async () => {
-          try {
-            const response = await userAPI.getCurrentUser()
-            if (response.message) {
-              setUser({
-                id: response.message.id,
-                username: response.message.username,
-                email: response.message.email,
-                avatar: response.message.avatar_url || '/Users/kiww1/AniGo/6434d6b8c1419741cb26ec1cd842aca8.jpg',
-                role: response.message.role
-              })
-            }
-          } catch (e) {
-            console.error('Ошибка проверки авторизации:', e)
-          }
-        }, 1000)
-      }
+      // Обновляем состояние пользователя после успешного входа
+      await checkAuth()
+      setLoginLoading(false)
     } catch (err) {
       setLoginError(err.response?.data?.detail || 'Ошибка при входе')
-    } finally {
       setLoginLoading(false)
     }
   }
@@ -238,37 +236,11 @@ function Layout({ children }) {
       setRegisterForm({ username: '', email: '', password: '' })
       // Небольшая задержка для установки cookie
       await new Promise(resolve => setTimeout(resolve, 500))
-      // Проверяем авторизацию после регистрации
-      try {
-        const response = await userAPI.getCurrentUser()
-        if (response.message) {
-          setUser({
-            id: response.message.id,
-            username: response.message.username,
-            email: response.message.email,
-            avatar: response.message.avatar_url || '/Users/kiww1/AniGo/6434d6b8c1419741cb26ec1cd842aca8.jpg',
-            role: response.message.role
-          })
-        }
-      } catch (authErr) {
-        // Если не получилось получить пользователя, пробуем еще раз через секунду
-        setTimeout(async () => {
-          try {
-            const response = await userAPI.getCurrentUser()
-            if (response.message) {
-              setUser({
-                username: response.message.username,
-                avatar: response.message.avatar_url || '/Users/kiww1/AniGo/6434d6b8c1419741cb26ec1cd842aca8.jpg'
-              })
-            }
-          } catch (e) {
-            console.error('Ошибка проверки авторизации:', e)
-          }
-        }, 1000)
-      }
+      // Обновляем состояние пользователя после успешной регистрации
+      await checkAuth()
+      setRegisterLoading(false)
     } catch (err) {
       setRegisterError(err.response?.data?.detail || 'Ошибка при создании аккаунта')
-    } finally {
       setRegisterLoading(false)
     }
   }
@@ -371,21 +343,55 @@ function Layout({ children }) {
           <div className="header-right">
             {loadingUser ? (
               <div className="user-loading">Загрузка...</div>
-            ) : user ? (
+            ) : (user && user.username) ? (
               <div className="user-menu-container">
                 <span className="user-username">{user.username}</span>
                 <div 
                   className="user-avatar"
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
                 >
-                  <img src={user.avatar} alt={user.username} />
+                  {(() => {
+                    const avatarUrl = normalizeAvatarUrl(user.avatar)
+                    if (avatarUrl && !avatarError) {
+                      return (
+                        <img 
+                          src={avatarUrl} 
+                          alt={user.username}
+                          onError={() => setAvatarError(true)}
+                          onLoad={() => setAvatarError(false)}
+                        />
+                      )
+                    }
+                    return (
+                      <div className="avatar-fallback" style={{ backgroundColor: '#000000' }}>
+                        <span style={{ fontSize: '2rem', lineHeight: '1' }}>🐱</span>
+                      </div>
+                    )
+                  })()}
                 </div>
                 {showUserDropdown && (
                   <div className="user-dropdown">
                     <div className="user-dropdown-header">
                       <div className="dropdown-user-info">
                         <div className="dropdown-avatar">
-                          <img src={user.avatar} alt={user.username} />
+                          {(() => {
+                            const avatarUrl = normalizeAvatarUrl(user.avatar)
+                            if (avatarUrl && !avatarError) {
+                              return (
+                                <img 
+                                  src={avatarUrl} 
+                                  alt={user.username}
+                                  onError={() => setAvatarError(true)}
+                                  onLoad={() => setAvatarError(false)}
+                                />
+                              )
+                            }
+                            return (
+                              <div className="avatar-fallback" style={{ backgroundColor: '#000000' }}>
+                                <span style={{ fontSize: '2rem', lineHeight: '1' }}>🐱</span>
+                              </div>
+                            )
+                          })()}
                         </div>
                         <div className="dropdown-user-details">
                           <div className="dropdown-username">{user.username}</div>
