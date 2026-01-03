@@ -18,14 +18,20 @@ function AnimeGrid({
 }) {
   const [currentPage, setCurrentPage] = useState(0)
   const [showAll, setShowAll] = useState(false)
+  const [isScrolling, setIsScrolling] = useState(false)
   const carouselRef = useRef(null)
+  const prevListLengthRef = useRef(animeList.length)
 
-  // Сбрасываем страницу при изменении списка
+  // Сбрасываем страницу только если список полностью изменился (не просто добавились элементы)
   useEffect(() => {
-    if (carouselRef.current) {
-      setCurrentPage(0)
-      carouselRef.current.style.transform = 'translate3d(0%, 0, 0)'
+    // Сбрасываем только если список стал короче или полностью изменился
+    if (animeList.length < prevListLengthRef.current) {
+      if (carouselRef.current) {
+        setCurrentPage(0)
+        carouselRef.current.style.transform = 'translate3d(0%, 0, 0)'
+      }
     }
+    prevListLengthRef.current = animeList.length
   }, [animeList.length])
 
   // Определяем класс оценки в зависимости от значения
@@ -39,10 +45,28 @@ function AnimeGrid({
     return ''
   }
 
+  // Вычисляем значения страниц один раз
+  const effectiveTotal = totalCount !== null && totalCount > 0 ? totalCount : animeList.length
+  const totalPages = Math.ceil(effectiveTotal / itemsPerPage)
+  const displayPages = showAll ? totalPages : Math.min(maxPagesToShow, totalPages)
+
+  const scrollToPage = (page) => {
+    if (carouselRef.current && !isScrolling) {
+      setIsScrolling(true)
+      const scrollAmount = page * 100
+      carouselRef.current.style.transform = `translate3d(-${scrollAmount}%, 0, 0)`
+      // Сбрасываем флаг после завершения анимации
+      setTimeout(() => {
+        setIsScrolling(false)
+      }, 500) // Время анимации из CSS
+    }
+  }
+
   const handleNext = () => {
-    const totalPages = Math.ceil(animeList.length / itemsPerPage)
-    const maxPages = showAll ? totalPages : Math.min(maxPagesToShow, totalPages)
-    if (currentPage < maxPages - 1) {
+    if (isScrolling) return // Предотвращаем двойные клики
+    
+    // Проверяем, что есть следующая страница
+    if (currentPage < displayPages - 1) {
       const nextPage = currentPage + 1
       setCurrentPage(nextPage)
       scrollToPage(nextPage)
@@ -53,6 +77,8 @@ function AnimeGrid({
   }
 
   const handlePrev = () => {
+    if (isScrolling) return // Предотвращаем двойные клики
+    
     if (currentPage > 0) {
       const prevPage = currentPage - 1
       setCurrentPage(prevPage)
@@ -63,13 +89,6 @@ function AnimeGrid({
     }
   }
 
-  const scrollToPage = (page) => {
-    if (carouselRef.current) {
-      const scrollAmount = page * 100
-      carouselRef.current.style.transform = `translate3d(-${scrollAmount}%, 0, 0)`
-    }
-  }
-
   const handleExpand = async () => {
     setShowAll(true)
     if (onExpand) {
@@ -77,10 +96,7 @@ function AnimeGrid({
     }
   }
 
-  // Используем totalCount, если он передан, иначе используем длину списка
-  const effectiveTotal = totalCount !== null && totalCount > 0 ? totalCount : animeList.length
-  const totalPages = Math.ceil(effectiveTotal / itemsPerPage)
-  const displayPages = showAll ? totalPages : Math.min(maxPagesToShow, totalPages)
+  // hasMore вычисляется на основе уже вычисленных значений
   const hasMore = totalPages > maxPagesToShow && !showAll
   
   // Упрощенная логика: показываем контролы всегда, если есть элементы и включены контролы
@@ -129,7 +145,7 @@ function AnimeGrid({
             <button 
               className="carousel-btn prev" 
               onClick={handlePrev}
-              disabled={currentPage === 0}
+              disabled={currentPage === 0 || isScrolling}
               aria-label="Предыдущая страница"
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -139,7 +155,7 @@ function AnimeGrid({
             <button 
               className="carousel-btn next" 
               onClick={handleNext}
-              disabled={currentPage >= displayPages - 1}
+              disabled={currentPage >= displayPages - 1 || isScrolling}
               aria-label="Следующая страница"
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -195,6 +211,7 @@ function AnimeGrid({
               key={i}
               className={`indicator ${i === currentPage ? 'active' : ''}`}
               onClick={() => {
+                if (isScrolling) return // Предотвращаем клики во время прокрутки
                 setCurrentPage(i)
                 scrollToPage(i)
                 if (onPageChange) {
