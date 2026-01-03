@@ -6,6 +6,7 @@ from typing import List
 # 
 from src.dependencies.all_dep import (SessionDep, PaginatorAnimeDep, 
                                       CookieDataDep)
+from src.schemas.anime import PaginatorData
 from src.parsers.kodik import (get_id_and_players, get_anime_by_title)
 from src.parsers.shikimori import (shikimori_get_anime)
 from src.services.animes import (get_anime_in_db_by_id, pagination_get_anime, 
@@ -63,15 +64,6 @@ async def get_anime_paginators(pagin_data: PaginatorAnimeDep,
             logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
             continue
     return {'message': anime_list}
-
-
-# @anime_router.get('/{anime_name}')
-# async def get_anime(anime_name: str, session: SessionDep):
-#     '''Поиск аниме в базе по названию 
-#     (если не нашли говорим что нету)'''
-
-#     resp = await get_anime_exists(anime_name, session)
-#     return {'message': resp}
 
 
 @anime_router.get('/{anime_id:int}', response_model=dict)
@@ -196,7 +188,6 @@ async def get_popular_anime_data(
     session: SessionDep = None
 ):
     '''Получить популярные аниме с пагинацией'''
-    from src.schemas.anime import PaginatorData
     
     logger.info(f'Запрос популярных аниме: limit={limit}, offset={offset}')
     
@@ -281,3 +272,12 @@ async def get_anime_count(session: SessionDep):
     except Exception as e:
         logger.error(f'Ошибка при получении количества аниме: {e}', exc_info=True)
         return {'message': 0}
+    
+@anime_router.get('/all/popular')
+async def get_all_popular_anime(limit: int = 12, offset: int = 0, 
+                                session: SessionDep = None):
+    '''Получить по 12 популярных аниме'''
+
+    paginator_data = PaginatorData(limit=limit, offset=offset)
+    resp = await pagination_get_anime(paginator_data, session)
+    return {'message': resp}
