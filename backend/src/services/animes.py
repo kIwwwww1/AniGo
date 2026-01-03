@@ -1,13 +1,15 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_, exists
 from datetime import datetime
 from loguru import logger
+from sqlalchemy.orm import noload
 # 
 from src.models.anime import AnimeModel
 from src.models.users import UserModel
 from src.schemas.anime import PaginatorData
 from src.models.ratings import RatingModel
+from src.models.comments import CommentModel
 
 
 async def update_anime_data_from_shikimori(anime_id: int, shikimori_id: int):
@@ -181,30 +183,47 @@ async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession, background
 async def get_popular_anime(paginator_data: PaginatorData, session: AsyncSession):
     '''Получить популярное аниме (все аниме из базы, отсортированные по популярности)'''
 
-    # Получаем все аниме, отсортированные по рейтингу (если есть) или по ID
-    # Убираем строгие фильтры, чтобы показывать все аниме из базы
-    # Используем noload() для каждого relationship, чтобы не загружать их
-    from sqlalchemy.orm import noload
+    # Упрощенная фильтрация: оценка >= 7.5, минимум 6 комментариев, обновлено сегодня
     
-    animes = (await session.execute(
-        select(AnimeModel)
-            .options(
-                noload(AnimeModel.players),
-                noload(AnimeModel.episodes),
-                noload(AnimeModel.favorites),
-                noload(AnimeModel.ratings),
-                noload(AnimeModel.comments),
-                noload(AnimeModel.watch_history),
-                noload(AnimeModel.genres),
-                noload(AnimeModel.themes),
-            )
-            .order_by(
-                AnimeModel.score.desc().nulls_last(),  # Сначала по рейтингу (высокий -> низкий)
-                AnimeModel.id.desc()  # Потом по ID (новые -> старые)
-            )
-            .limit(paginator_data.limit)
-            .offset(paginator_data.offset)
-    )).scalars().all()
+    # Получаем начало и конец сегодняшнего дня
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+    
+    # Подзапрос для подсчета комментариев
+    comments_subquery = (
+        select(func.count(CommentModel.id))
+        .where(CommentModel.anime_id == AnimeModel.id)
+        .scalar_subquery()
+    )
+    
+    # Строгая фильтрация через where()
+    query = select(AnimeModel).options(
+        noload(AnimeModel.players),
+        noload(AnimeModel.episodes),
+        noload(AnimeModel.favorites),
+        noload(AnimeModel.ratings),
+        noload(AnimeModel.comments),
+        noload(AnimeModel.watch_history),
+        noload(AnimeModel.genres),
+        noload(AnimeModel.themes),
+    ).where(
+        and_(
+            # Оценка аниме не ниже 7.5
+            AnimeModel.score >= 7.5,
+            # Комментариев минимум 6
+            comments_subquery >= 6,
+            # Дата последнего обновления сегодня
+            AnimeModel.last_updated >= today_start,
+            AnimeModel.last_updated <= today_end,
+        )
+    ).order_by(
+        AnimeModel.score.desc().nulls_last(),  # Сначала по рейтингу (высокий -> низкий)
+        AnimeModel.id.desc()  # Потом по ID (новые -> старые)
+    ).limit(paginator_data.limit).offset(paginator_data.offset)
+    
+    logger.info(f'Выполняется запрос популярных аниме с фильтрами: score >= 7.5, comments >= 6, last_updated сегодня')
+    animes = (await session.execute(query)).scalars().all()
+    logger.info(f'Найдено аниме: {len(animes) if animes else 0}')
 
     # Возвращаем пустой список вместо ошибки, если ничего не найдено
     return animes if animes else []

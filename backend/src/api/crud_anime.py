@@ -195,11 +195,12 @@ async def get_popular_anime_data(
         anime_list = []
         for anime in resp:
             try:
+                logger.debug(f'Обработка аниме: id={anime.id}, title={anime.title}, poster_url={anime.poster_url}')
                 anime_dict = {
                     'id': anime.id,
-                    'title': anime.title,
-                    'title_original': anime.title_original,
-                    'poster_url': anime.poster_url,
+                    'title': anime.title or 'Не определено',
+                    'title_original': anime.title_original or 'Не определено',
+                    'poster_url': anime.poster_url or None,
                     'description': anime.description,
                     'year': anime.year,
                     'type': anime.type,
@@ -211,8 +212,9 @@ async def get_popular_anime_data(
                 }
                 anime_list.append(AnimeResponse(**anime_dict))
             except Exception as err:
-                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
+                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}', exc_info=True)
                 continue
+        logger.info(f'Успешно конвертировано аниме: {len(anime_list)}')
         return {'message': anime_list}
     except Exception as e:
         logger.error(f'Ошибка при получении популярных аниме: {e}', exc_info=True)
