@@ -105,6 +105,14 @@ export const animeAPI = {
     })
     return response.data
   },
+
+  // Получить комментарии к аниме с пагинацией
+  getCommentsPaginated: async (animeId, limit = 4, offset = 0) => {
+    const response = await api.get('/anime/comment/paginator', {
+      params: { anime_id: animeId, limit, offset },
+    })
+    return response.data
+  },
 }
 
 export const userAPI = {

@@ -10,7 +10,8 @@ from src.schemas.anime import PaginatorData
 from src.parsers.kodik import (get_id_and_players, get_anime_by_title)
 from src.parsers.shikimori import (shikimori_get_anime)
 from src.services.animes import (get_anime_in_db_by_id, pagination_get_anime, 
-                                 get_popular_anime, get_random_anime, get_anime_total_count, update_anime_data_from_shikimori)
+                                 get_popular_anime, get_random_anime, get_anime_total_count, 
+                                 update_anime_data_from_shikimori, comments_paginator)
 from src.schemas.anime import PaginatorData, AnimeResponse, AnimeDetailResponse
 from src.auth.auth import get_token
 
@@ -280,7 +281,7 @@ async def get_all_popular_anime(limit: int = 12, offset: int = 0,
     
     try:
         paginator_data = PaginatorData(limit=limit, offset=offset)
-        resp = await pagination_get_anime(paginator_data, session)
+        resp = await get_popular_anime(paginator_data, session)
         logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
         
         # Конвертируем SQLAlchemy модели в Pydantic схемы
@@ -390,4 +391,52 @@ async def get_all_animes(limit: int = 12, offset: int = 0,
 
 
 
-
+@anime_router.get('/comment/paginator')
+async def get_comments_paginator(anime_id: int, limit: int = 4, 
+                                offset: int = 0, session: SessionDep = None):
+    '''Получить комментарии к аниме с пагинацией'''
+    
+    logger.info(f'Запрос комментариев для аниме {anime_id}: limit={limit}, offset={offset}')
+    
+    try:
+        comments = await comments_paginator(limit, offset, anime_id, session)
+        logger.info(f'Найдено комментариев: {len(comments) if comments else 0}')
+        
+        # Конвертируем SQLAlchemy модели в словари
+        comments_list = []
+        for comment in comments:
+            try:
+                # Проверяем, что user загружен
+                user_data = None
+                if hasattr(comment, 'user') and comment.user:
+                    user_data = {
+                        'id': comment.user.id,
+                        'username': comment.user.username,
+                        'avatar_url': getattr(comment.user, 'avatar_url', None)
+                    }
+                else:
+                    logger.warning(f'User not loaded for comment {getattr(comment, "id", "unknown")}')
+                    continue
+                
+                # Конвертируем datetime в строку
+                created_at_str = None
+                if hasattr(comment, 'created_at') and comment.created_at:
+                    if isinstance(comment.created_at, str):
+                        created_at_str = comment.created_at
+                    else:
+                        created_at_str = comment.created_at.isoformat()
+                
+                comments_list.append({
+                    'id': comment.id,
+                    'text': comment.text,
+                    'created_at': created_at_str,
+                    'user': user_data
+                })
+            except Exception as err:
+                logger.error(f'Ошибка при конвертации комментария {getattr(comment, "id", "unknown")}: {err}', exc_info=True)
+                continue
+        
+        return {'message': comments_list}
+    except Exception as e:
+        logger.error(f'Ошибка при получении комментариев: {e}', exc_info=True)
+        return {'message': []}

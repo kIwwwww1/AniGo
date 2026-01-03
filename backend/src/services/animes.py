@@ -296,3 +296,24 @@ async def get_anime_total_count(session: AsyncSession):
     )).scalar()
     
     return count if count else 0
+
+
+async def comments_paginator(limit: int, offset: int, 
+                             anime_id: int, session: AsyncSession):
+    '''Получить комментарии к аниме с пагинацией'''
+    from sqlalchemy.orm import selectinload
+    from src.models.users import UserModel
+    
+    # Выбираем комментарии напрямую из таблицы CommentModel, а не через relationship
+    comments = (await session.execute(
+        select(CommentModel)
+            .options(
+                selectinload(CommentModel.user)  # Загружаем пользователя для каждого комментария
+            )
+            .where(CommentModel.anime_id == anime_id)
+            .order_by(CommentModel.created_at.desc())  # Сортируем от новых к старым
+            .limit(limit)
+            .offset(offset)
+    )).scalars().all()
+    
+    return comments if comments else []

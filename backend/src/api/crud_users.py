@@ -193,3 +193,4 @@ async def user_profile(username: str, session: SessionDep):
             }
         }
     }
+

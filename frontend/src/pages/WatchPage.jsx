@@ -20,6 +20,12 @@ function WatchPage() {
   const [isRatingMenuOpen, setIsRatingMenuOpen] = useState(false)
   const [isFavorite, setIsFavorite] = useState(false)
   const [openReportMenu, setOpenReportMenu] = useState(null) // ID комментария, для которого открыто меню
+  const [comments, setComments] = useState([]) // Комментарии с пагинацией
+  const [commentsPage, setCommentsPage] = useState(0) // Текущая страница комментариев
+  const [commentsLoading, setCommentsLoading] = useState(false)
+  const [commentsHasMore, setCommentsHasMore] = useState(true)
+  const [hasAnyComments, setHasAnyComments] = useState(false) // Есть ли комментарии вообще
+  const commentsLimit = 4 // Количество комментариев на странице
 
   useEffect(() => {
     // Прокручиваем страницу вверх при переходе на страницу аниме
@@ -27,6 +33,7 @@ function WatchPage() {
     loadAnime()
     loadRandomAnime()
     checkFavoriteStatus()
+    loadComments(0) // Загружаем первую страницу комментариев
   }, [animeId])
 
   useEffect(() => {
@@ -75,19 +82,73 @@ function WatchPage() {
     }
   }
 
-  const updateComments = async () => {
-    // Обновляем только комментарии без перезагрузки всей страницы
+  const loadComments = async (page = 0) => {
+    if (!animeId) return
+    
     try {
-      const response = await animeAPI.getAnimeById(animeId)
-      if (response.message && anime) {
-        // Обновляем только комментарии, сохраняя остальные данные
-        setAnime({
-          ...anime,
-          comments: response.message.comments || []
-        })
+      setCommentsLoading(true)
+      const offset = page * commentsLimit
+      const response = await animeAPI.getCommentsPaginated(parseInt(animeId), commentsLimit, offset)
+      
+      if (response.message) {
+        const newComments = Array.isArray(response.message) ? response.message : []
+        
+        // Если мы перешли на пустую страницу (не первую), возвращаемся на предыдущую
+        if (page > 0 && newComments.length === 0) {
+          // Возвращаемся на предыдущую страницу
+          await loadComments(page - 1)
+          return
+        }
+        
+        setComments(newComments) // Всегда заменяем комментарии, а не добавляем
+        // Следующая страница есть только если мы получили ровно commentsLimit комментариев
+        // Это означает, что может быть еще комментарии на следующей странице
+        setCommentsHasMore(newComments.length === commentsLimit)
+        setCommentsPage(page)
+        
+        // Если на первой странице есть комментарии, значит комментарии есть вообще
+        if (page === 0) {
+          setHasAnyComments(newComments.length > 0)
+        }
       }
     } catch (err) {
-      console.error('Ошибка обновления комментариев:', err)
+      console.error('Ошибка загрузки комментариев:', err)
+    } finally {
+      setCommentsLoading(false)
+    }
+  }
+
+  const updateComments = async () => {
+    // Перезагружаем текущую страницу комментариев после добавления нового
+    await loadComments(0) // Всегда возвращаемся на первую страницу после добавления комментария
+  }
+
+  const handleNextCommentsPage = async () => {
+    if (!commentsLoading && commentsHasMore) {
+      // Проверяем следующую страницу перед переходом
+      const nextPage = commentsPage + 1
+      const offset = nextPage * commentsLimit
+      try {
+        const response = await animeAPI.getCommentsPaginated(parseInt(animeId), commentsLimit, offset)
+        const nextComments = Array.isArray(response.message) ? response.message : []
+        
+        // Если следующая страница пустая, не переходим
+        if (nextComments.length === 0) {
+          setCommentsHasMore(false)
+          return
+        }
+        
+        // Если следующая страница не пустая, переходим
+        await loadComments(nextPage)
+      } catch (err) {
+        console.error('Ошибка проверки следующей страницы:', err)
+      }
+    }
+  }
+
+  const handlePrevCommentsPage = () => {
+    if (!commentsLoading && commentsPage > 0) {
+      loadComments(commentsPage - 1)
     }
   }
 
@@ -460,72 +521,104 @@ function WatchPage() {
 
               {/* Список комментариев */}
               <div className="comments-list">
-                {anime.comments && anime.comments.length > 0 ? (
-                  [...anime.comments]
-                    .sort((a, b) => {
-                      // Сортируем от нового к старому
-                      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0
-                      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
-                      return dateB - dateA // Обратный порядок (новые первыми)
-                    })
-                    .map((comment) => (
-                      <div key={comment.id} className="comment-item">
-                        <div className="comment-header">
-                          <div className="comment-user">
-                            {comment.user.avatar_url && (
-                              <img
-                                src={comment.user.avatar_url}
-                                alt={comment.user.username}
-                                className="comment-avatar"
-                              />
-                            )}
-                            <span className="comment-username">{comment.user.username}</span>
-                          </div>
-                          <div className="comment-header-right">
-                            <span className="comment-date">{formatDate(comment.created_at)}</span>
-                            <div className="comment-menu-wrapper">
-                              <button
-                                type="button"
-                                className="comment-menu-btn"
-                                onClick={() => toggleReportMenu(comment.id)}
-                                aria-label="Меню комментария"
+                {commentsLoading && comments.length === 0 ? (
+                  <p className="no-comments">Загрузка комментариев...</p>
+                ) : comments.length > 0 ? (
+                  comments.map((comment) => (
+                    <div key={comment.id} className="comment-item">
+                      <div className="comment-header">
+                        <div className="comment-user">
+                          {comment.user?.avatar_url && (
+                            <img
+                              src={comment.user.avatar_url}
+                              alt={comment.user.username}
+                              className="comment-avatar"
+                            />
+                          )}
+                          <span className="comment-username">{comment.user?.username || 'Неизвестный'}</span>
+                        </div>
+                        <div className="comment-header-right">
+                          <span className="comment-date">{formatDate(comment.created_at)}</span>
+                          <div className="comment-menu-wrapper">
+                            <button
+                              type="button"
+                              className="comment-menu-btn"
+                              onClick={() => toggleReportMenu(comment.id)}
+                              aria-label="Меню комментария"
+                            >
+                              <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                               >
-                                <svg
-                                  width="20"
-                                  height="20"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
+                                <circle cx="12" cy="5" r="1" />
+                                <circle cx="12" cy="12" r="1" />
+                                <circle cx="12" cy="19" r="1" />
+                              </svg>
+                            </button>
+                            {openReportMenu === comment.id && (
+                              <div className="comment-report-menu">
+                                <button
+                                  type="button"
+                                  className="comment-report-btn"
+                                  onClick={() => handleReportComment(comment.id)}
                                 >
-                                  <circle cx="12" cy="5" r="1" />
-                                  <circle cx="12" cy="12" r="1" />
-                                  <circle cx="12" cy="19" r="1" />
-                                </svg>
-                              </button>
-                              {openReportMenu === comment.id && (
-                                <div className="comment-report-menu">
-                                  <button
-                                    type="button"
-                                    className="comment-report-btn"
-                                    onClick={() => handleReportComment(comment.id)}
-                                  >
-                                    Пожаловаться
-                                  </button>
-                                </div>
-                              )}
-                            </div>
+                                  Пожаловаться
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <p className="comment-text">{comment.text}</p>
                       </div>
-                    ))
+                      <p className="comment-text">{comment.text}</p>
+                    </div>
+                  ))
                 ) : (
-                  <p className="no-comments">Пока нет комментариев. Будьте первым!</p>
+                  <p className="no-comments">
+                    {hasAnyComments 
+                      ? 'На этой странице нет комментариев' 
+                      : 'Пока нет комментариев. Будьте первым!'}
+                  </p>
                 )}
               </div>
+
+              {/* Пагинация комментариев */}
+              {(hasAnyComments || commentsPage > 0 || commentsHasMore) && (
+                <div className="comments-pagination">
+                  <button
+                    type="button"
+                    className="comments-pagination-btn"
+                    onClick={handlePrevCommentsPage}
+                    disabled={commentsLoading || commentsPage === 0}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M15 18l-6-6 6-6"/>
+                    </svg>
+                    Назад
+                  </button>
+                  
+                  <span className="comments-page-info">
+                    Страница {commentsPage + 1}
+                  </span>
+                  
+                  <button
+                    type="button"
+                    className="comments-pagination-btn"
+                    onClick={handleNextCommentsPage}
+                    disabled={commentsLoading || !commentsHasMore}
+                  >
+                    Вперед
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 18l6-6-6-6"/>
+                    </svg>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
