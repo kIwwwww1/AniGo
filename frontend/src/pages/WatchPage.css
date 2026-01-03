@@ -15,11 +15,15 @@
   grid-template-columns: 300px 1fr;
   gap: 2rem;
   margin-bottom: 2rem;
-  background: linear-gradient(135deg, rgba(26, 26, 26, 0.95) 0%, rgba(20, 20, 20, 0.95) 100%);
+  background: linear-gradient(135deg, rgba(26, 26, 26, 0.3) 0%, rgba(20, 20, 20, 0.3) 100%);
   border-radius: 16px;
   padding: 1.5rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 
+              0 0 40px var(--user-accent-color-shadow, rgba(229, 9, 20, 0.4)),
+              0 0 80px var(--user-accent-color-shadow, rgba(229, 9, 20, 0.2));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .anime-poster-container {

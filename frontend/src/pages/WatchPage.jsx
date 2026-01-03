@@ -35,6 +35,7 @@ function WatchPage() {
     loadAnime()
     loadRandomAnime()
     checkFavoriteStatus()
+    checkUserRating()
     loadComments(0) // Загружаем первую страницу комментариев
   }, [animeId])
 
@@ -191,6 +192,20 @@ function WatchPage() {
       // Если пользователь не авторизован, просто игнорируем ошибку
       if (err.response?.status !== 401) {
         console.error('Ошибка проверки избранного:', err)
+      }
+    }
+  }
+
+  const checkUserRating = async () => {
+    try {
+      const response = await userAPI.checkRating(parseInt(animeId))
+      if (response.message && response.message.rating !== null && response.message.rating !== undefined) {
+        setUserRating(response.message.rating)
+      }
+    } catch (err) {
+      // Если пользователь не авторизован, просто игнорируем ошибку
+      if (err.response?.status !== 401) {
+        console.error('Ошибка проверки оценки:', err)
       }
     }
   }

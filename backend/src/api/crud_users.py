@@ -6,7 +6,7 @@ from src.models.users import UserModel
 from src.dependencies.all_dep import SessionDep, UserExistsDep
 from src.services.users import (add_user, create_user_comment, 
                                 create_rating, get_user_by_id, login_user,
-                                toggle_favorite, check_favorite, get_user_favorites,
+                                toggle_favorite, check_favorite, check_rating, get_user_favorites,
                                 get_user_by_username)
 from src.schemas.user import (CreateNewUser, CreateUserComment, 
                               CreateUserRating, LoginUser, CreateUserFavorite)
@@ -122,6 +122,21 @@ async def check_user_favorite(user: UserExistsDep, anime_id: int,
         raise HTTPException(
             status_code=500,
             detail=f'Ошибка при проверке избранного: {str(e)}'
+        )
+
+
+@user_router.get('/check/rating/{anime_id:int}')
+async def check_user_rating(user: UserExistsDep, anime_id: int,
+                             session: SessionDep):
+    '''Получить оценку пользователя для аниме'''
+
+    try:
+        rating = await check_rating(anime_id, user.id, session)
+        return {'message': {'rating': rating}}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f'Ошибка при получении оценки: {str(e)}'
         )
 
 

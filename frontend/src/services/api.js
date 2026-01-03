@@ -179,6 +179,12 @@ export const userAPI = {
     return response.data
   },
 
+  // Получить оценку пользователя для аниме
+  checkRating: async (animeId) => {
+    const response = await api.get(`/user/check/rating/${animeId}`)
+    return response.data
+  },
+
   // Получить все избранные аниме пользователя
   getFavorites: async () => {
     const response = await api.get('/user/favorites')

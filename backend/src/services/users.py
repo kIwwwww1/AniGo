@@ -174,7 +174,7 @@ async def create_comment(comment_data: CreateUserComment, user_id: int,
     return new_comment
 
 async def create_rating(rating_data: CreateUserRating, user_id: int, session: AsyncSession):
-    '''Создать рейтинг аниме'''
+    '''Создать или обновить рейтинг аниме'''
     
     # await get_user_by_id(user_id, session)
     await get_anime_by_id(rating_data.anime_id, session)
@@ -182,17 +182,34 @@ async def create_rating(rating_data: CreateUserRating, user_id: int, session: As
     # Убеждаемся, что rating - целое число (конвертируем в float для модели)
     rating_value = float(int(rating_data.rating))
     
-    new_rating = RatingModel(
-        user_id=user_id,
-        rating=rating_value,
-        anime_id=rating_data.anime_id,
-    )
+    # Проверяем, существует ли уже оценка от этого пользователя для этого аниме
+    # Берем последнюю оценку (по ID в убывающем порядке)
+    existing_rating = (await session.execute(
+        select(RatingModel)
+        .filter_by(
+            user_id=user_id,
+            anime_id=rating_data.anime_id
+        )
+        .order_by(RatingModel.id.desc())
+        .limit(1)
+    )).scalar_one_or_none()
     
-    session.add(new_rating)
-    await session.flush()  # Используем flush для получения ID
-    await session.commit()
-    
-    return 'Оценка создана'
+    if existing_rating:
+        # Обновляем существующую оценку
+        existing_rating.rating = rating_value
+        await session.commit()
+        return 'Оценка обновлена'
+    else:
+        # Создаем новую оценку
+        new_rating = RatingModel(
+            user_id=user_id,
+            rating=rating_value,
+            anime_id=rating_data.anime_id,
+        )
+        session.add(new_rating)
+        await session.flush()  # Используем flush для получения ID
+        await session.commit()
+        return 'Оценка создана'
 
 
 async def get_user_anime(user_id: str, session: AsyncSession):
@@ -298,3 +315,22 @@ async def check_favorite(anime_id: int, user_id: int, session: AsyncSession):
     )).scalar_one_or_none()
     
     return favorite is not None
+
+
+async def check_rating(anime_id: int, user_id: int, session: AsyncSession):
+    '''Получить оценку пользователя для аниме (возвращает оценку или None)'''
+    
+    # Получаем последнюю оценку (по ID, так как ID автоинкрементный)
+    rating = (await session.execute(
+        select(RatingModel)
+        .filter_by(
+            user_id=user_id,
+            anime_id=anime_id
+        )
+        .order_by(RatingModel.id.desc())  # Сортируем по ID в убывающем порядке
+        .limit(1)  # Берем только первую (последнюю) запись
+    )).scalar_one_or_none()
+    
+    if rating:
+        return int(rating.rating)  # Возвращаем оценку как целое число
+    return None
