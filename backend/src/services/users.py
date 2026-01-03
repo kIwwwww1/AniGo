@@ -124,6 +124,29 @@ async def get_user_by_id(user_id: int, session: AsyncSession):
     )
 
 
+async def get_user_by_username(username: str, session: AsyncSession):
+    '''Получить пользователя из базы по username с загрузкой связанных данных'''
+    from sqlalchemy.orm import selectinload
+    from src.models.favorites import FavoriteModel
+    from src.models.anime import AnimeModel
+    
+    user = (await session.execute(
+        select(UserModel)
+            .options(
+                selectinload(UserModel.favorites).selectinload(FavoriteModel.anime),
+                selectinload(UserModel.ratings),
+                selectinload(UserModel.comments)
+            )
+            .filter_by(username=username)
+    )).scalar_one_or_none()
+    if user:
+        return user
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f'Пользователь с именем {username} не найден'
+    )
+
+
 
 async def create_comment(comment_data: CreateUserComment, user_id: int, 
                          session: AsyncSession):

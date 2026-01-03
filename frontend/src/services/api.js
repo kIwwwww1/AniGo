@@ -160,6 +160,12 @@ export const userAPI = {
     const response = await api.get('/user/favorites')
     return response.data
   },
+
+  // Получить профиль пользователя по username
+  getUserProfile: async (username) => {
+    const response = await api.get(`/user/profile/${encodeURIComponent(username)}`)
+    return response.data
+  },
 }
 
 export default api

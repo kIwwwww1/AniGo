@@ -75,6 +75,38 @@ function WatchPage() {
     }
   }
 
+  const updateComments = async () => {
+    // Обновляем только комментарии без перезагрузки всей страницы
+    try {
+      const response = await animeAPI.getAnimeById(animeId)
+      if (response.message && anime) {
+        // Обновляем только комментарии, сохраняя остальные данные
+        setAnime({
+          ...anime,
+          comments: response.message.comments || []
+        })
+      }
+    } catch (err) {
+      console.error('Ошибка обновления комментариев:', err)
+    }
+  }
+
+  const updateRating = async () => {
+    // Обновляем только рейтинг без перезагрузки всей страницы
+    try {
+      const response = await animeAPI.getAnimeById(animeId)
+      if (response.message && anime) {
+        // Обновляем только рейтинг, сохраняя остальные данные
+        setAnime({
+          ...anime,
+          score: response.message.score || anime.score
+        })
+      }
+    } catch (err) {
+      console.error('Ошибка обновления рейтинга:', err)
+    }
+  }
+
   const loadRandomAnime = async () => {
     try {
       const response = await animeAPI.getRandomAnime(3)
@@ -108,8 +140,8 @@ function WatchPage() {
       setSubmittingComment(true)
       await userAPI.createComment(parseInt(animeId), commentText)
       setCommentText('')
-      // Перезагружаем аниме, чтобы получить обновленные комментарии
-      await loadAnime()
+      // Обновляем только комментарии без перезагрузки всей страницы
+      await updateComments()
     } catch (err) {
       console.error('Ошибка при отправке комментария:', err)
       alert('Ошибка при отправке комментария')
@@ -126,8 +158,8 @@ function WatchPage() {
       await userAPI.createRating(parseInt(animeId), rating)
       setUserRating(rating)
       setIsRatingMenuOpen(false)
-      // Перезагружаем аниме, чтобы получить обновленный рейтинг
-      await loadAnime()
+      // Обновляем только рейтинг без перезагрузки всей страницы
+      await updateRating()
     } catch (err) {
       console.error('Ошибка при отправке рейтинга:', err)
       alert(err.response?.data?.detail || 'Ошибка при отправке рейтинга')

@@ -3,6 +3,7 @@ import HomePage from './pages/HomePage'
 import WatchPage from './pages/WatchPage'
 import WatchPageSearch from './pages/WatchPageSearch'
 import MyFavoritesPage from './pages/MyFavoritesPage'
+import UserProfilePage from './pages/UserProfilePage'
 import Layout from './components/Layout'
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
           <Route path="/my" element={<MyFavoritesPage />} />
           <Route path="/watch/:animeId" element={<WatchPage />} />
           <Route path="/watch/search/:animeName" element={<WatchPageSearch />} />
+          <Route path="/profile/:username" element={<UserProfilePage />} />
         </Routes>
       </Layout>
     </Router>

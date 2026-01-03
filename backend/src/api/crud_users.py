@@ -6,7 +6,8 @@ from src.models.users import UserModel
 from src.dependencies.all_dep import SessionDep, UserExistsDep
 from src.services.users import (add_user, create_user_comment, 
                                 create_rating, get_user_by_id, login_user,
-                                toggle_favorite, check_favorite, get_user_favorites)
+                                toggle_favorite, check_favorite, get_user_favorites,
+                                get_user_by_username)
 from src.schemas.user import (CreateNewUser, CreateUserComment, 
                               CreateUserRating, LoginUser, CreateUserFavorite)
 from src.auth.auth import get_token, delete_token
@@ -138,3 +139,9 @@ async def get_user_favorites_list(user: UserExistsDep, session: SessionDep):
         )
 
 
+@user_router.get('/profile/{username:str}')
+async def user_profile(username: str, session: SessionDep):
+    '''получение данных пользователя по username'''
+    
+    user = await get_user_by_username(username, session)
+    return {'message': user}
