@@ -10,8 +10,98 @@ from src.schemas.anime import PaginatorData
 from src.models.ratings import RatingModel
 
 
-async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession):
-    '''Поиск аниме в базе по id с загрузкой relationships'''
+async def update_anime_data_from_shikimori(anime_id: int, shikimori_id: int):
+    '''Обновить данные аниме из Shikimori (использует новую сессию)'''
+    from src.parsers.shikimori import parser_shikimori, base_get_url, new_base_get_url, get_or_create_genre, get_or_create_theme
+    from src.db.database import new_session
+    from src.models.anime import AnimeModel
+    from sqlalchemy.orm import selectinload
+    from sqlalchemy import select
+    
+    async with new_session() as session:
+        try:
+            # Загружаем аниме с relationships
+            anime = (await session.execute(
+                select(AnimeModel)
+                    .options(
+                        selectinload(AnimeModel.genres),
+                        selectinload(AnimeModel.themes),
+                    )
+                    .filter_by(id=anime_id)
+            )).scalar_one_or_none()
+            
+            if not anime:
+                logger.warning(f"Аниме {anime_id} не найдено для обновления")
+                return False
+            
+            # Получаем данные из Shikimori
+            anime_data = None
+            try:
+                anime_data = await parser_shikimori.anime_info(shikimori_link=f"{base_get_url}{shikimori_id}")
+            except Exception as e:
+                logger.warning(f"Ошибка при получении данных с основного URL для {shikimori_id}: {e}")
+                try:
+                    anime_data = await parser_shikimori.anime_info(shikimori_link=f"{new_base_get_url}{shikimori_id}")
+                except Exception as e2:
+                    logger.error(f"Ошибка при получении данных с альтернативного URL для {shikimori_id}: {e2}")
+                    return False
+            
+            if not anime_data:
+                return False
+            
+            # Обновляем данные
+            episodes_count = None
+            if anime_data.get("episodes"):
+                try:
+                    episodes_count = int(anime_data["episodes"])
+                except (ValueError, TypeError):
+                    pass
+
+            score = None
+            if anime_data.get("score"):
+                try:
+                    score = float(anime_data["score"])
+                except (ValueError, TypeError):
+                    pass
+            
+            anime.title = anime_data.get("title", anime.title)
+            anime.poster_url = anime_data.get("picture", anime.poster_url)
+            anime.description = anime_data.get("description", anime.description)
+            anime.year = anime_data.get("year", anime.year)
+            anime.type = anime_data.get("type", anime.type)
+            anime.episodes_count = episodes_count if episodes_count is not None else anime.episodes_count
+            anime.rating = anime_data.get("rating", anime.rating)
+            anime.score = score if score is not None else anime.score
+            anime.studio = anime_data.get("studio", anime.studio)
+            anime.status = anime_data.get("status", anime.status)
+            anime.last_updated = datetime.now()
+            anime.request_count = 0  # Сбрасываем счетчик после обновления
+            
+            # Обновляем жанры
+            if anime_data.get("genres"):
+                anime.genres.clear()
+                for genre_name in anime_data["genres"]:
+                    genre = await get_or_create_genre(session, genre_name)
+                    anime.genres.append(genre)
+            
+            # Обновляем темы
+            if anime_data.get("themes"):
+                anime.themes.clear()
+                for theme_name in anime_data["themes"]:
+                    theme = await get_or_create_theme(session, theme_name)
+                    anime.themes.append(theme)
+            
+            await session.commit()
+            logger.info(f"✅ Обновлены данные для аниме {anime.id} ({anime.title})")
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка при обновлении данных аниме {anime_id}: {e}", exc_info=True)
+            await session.rollback()
+            return False
+
+
+async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession, background_tasks=None):
+    '''Поиск аниме в базе по id с загрузкой relationships и обновлением данных каждые 5 запросов'''
 
     from sqlalchemy.orm import selectinload
     from src.models.comments import CommentModel
@@ -29,11 +119,55 @@ async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession):
             )).scalar_one_or_none()
         
         if anime:
-            # Сортируем комментарии от новых к старым
+            # Сохраняем информацию о relationships ДО коммита
+            players_count = len(anime.players) if anime.players else 0
+            genres_count = len(anime.genres) if anime.genres else 0
+            comments_count = len(anime.comments) if anime.comments else 0
+            
+            # Сортируем комментарии от новых к старым ПЕРЕД любыми изменениями
             if anime.comments:
                 anime.comments.sort(key=lambda c: c.created_at if c.created_at else datetime.min, reverse=True)
             
-            logger.info(f'Аниме {anime_id} загружено. Players: {len(anime.players) if anime.players else 0}, Genres: {len(anime.genres) if anime.genres else 0}, Comments: {len(anime.comments) if anime.comments else 0}')
+            # Увеличиваем счетчик запросов
+            anime.request_count = (anime.request_count or 0) + 1
+            
+            # Проверяем, нужно ли обновлять данные (каждые 5 запросов)
+            should_update = anime.request_count >= 5
+            shikimori_id = None
+            
+            if should_update:
+                # Получаем shikimori_id из external_id первого плеера ДО коммита
+                if anime.players:
+                    for player_link in anime.players:
+                        if player_link.external_id:
+                            # external_id имеет формат "shikimori_id_player_url"
+                            try:
+                                shikimori_id = int(player_link.external_id.split('_')[0])
+                                break
+                            except (ValueError, IndexError):
+                                continue
+                
+                if shikimori_id:
+                    # Сбрасываем счетчик перед запуском обновления
+                    anime.request_count = 0
+                else:
+                    logger.warning(f"⚠️ Не удалось найти shikimori_id для аниме {anime_id}")
+                    # Сбрасываем счетчик, чтобы не накапливать запросы
+                    anime.request_count = 0
+            
+            # Сохраняем счетчик запросов (используем flush, commit будет в endpoint)
+            await session.flush()
+            
+            # Запускаем обновление в фоне через BackgroundTasks (если нужно)
+            if should_update and shikimori_id and background_tasks:
+                logger.info(f"🔄 Запуск обновления данных для аниме {anime_id} (shikimori_id: {shikimori_id})")
+                background_tasks.add_task(update_anime_data_from_shikimori, anime_id, shikimori_id)
+            
+            # Используем сохраненные значения для лога
+            logger.info(f'Аниме {anime_id} загружено. Players: {players_count}, Genres: {genres_count}, Comments: {comments_count}, Request count: {anime.request_count}')
+            
+            # Возвращаем объект БЕЗ коммита - коммит будет выполнен в endpoint после сериализации
+            # Это предотвращает проблемы с доступом к relationships после коммита
             return anime
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
                             detail='Аниме не найдено')

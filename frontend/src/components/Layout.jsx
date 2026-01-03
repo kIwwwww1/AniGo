@@ -101,8 +101,9 @@ function Layout({ children }) {
     }
 
     const trimmedQuery = searchQuery.trim()
-    if (trimmedQuery.length < 2) {
+    if (trimmedQuery.length < 3) {
       setSearchResults([])
+      setSearchLoading(false)
       return
     }
 
@@ -321,7 +322,7 @@ function Layout({ children }) {
                   </button>
                 </form>
                 {/* Результаты поиска */}
-                {showSearch && (searchResults.length > 0 || searchLoading || (searchQuery.trim().length >= 2 && !searchLoading)) && (
+                {showSearch && (searchResults.length > 0 || searchLoading || (searchQuery.trim().length >= 3 && !searchLoading)) && (
                   <div className="search-results" ref={searchResultsRef}>
                     {searchLoading ? (
                       <div className="search-results-loading">
@@ -359,7 +360,7 @@ function Layout({ children }) {
                           </Link>
                         ))}
                       </div>
-                    ) : searchQuery.trim().length >= 2 ? (
+                    ) : searchQuery.trim().length >= 3 ? (
                       <div className="search-results-empty">Ничего не найдено</div>
                     ) : null}
                   </div>

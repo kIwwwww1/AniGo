@@ -16,10 +16,10 @@ from src.services.database import restart_database
 
 user_router = APIRouter(prefix='/user', tags=['UserPanel'])
 
-# @user_router.delete('/restart_all_data')
-# async def restart_db():
-#     resp = await restart_database(engine)
-#     return {'message': resp}
+@user_router.delete('/restart_all_data')
+async def restart_db():
+    resp = await restart_database(engine)
+    return {'message': resp}
 
 
 @user_router.post('/login')

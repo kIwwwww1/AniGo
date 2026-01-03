@@ -77,10 +77,9 @@
   width: 40px;
   height: 40px;
   flex-shrink: 0;
-  z-index: 100;
+  z-index: 1;
   contain: layout style;
   overflow: visible;
-  isolation: isolate;
 }
 
 .search-link {
@@ -89,7 +88,7 @@
   align-items: center;
   justify-content: center;
   color: var(--text-secondary);
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease 0.1s;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
   background: none;
   border: none;
   cursor: pointer;
@@ -100,6 +99,7 @@
   width: 40px;
   height: 40px;
   opacity: 1;
+  transform: translateX(0);
 }
 
 .search-link:hover:not(.search-active) {
@@ -130,18 +130,18 @@
   width: 320px;
   opacity: 0;
   overflow: hidden;
-  z-index: 1000;
+  z-index: 1;
   pointer-events: none;
   will-change: transform, opacity;
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.2s, opacity 0.3s ease 0.1s;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.1s, opacity 0.3s ease 0s;
 }
 
 .search-form.search-form-active {
   transform: translateY(-50%) scaleX(1);
   opacity: 1;
   pointer-events: auto;
-  z-index: 1000;
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.2s, opacity 0.3s ease 0.1s;
+  z-index: 1;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.1s, opacity 0.3s ease 0s;
 }
 
 .search-input {
@@ -335,7 +335,7 @@
   align-items: center;
   gap: 1rem;
   position: relative;
-  z-index: 20;
+  z-index: 10;
 }
 
 .user-username {

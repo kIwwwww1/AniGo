@@ -3,7 +3,7 @@ import asyncio
 from loguru import logger
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 from anime_parsers_ru import ShikimoriParserAsync
 from anime_parsers_ru.errors import ServiceError, NoResults
 # 
@@ -54,11 +54,21 @@ async def get_or_create_theme(session: AsyncSession, theme_name: str):
 
 
 async def get_anime_by_title_db(anime_name: str, session: AsyncSession):
-    '''Поиск аниме в базе по названию'''
+    '''Поиск аниме в базе по названию (ищет по title и title_original)'''
 
     words = anime_name.split()
-    conditions = [AnimeModel.title.ilike(f"%{word}%")for word in words]
-    query = select(AnimeModel).where(and_(*conditions))
+    # Поиск по русскому названию
+    title_conditions = [AnimeModel.title.ilike(f"%{word}%") for word in words]
+    # Поиск по оригинальному названию
+    title_original_conditions = [AnimeModel.title_original.ilike(f"%{word}%") for word in words]
+    
+    # Ищем по обоим полям
+    query = select(AnimeModel).where(
+        or_(
+            and_(*title_conditions),
+            and_(*title_original_conditions)
+        )
+    )
     result = (await session.execute(query)).scalars().all()
     if result:
         return result
@@ -97,6 +107,7 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
             )
 
         #  Парсим каждое аниме и сохраняем в БД (Без ошибки с id аниме)
+        added_animes = []
         for sh_id, player_url in animes.items():
 
             # 🔹 Получаем данные из Shikimori (сначала пробуем основной URL)
@@ -128,47 +139,66 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
 
             logger.info(f"📥 Получено аниме: {anime.get('title')}")
 
-            #  Преобразование данных
-            episodes_count = None
-            if anime.get("episodes"):
-                try:
-                    episodes_count = int(anime["episodes"])
-                except (ValueError, TypeError):
-                    pass
+            #  Проверяем, существует ли уже аниме с таким title_original ПЕРЕД парсингом
+            existing_anime = (
+                await session.execute(
+                    select(AnimeModel).where(
+                        AnimeModel.title_original == anime.get("original_title")
+                    )
+                )
+            ).scalar_one_or_none()
 
-            score = None
-            if anime.get("score"):
-                try:
-                    score = float(anime["score"])
-                except (ValueError, TypeError):
-                    pass
+            if existing_anime:
+                # Аниме уже есть в БД, просто добавляем связь с плеером если её нет
+                new_anime = existing_anime
+                added_animes.append(new_anime)
+            else:
+                #  Преобразование данных
+                episodes_count = None
+                if anime.get("episodes"):
+                    try:
+                        episodes_count = int(anime["episodes"])
+                    except (ValueError, TypeError):
+                        pass
 
-            #  Создаём модель Anime
-            new_anime = AnimeModel(
-                title=anime.get("title"),
-                title_original=anime.get("original_title"),
-                poster_url=anime.get("picture"),
-                description=anime.get("description", ""),
-                year=anime.get("year"),
-                type=anime.get("type", "TV"),
-                episodes_count=episodes_count,
-                rating=anime.get("rating"),
-                score=score,
-                studio=anime.get("studio"),
-                status=anime.get("status", "unknown"),
-            )
+                score = None
+                if anime.get("score"):
+                    try:
+                        score = float(anime["score"])
+                    except (ValueError, TypeError):
+                        pass
 
-            #  Жанры
-            if anime.get("genres"):
-                for genre_name in anime["genres"]:
-                    genre = await get_or_create_genre(session, genre_name)
-                    new_anime.genres.append(genre)
+                #  Создаём модель Anime
+                new_anime = AnimeModel(
+                    title=anime.get("title"),
+                    title_original=anime.get("original_title"),
+                    poster_url=anime.get("picture"),
+                    description=anime.get("description", ""),
+                    year=anime.get("year"),
+                    type=anime.get("type", "TV"),
+                    episodes_count=episodes_count,
+                    rating=anime.get("rating"),
+                    score=score,
+                    studio=anime.get("studio"),
+                    status=anime.get("status", "unknown"),
+                )
 
-            #  Темы
-            if anime.get("themes"):
-                for theme_name in anime["themes"]:
-                    theme = await get_or_create_theme(session, theme_name)
-                    new_anime.themes.append(theme)
+                #  Жанры
+                if anime.get("genres"):
+                    for genre_name in anime["genres"]:
+                        genre = await get_or_create_genre(session, genre_name)
+                        new_anime.genres.append(genre)
+
+                #  Темы
+                if anime.get("themes"):
+                    for theme_name in anime["themes"]:
+                        theme = await get_or_create_theme(session, theme_name)
+                        new_anime.themes.append(theme)
+
+                session.add(new_anime)
+                await session.flush()
+                added_animes.append(new_anime)
+                logger.info(f"✅ Добавлено новое аниме: {anime.get('title')}")
 
             #  Плеер
             existing_player = (
@@ -188,23 +218,46 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
                 session.add(existing_player)
                 await session.flush()
 
-            #  Связь аниме ↔ плеер
-            anime_player = AnimePlayerModel(
-                external_id=f"{sh_id}_{player_url}",
-                embed_url=player_url,
-                translator="Russian",
-                quality="720p",
-                anime=new_anime,
-                player=existing_player,
-            )
+            #  Проверяем, существует ли уже связь аниме ↔ плеер
+            existing_anime_player = (
+                await session.execute(
+                    select(AnimePlayerModel).where(
+                        AnimePlayerModel.anime_id == new_anime.id,
+                        AnimePlayerModel.player_id == existing_player.id,
+                        AnimePlayerModel.embed_url == player_url
+                    )
+                )
+            ).scalar_one_or_none()
 
-            session.add_all([new_anime, anime_player])
-            await session.commit()
-
-            logger.info(f"✅ Добавлено аниме: {anime.get('title')}")
-
+            if not existing_anime_player:
+                #  Связь аниме ↔ плеер
+                anime_player = AnimePlayerModel(
+                    external_id=f"{sh_id}_{player_url}",
+                    embed_url=player_url,
+                    translator="Russian",
+                    quality="720p",
+                    anime=new_anime,
+                    player=existing_player,
+                )
+                session.add(anime_player)
+                await session.commit()
+                logger.info(f"✅ Добавлена связь аниме-плеер для: {anime.get('title')}")
+            else:
+                # Связь уже существует, просто коммитим сессию
+                await session.commit()
+            
             # ⏳ Антибан
             await asyncio.sleep(1.5)
 
-        new_animes = await get_anime_by_title_db(anime_name, session)
-        return new_animes
+        # Возвращаем найденные аниме (новые и существующие)
+        if added_animes:
+            return added_animes
+        else:
+            # Если ничего не добавили, пробуем найти в БД по запросу
+            try:
+                return await get_anime_by_title_db(anime_name, session)
+            except HTTPException:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Аниме не найдено"
+                )

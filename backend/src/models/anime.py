@@ -18,6 +18,8 @@ class AnimeModel(Base):
     score: Mapped[float | None]  # Оценка на Shikimori
     studio: Mapped[str | None]
     status: Mapped[str]  # вышло, идёт, анонс
+    request_count: Mapped[int] = mapped_column(default=0)  # Счетчик запросов для обновления данных
+    last_updated: Mapped[datetime | None] = mapped_column(default=None)  # Дата последнего обновления
     
     # Связи
     players: Mapped[list['AnimePlayerModel']] = relationship(back_populates="anime", lazy='selectin', cascade='all, delete-orphan')

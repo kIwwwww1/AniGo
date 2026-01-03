@@ -1,5 +1,5 @@
 from loguru import logger
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
@@ -9,7 +9,7 @@ from src.dependencies.all_dep import (SessionDep, PaginatorAnimeDep,
 from src.parsers.kodik import (get_id_and_players, get_anime_by_title)
 from src.parsers.shikimori import (shikimori_get_anime)
 from src.services.animes import (get_anime_in_db_by_id, pagination_get_anime, 
-                                 get_popular_anime, get_random_anime, get_anime_total_count)
+                                 get_popular_anime, get_random_anime, get_anime_total_count, update_anime_data_from_shikimori)
 from src.schemas.anime import PaginatorData, AnimeResponse, AnimeDetailResponse
 from src.auth.auth import get_token
 
@@ -75,11 +75,13 @@ async def get_anime_paginators(pagin_data: PaginatorAnimeDep,
 
 
 @anime_router.get('/{anime_id:int}', response_model=dict)
-async def watch_anime_by_id(anime_id: int, session: SessionDep):
+async def watch_anime_by_id(anime_id: int, session: SessionDep, background_tasks: BackgroundTasks):
     '''Поиск аниме в базе по id с полными данными'''
 
     try:
-        anime = await get_anime_in_db_by_id(anime_id, session)
+        anime = await get_anime_in_db_by_id(anime_id, session, background_tasks)
+        # Коммитим изменения после загрузки объекта, но до сериализации
+        await session.commit()
     except HTTPException:
         raise
     except Exception as e:

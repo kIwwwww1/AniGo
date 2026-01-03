@@ -140,8 +140,9 @@ async def create_comment(comment_data: CreateUserComment, user_id: int,
     )
     
     session.add(new_comment)
+    await session.flush()  # Получаем ID перед commit
     await session.commit()
-    await session.refresh(new_comment)
+    # refresh не нужен с expire_on_commit=False, объект уже актуален
     
     return new_comment
 
@@ -161,8 +162,8 @@ async def create_rating(rating_data: CreateUserRating, user_id: int, session: As
     )
     
     session.add(new_rating)
+    await session.flush()  # Используем flush для получения ID
     await session.commit()
-    # await session.refresh(new_rating)
     
     return 'Оценка создана'
 
@@ -245,7 +246,7 @@ async def toggle_favorite(favorite_data: CreateUserFavorite, user_id: int,
     
     if existing_favorite:
         # Удаляем из избранного
-        await session.delete(existing_favorite)
+        session.delete(existing_favorite)
         await session.commit()
         return {'message': 'Аниме удалено из избранного', 'is_favorite': False}
     else:
