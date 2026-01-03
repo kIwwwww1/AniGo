@@ -306,7 +306,7 @@ function WatchPage() {
               )}
               
               {anime.genres && anime.genres.length > 0 && (
-                <div className="detail-row" style={{ gridColumn: '1 / -1' }}>
+                <div className="detail-row detail-row-genres">
                   <span className="detail-label">Жанры</span>
                   <div className="genres-tags">
                     {anime.genres.map((genre) => (
