@@ -370,6 +370,8 @@ function UserProfilePage() {
       localStorage.setItem(`user_${username}_avatar_border_color`, color)
       // Обновляем глобальный цвет кнопок, если это профиль текущего пользователя
       updateGlobalAccentColorIfCurrentUser(color)
+      // Отправляем событие для обновления цвета в Layout
+      window.dispatchEvent(new Event('avatarBorderColorUpdated'))
     }
   }
 

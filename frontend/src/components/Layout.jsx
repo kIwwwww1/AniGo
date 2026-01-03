@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { userAPI, animeAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
 import CrownIcon from './CrownIcon'
@@ -26,6 +26,7 @@ function Layout({ children }) {
   const [loadingUser, setLoadingUser] = useState(true)
   const [avatarError, setAvatarError] = useState(false)
   const [showUserDropdown, setShowUserDropdown] = useState(false)
+  const [avatarBorderColor, setAvatarBorderColor] = useState('#ff0000')
   const [showSearch, setShowSearch] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
@@ -80,6 +81,26 @@ function Layout({ children }) {
     }
   }
 
+  // Загружаем цвет обводки аватарки из localStorage
+  const loadAvatarBorderColor = useCallback(() => {
+    if (user && user.username) {
+      const savedColor = localStorage.getItem(`user_${user.username}_avatar_border_color`)
+      const availableColors = ['#ffffff', '#000000', '#808080', '#c4c4af', '#0066ff', '#00cc00', '#ff0000', '#ff69b4', '#ffd700', '#9932cc']
+      if (savedColor && availableColors.includes(savedColor)) {
+        setAvatarBorderColor(savedColor)
+      } else {
+        setAvatarBorderColor('#ff0000') // Цвет по умолчанию
+      }
+    }
+  }, [user])
+
+  // Загружаем цвет обводки при изменении пользователя
+  useEffect(() => {
+    if (user && user.username) {
+      loadAvatarBorderColor()
+    }
+  }, [user, loadAvatarBorderColor])
+
   // Проверяем авторизацию при загрузке
   useEffect(() => {
     checkAuth()
@@ -92,6 +113,33 @@ function Layout({ children }) {
     console.log('Should show user menu:', user && user.username)
     console.log('Should show auth buttons:', !loadingUser && (!user || !user.username))
   }, [user, loadingUser])
+
+  // Слушаем изменения цвета обводки аватарки в localStorage
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key && e.key.startsWith('user_') && e.key.endsWith('_avatar_border_color') && user && user.username) {
+        if (e.key === `user_${user.username}_avatar_border_color`) {
+          loadAvatarBorderColor()
+        }
+      }
+    }
+    
+    // Слушаем изменения в текущей вкладке
+    window.addEventListener('storage', handleStorageChange)
+    
+    // Слушаем кастомное событие для обновления в текущей вкладке
+    const handleAvatarBorderColorUpdate = () => {
+      if (user && user.username) {
+        loadAvatarBorderColor()
+      }
+    }
+    window.addEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
+    }
+  }, [user, loadAvatarBorderColor])
 
   // Закрываем dropdown при клике вне его
   useEffect(() => {
@@ -346,17 +394,36 @@ function Layout({ children }) {
               <div className="user-loading">Загрузка...</div>
             ) : (user && user.username) ? (
               <div className="user-menu-container">
-                <span className={`user-username ${user.id < 100 ? 'premium-user' : ''}`}>
+                <Link 
+                  to={`/profile/${user.username}`}
+                  className={`user-username ${user.id < 100 ? 'premium-user' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowUserDropdown(false)
+                  }}
+                >
                   {user.username}
                   {user.id < 100 && (
                     <span className="crown-icon-small">
                       <CrownIcon size={14} />
                     </span>
                   )}
-                </span>
+                </Link>
                 <div 
                   className="user-avatar"
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  style={{
+                    borderColor: avatarBorderColor,
+                    boxShadow: `0 2px 8px ${avatarBorderColor}40`
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = avatarBorderColor
+                    e.currentTarget.style.boxShadow = `0 4px 12px ${avatarBorderColor}60`
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = avatarBorderColor
+                    e.currentTarget.style.boxShadow = `0 2px 8px ${avatarBorderColor}40`
+                  }}
                 >
                   {(() => {
                     const avatarUrl = normalizeAvatarUrl(user.avatar)
@@ -381,7 +448,13 @@ function Layout({ children }) {
                   <div className="user-dropdown">
                     <div className="user-dropdown-header">
                       <div className="dropdown-user-info">
-                        <div className="dropdown-avatar">
+                        <div 
+                          className="dropdown-avatar"
+                          style={{
+                            borderColor: avatarBorderColor,
+                            boxShadow: `0 4px 12px ${avatarBorderColor}40`
+                          }}
+                        >
                           {(() => {
                             const avatarUrl = normalizeAvatarUrl(user.avatar)
                             if (avatarUrl && !avatarError) {

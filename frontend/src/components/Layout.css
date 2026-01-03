@@ -424,6 +424,16 @@
   color: var(--text-primary);
   font-weight: 500;
   font-size: 0.95rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.user-username:hover {
+  opacity: 0.8;
 }
 
 .user-username.premium-user {
@@ -443,14 +453,10 @@
   overflow: hidden;
   border: 2px solid var(--border);
   cursor: pointer;
-  transition: border-color 0.3s;
+  transition: border-color 0.3s, box-shadow 0.3s;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.user-avatar:hover {
-  border-color: var(--accent);
 }
 
 .user-avatar img {
