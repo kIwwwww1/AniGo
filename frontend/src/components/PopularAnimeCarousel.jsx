@@ -15,14 +15,15 @@ function PopularAnimeCarousel() {
   const itemsPerPage = 6
   const maxPagesToShow = 3
 
-  // Функция для создания пустых карточек
-  const createEmptyCards = (count) => {
+  // Функция для создания серых плашек-заполнителей
+  const createSkeletonCards = (count) => {
     return Array.from({ length: count }, (_, i) => ({
-      id: `empty-${i}`,
-      title: 'Не определено',
+      id: `skeleton-${i}`,
+      title: '',
       poster_url: null,
       score: null,
-      isPlaceholder: true
+      isPlaceholder: true,
+      isSkeleton: true
     }))
   }
 
@@ -69,10 +70,10 @@ function PopularAnimeCarousel() {
         }
         setHasMore(animeData.length === itemsPerPage)
       } else {
-        // Если данных нет, показываем пустые карточки
-        console.log('Данных нет, показываем пустые карточки')
+        // Если данных нет, показываем серые плашки-заполнители
+        console.log('Данных нет, показываем серые плашки-заполнители')
         if (offset === 0) {
-          setAnimeList(createEmptyCards(itemsPerPage))
+          setAnimeList(createSkeletonCards(itemsPerPage))
         }
         setHasMore(false)
       }
@@ -87,9 +88,9 @@ function PopularAnimeCarousel() {
       })
       setHasError(true)
       setHasMore(false)
-      // При ошибке показываем пустые карточки
+      // При ошибке показываем серые плашки-заполнители
       if (offset === 0) {
-        setAnimeList(createEmptyCards(itemsPerPage))
+        setAnimeList(createSkeletonCards(itemsPerPage))
       }
     } finally {
       setLoading(false)
@@ -108,31 +109,39 @@ function PopularAnimeCarousel() {
     }
   }
 
-  // Всегда показываем секцию, даже если данных нет
-  const displayList = animeList.length > 0 ? animeList : createEmptyCards(itemsPerPage)
+  // Определяем, нужно ли показывать серые плашки-заполнители
+  // Показываем skeleton если: загрузка идет или аниме нет
+  // Если аниме мало (меньше itemsPerPage), показываем реальные аниме + skeleton для заполнения
+  // Когда появляется достаточно аниме (>= itemsPerPage), skeleton исчезают
+  const shouldShowOnlySkeletons = loading || animeList.length === 0
+  const shouldShowSkeletons = shouldShowOnlySkeletons || (animeList.length > 0 && animeList.length < itemsPerPage)
+  
+  // Формируем список для отображения
+  let displayList = animeList
+  if (shouldShowOnlySkeletons) {
+    // Если загрузка или нет аниме - показываем только skeleton
+    displayList = createSkeletonCards(itemsPerPage)
+  } else if (animeList.length > 0 && animeList.length < itemsPerPage) {
+    // Если аниме мало - показываем реальные аниме + skeleton для заполнения
+    const skeletonCount = itemsPerPage - animeList.length
+    displayList = [...animeList, ...createSkeletonCards(skeletonCount)]
+  }
+  
   const totalPages = totalCount > 0 ? Math.ceil(totalCount / itemsPerPage) : Math.ceil(displayList.length / itemsPerPage)
   const hasMorePages = totalCount > 0 && totalPages > maxPagesToShow && !showAll
 
-  if (loading && animeList.length === 0) {
-    return (
-      <section className="anime-card-grid-section">
-        <div className="section-header">
-          <div className="section-title-wrapper">
-            <h2 className="section-title">Популярное аниме</h2>
-          </div>
-        </div>
-        <div className="loading">Загрузка...</div>
-      </section>
-    )
-  }
-
   // Для отладки
   console.log('PopularAnimeCarousel render:', {
+    loading,
     animeListLength: animeList.length,
     displayListLength: displayList.length,
+    itemsPerPage,
+    hasMore,
+    shouldShowSkeletons,
     totalCount,
     hasMorePages,
-    totalPages: totalCount > 0 ? Math.ceil(totalCount / itemsPerPage) : Math.ceil(displayList.length / itemsPerPage)
+    totalPages: totalCount > 0 ? Math.ceil(totalCount / itemsPerPage) : Math.ceil(displayList.length / itemsPerPage),
+    firstItemIsSkeleton: displayList[0]?.isSkeleton
   })
 
   return (
@@ -141,9 +150,9 @@ function PopularAnimeCarousel() {
       animeList={displayList}
       itemsPerPage={itemsPerPage}
       maxPagesToShow={maxPagesToShow}
-      showExpandButton={hasMorePages}
-      showControls={true}
-      showIndicators={true}
+      showExpandButton={hasMorePages && !shouldShowOnlySkeletons}
+      showControls={!shouldShowOnlySkeletons}
+      showIndicators={!shouldShowOnlySkeletons}
       totalCount={totalCount}
       emptyMessage="Нет популярных аниме"
       onExpand={handleExpand}

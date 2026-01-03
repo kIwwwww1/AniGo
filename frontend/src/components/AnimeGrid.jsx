@@ -168,39 +168,86 @@ function AnimeGrid({
 
       <div className="anime-card-grid-wrapper">
         <div className="anime-card-grid-container" ref={carouselRef}>
-          {Array.from({ length: displayPages }, (_, pageIndex) => (
-            <div key={pageIndex} className="anime-card-grid-page">
-              {animeList.slice(pageIndex * itemsPerPage, (pageIndex + 1) * itemsPerPage).map((anime) => {
-                const score = anime.score ? parseFloat(anime.score) : null
-                const scoreClass = getScoreClass(score)
-                const scoreDisplay = score ? score.toFixed(1) : null
+          {Array.from({ length: displayPages }, (_, pageIndex) => {
+            const startIndex = pageIndex * itemsPerPage
+            const endIndex = (pageIndex + 1) * itemsPerPage
+            
+            // Определяем, нужно ли заполнять пустые места skeleton
+            // Заполняем если totalCount больше чем реальных аниме (значит ожидается больше аниме)
+            const hasMoreExpected = totalCount !== null && totalCount > 0 && totalCount > animeList.length
+            
+            // Создаем массив элементов для страницы (всегда itemsPerPage элементов)
+            const pageItems = Array.from({ length: itemsPerPage }, (_, itemIndex) => {
+              const globalIndex = startIndex + itemIndex
+              
+              // Если есть реальное аниме на этой позиции
+              if (globalIndex < animeList.length) {
+                return animeList[globalIndex]
+              }
+              
+              // Если ожидается больше аниме и позиция в пределах ожидаемого totalCount
+              if (hasMoreExpected && globalIndex < totalCount) {
+                return {
+                  id: `skeleton-${pageIndex}-${itemIndex}`,
+                  isSkeleton: true,
+                  isPlaceholder: true
+                }
+              }
+              
+              // Если не ожидается больше аниме, не показываем элемент (страница будет неполной)
+              return null
+            }).filter(item => item !== null)
+            
+            return (
+              <div key={pageIndex} className="anime-card-grid-page">
+                {pageItems.map((anime, itemIndex) => {
+                  const isSkeleton = anime.isPlaceholder === true || anime.isSkeleton === true || (!anime.poster_url && !anime.title && anime.id?.startsWith('skeleton-'))
+                  const score = anime.score ? parseFloat(anime.score) : null
+                  const scoreClass = getScoreClass(score)
+                  const scoreDisplay = score ? score.toFixed(1) : null
 
-                return (
-                  <div key={anime.id} className="anime-card-grid-item">
-                    <Link
-                      to={`/watch/${anime.id}`}
-                      className="anime-card-grid-card"
-                    >
-                      <div className="anime-card-poster">
-                        <img 
-                          src={anime.poster_url || '/placeholder.jpg'} 
-                          alt={anime.title}
-                          loading="lazy"
-                        />
-                        {score && (
-                          <div className={`anime-card-score ${scoreClass}`}>
-                            {score === 10 ? <span className="star-icon">🌟</span> : <span>★</span>}
-                            {scoreDisplay}
+                  if (isSkeleton) {
+                    return (
+                      <div key={anime.id || `skeleton-${pageIndex}-${itemIndex}`} className="anime-card-grid-item">
+                        <div className="anime-card-grid-card skeleton-card">
+                          <div className="anime-card-poster skeleton-poster">
+                            <div className="skeleton-shimmer"></div>
                           </div>
-                        )}
+                        </div>
+                        <div className="anime-card-title skeleton-title">
+                          <div className="skeleton-shimmer"></div>
+                        </div>
                       </div>
-                    </Link>
-                    <div className="anime-card-title">{anime.title || 'Без названия'}</div>
-                  </div>
-                )
-              })}
-            </div>
-          ))}
+                    )
+                  }
+
+                  return (
+                    <div key={anime.id} className="anime-card-grid-item">
+                      <Link
+                        to={`/watch/${anime.id}`}
+                        className="anime-card-grid-card"
+                      >
+                        <div className="anime-card-poster">
+                          <img 
+                            src={anime.poster_url || '/placeholder.jpg'} 
+                            alt={anime.title}
+                            loading="lazy"
+                          />
+                          {score && (
+                            <div className={`anime-card-score ${scoreClass}`}>
+                              {score === 10 ? <span className="star-icon">🌟</span> : <span>★</span>}
+                              {scoreDisplay}
+                            </div>
+                          )}
+                        </div>
+                      </Link>
+                      <div className="anime-card-title">{anime.title || 'Без названия'}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
         </div>
       </div>
 
