@@ -23,6 +23,7 @@ const AVAILABLE_COLORS = [
 function UserProfilePage() {
   const { username } = useParams()
   const [user, setUser] = useState(null)
+  const [currentUser, setCurrentUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
@@ -35,6 +36,9 @@ function UserProfilePage() {
   const itemsPerPage = 6
   const maxPagesToShow = 3
   
+  // Проверяем, является ли текущий пользователь владельцем профиля
+  const isOwner = currentUser && user && currentUser.username === user.username
+  
   const GRADIENT_DIRECTIONS = [
     { value: 'horizontal', label: '→', title: 'Горизонтально' },
     { value: 'vertical', label: '↓', title: 'Вертикально' },
@@ -43,11 +47,29 @@ function UserProfilePage() {
     { value: 'radial', label: '○', title: 'Радиальный' }
   ]
 
+  const loadCurrentUser = async () => {
+    try {
+      const response = await userAPI.getCurrentUser()
+      if (response && response.message) {
+        setCurrentUser({
+          username: response.message.username,
+          id: response.message.id
+        })
+      } else {
+        setCurrentUser(null)
+      }
+    } catch (err) {
+      // Пользователь не авторизован
+      setCurrentUser(null)
+    }
+  }
+
   useEffect(() => {
     setAvatarError(false) // Сбрасываем ошибку при смене пользователя
     loadUserProfile()
     loadUserColors()
     loadThemeColor()
+    loadCurrentUser()
   }, [username])
   
   const loadThemeColor = () => {
@@ -464,24 +486,32 @@ function UserProfilePage() {
   return (
     <div className="user-profile-page">
       <div className="container">
-        <div className="profile-header">
-          <div className="profile-settings-icon" onClick={() => setShowSettings(!showSettings)}>
-            <svg 
-              width="24" 
-              height="24" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="1.5" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-            >
-              <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-          </div>
+        <div 
+          className="profile-header"
+          style={{
+            borderColor: avatarBorderColor,
+            boxShadow: `0 8px 48px ${hexToRgba(avatarBorderColor, 0.4)}, 0 0 0 1px ${avatarBorderColor}`
+          }}
+        >
+          {isOwner && (
+            <>
+              <div className="profile-settings-icon" onClick={() => setShowSettings(!showSettings)}>
+                <svg 
+                  width="24" 
+                  height="24" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="1.5" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+              </div>
 
-          {showSettings && (
+              {showSettings && (
             <div className="profile-settings-panel">
               <div className="settings-panel-header">
                 <h3>Настройки профиля</h3>
@@ -605,6 +635,8 @@ function UserProfilePage() {
                 </div>
               </div>
             </div>
+              )}
+            </>
           )}
 
           <div className="profile-avatar-section">
@@ -667,17 +699,18 @@ function UserProfilePage() {
             >
               {user.username}
             </h1>
-            {user.email && <p className="profile-email">{user.email}</p>}
-            {user.created_at && (
-              <p className="profile-joined">
-                Присоединился: {formatDate(user.created_at)}
-              </p>
-            )}
-            {user.role && (
-              <span className={`profile-role role-${user.role}`}>
-                {user.role === 'admin' ? 'Администратор' : 'Пользователь'}
-              </span>
-            )}
+            <div className="profile-badges">
+              {user.role && (
+                <span className={`profile-role role-${user.role}`}>
+                  {user.role === 'admin' ? 'Администратор' : 'Пользователь'}
+                </span>
+              )}
+              {user.created_at && (
+                <span className="profile-role profile-joined-badge">
+                  {formatDate(user.created_at)}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

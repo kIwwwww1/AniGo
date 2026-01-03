@@ -555,7 +555,16 @@ function WatchPage() {
                               </div>
                             )
                           })()}
-                          <span className="comment-username">{comment.user?.username || 'Неизвестный'}</span>
+                          <div className="comment-user-info">
+                            {comment.user?.username ? (
+                              <Link to={`/profile/${comment.user.username}`} className="comment-username">
+                                {comment.user.username}
+                              </Link>
+                            ) : (
+                              <span className="comment-username">Неизвестный</span>
+                            )}
+                            <p className="comment-text">{comment.text}</p>
+                          </div>
                         </div>
                         <div className="comment-header-right">
                           <span className="comment-date">{formatDate(comment.created_at)}</span>
@@ -595,7 +604,6 @@ function WatchPage() {
                           </div>
                         </div>
                       </div>
-                      <p className="comment-text">{comment.text}</p>
                     </div>
                   ))
                 ) : (

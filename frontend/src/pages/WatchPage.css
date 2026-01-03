@@ -528,14 +528,24 @@
 .comment-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
+  align-items: flex-start;
+  gap: 1rem;
 }
 
 .comment-user {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.comment-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .comment-avatar {
@@ -555,12 +565,23 @@
 .comment-username {
   font-weight: 600;
   color: var(--text-primary);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  text-decoration: none;
+  transition: color 0.2s ease;
+  cursor: pointer;
+}
+
+.comment-username:hover {
+  color: var(--user-accent-color, var(--accent));
+  text-decoration: underline;
 }
 
 .comment-header-right {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
+  flex-shrink: 0;
 }
 
 .comment-date {
@@ -631,6 +652,7 @@
   word-break: break-word;
   overflow-wrap: break-word;
   white-space: pre-wrap;
+  font-size: 0.9375rem;
 }
 
 .no-comments {
