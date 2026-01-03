@@ -18,6 +18,8 @@ user_router = APIRouter(prefix='/user', tags=['UserPanel'])
 
 @user_router.delete('/restart_all_data')
 async def restart_db():
+    '''Удалить полность все базы'''
+    
     resp = await restart_database(engine)
     return {'message': resp}
 
@@ -26,6 +28,7 @@ async def restart_db():
 async def login(login_data: LoginUser, response: Response, 
                 session: SessionDep):
     '''Вход в аккаунт'''
+
     resp = await login_user(login_data.username, login_data.password, 
                             response, session)
     return {'message': resp}
@@ -34,6 +37,8 @@ async def login(login_data: LoginUser, response: Response,
 @user_router.post('/create/account')
 async def create_new_user(new_user: CreateNewUser, response: Response, 
                           session: SessionDep):
+    '''Создание нового пользователя'''
+
     resp = await add_user(new_user, response, session)
     return {'message': resp}
 
@@ -54,6 +59,7 @@ async def create_user_rating(user: UserExistsDep, rating_data: CreateUserRating,
     '''Создать рейтинг аниме
     Проверяет существование пользователя и аниме перед созданием рейтинга
     '''
+
     try:
         rating = await create_rating(rating_data, user.id, session)
         return {'message': rating}
@@ -68,6 +74,7 @@ async def create_user_rating(user: UserExistsDep, rating_data: CreateUserRating,
 @user_router.get('/me')
 async def get_current_user_info(user: UserExistsDep):
     '''Получить информацию о текущем пользователе'''
+
     return {
         'message': {
             'id': user.id,
@@ -82,6 +89,7 @@ async def get_current_user_info(user: UserExistsDep):
 @user_router.post('/logout')
 async def logout_user(response: Response):
     '''Выход из аккаунта'''
+
     resp = await delete_token(response)
     return {'message': resp}
 
@@ -90,6 +98,7 @@ async def logout_user(response: Response):
 async def toggle_user_favorite(user: UserExistsDep, favorite_data: CreateUserFavorite,
                                request: Request, session: SessionDep):
     '''Добавить или удалить аниме из избранного'''
+
     try:
         result = await toggle_favorite(favorite_data, user.id, session)
         return {'message': result}
@@ -104,6 +113,7 @@ async def toggle_user_favorite(user: UserExistsDep, favorite_data: CreateUserFav
 async def check_user_favorite(user: UserExistsDep, anime_id: int,
                               session: SessionDep):
     '''Проверить, есть ли аниме в избранном у пользователя'''
+
     try:
         is_favorite = await check_favorite(anime_id, user.id, session)
         return {'message': {'is_favorite': is_favorite}}
@@ -117,6 +127,7 @@ async def check_user_favorite(user: UserExistsDep, anime_id: int,
 @user_router.get('/favorites')
 async def get_user_favorites_list(user: UserExistsDep, session: SessionDep):
     '''Получить все избранные аниме пользователя'''
+
     try:
         favorites = await get_user_favorites(user.id, session)
         return {'message': favorites}
