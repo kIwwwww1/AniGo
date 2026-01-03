@@ -75,6 +75,104 @@ function UserProfilePage() {
     setAvatarBorderColor(color)
     if (username) {
       localStorage.setItem(`user_${username}_avatar_border_color`, color)
+      // Обновляем глобальный цвет кнопок, если это профиль текущего пользователя
+      updateGlobalAccentColorIfCurrentUser(color)
+    }
+  }
+
+  const updateGlobalAccentColorIfCurrentUser = async (color) => {
+    try {
+      const response = await userAPI.getCurrentUser()
+      if (response.message && response.message.username === username) {
+        // Обновляем глобальный цвет
+        document.documentElement.style.setProperty('--user-accent-color', color)
+        
+        // Создаем rgba версию для hover эффектов
+        const hex = color.replace('#', '')
+        const r = parseInt(hex.slice(0, 2), 16)
+        const g = parseInt(hex.slice(2, 4), 16)
+        const b = parseInt(hex.slice(4, 6), 16)
+        const rgba = `rgba(${r}, ${g}, ${b}, 0.1)`
+        document.documentElement.style.setProperty('--user-accent-color-rgba', rgba)
+        
+        // Создаем тень для text-shadow
+        const shadowRgba = `rgba(${r}, ${g}, ${b}, 0.2)`
+        document.documentElement.style.setProperty('--user-accent-color-shadow', shadowRgba)
+        
+        // Функции для создания вариаций цвета
+        const lightenColor = (hex, percent) => {
+          const num = parseInt(hex.replace('#', ''), 16)
+          const r = Math.min(255, Math.floor((num >> 16) + (255 - (num >> 16)) * percent))
+          const g = Math.min(255, Math.floor(((num >> 8) & 0x00FF) + (255 - ((num >> 8) & 0x00FF)) * percent))
+          const b = Math.min(255, Math.floor((num & 0x0000FF) + (255 - (num & 0x0000FF)) * percent))
+          return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+        }
+        
+        const darkenColor = (hex, percent) => {
+          const num = parseInt(hex.replace('#', ''), 16)
+          const r = Math.floor((num >> 16) * (1 - percent))
+          const g = Math.floor(((num >> 8) & 0x00FF) * (1 - percent))
+          const b = Math.floor((num & 0x0000FF) * (1 - percent))
+          return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+        }
+        
+        // Функция для создания rgba
+        const rgbaColor = (hex, alpha) => {
+          const hexClean = hex.replace('#', '')
+          const r = parseInt(hexClean.slice(0, 2), 16)
+          const g = parseInt(hexClean.slice(2, 4), 16)
+          const b = parseInt(hexClean.slice(4, 6), 16)
+          return `rgba(${r}, ${g}, ${b}, ${alpha})`
+        }
+        
+        // Создаем градиент для текста заголовков на основе выбранного цвета
+        const lightColor = lightenColor(color, 0.4)
+        const darkColor = darkenColor(color, 0.2)
+        const gradientText = `linear-gradient(135deg, ${lightColor} 0%, ${color} 50%, ${darkColor} 100%)`
+        document.documentElement.style.setProperty('--user-gradient-text', gradientText)
+        
+        // Создаем градиент для подчеркивания
+        const gradientUnderline = `linear-gradient(90deg, ${lightColor} 0%, ${color} 100%)`
+        document.documentElement.style.setProperty('--user-gradient-underline', gradientUnderline)
+        
+        // Создаем вариации цвета для оценок на карточках
+        const lowColor = darkenColor(color, 0.3)
+        const lowColorLight = lightenColor(lowColor, 0.2)
+        document.documentElement.style.setProperty('--user-accent-color-low', lowColor)
+        document.documentElement.style.setProperty('--user-accent-color-low-light', lowColorLight)
+        document.documentElement.style.setProperty('--user-accent-color-border-low', rgbaColor(color, 0.4))
+        document.documentElement.style.setProperty('--user-accent-color-shadow-low', rgbaColor(color, 0.3))
+        
+        const mediumColor = color
+        const mediumColorLight = lightenColor(color, 0.15)
+        document.documentElement.style.setProperty('--user-accent-color-medium', mediumColor)
+        document.documentElement.style.setProperty('--user-accent-color-medium-light', mediumColorLight)
+        document.documentElement.style.setProperty('--user-accent-color-border-medium', rgbaColor(color, 0.5))
+        document.documentElement.style.setProperty('--user-accent-color-shadow-medium', rgbaColor(color, 0.4))
+        
+        const highColor = lightenColor(color, 0.2)
+        const highColorLight = lightenColor(color, 0.35)
+        document.documentElement.style.setProperty('--user-accent-color-high', highColor)
+        document.documentElement.style.setProperty('--user-accent-color-high-light', highColorLight)
+        document.documentElement.style.setProperty('--user-accent-color-border-high', rgbaColor(color, 0.6))
+        document.documentElement.style.setProperty('--user-accent-color-shadow-high', rgbaColor(color, 0.5))
+        
+        const perfectColor = lightenColor(color, 0.4)
+        document.documentElement.style.setProperty('--user-accent-color-perfect', perfectColor)
+        document.documentElement.style.setProperty('--user-accent-color-shadow-perfect', rgbaColor(color, 0.6))
+        document.documentElement.style.setProperty('--user-accent-color-shadow-perfect-light', rgbaColor(color, 0.3))
+        
+        document.documentElement.style.setProperty('--user-accent-color-border', rgbaColor(color, 0.3))
+        
+        // Создаем темный фон для идеальной оценки используя уже объявленные r, g, b
+        const bgDark = `rgba(${Math.floor(r * 0.08)}, ${Math.floor(g * 0.08)}, ${Math.floor(b * 0.08)}, 0.95)`
+        document.documentElement.style.setProperty('--user-accent-color-bg-dark', bgDark)
+        
+        // Отправляем событие для обновления в других компонентах
+        window.dispatchEvent(new Event('userAccentColorUpdated'))
+      }
+    } catch (err) {
+      // Игнорируем ошибки, если пользователь не авторизован
     }
   }
 
@@ -278,16 +376,34 @@ function UserProfilePage() {
         </div>
 
         <div className="profile-stats">
-          <div className="stat-card">
-            <div className="stat-value">{stats.favorites_count}</div>
+          <div 
+            className="stat-card" 
+            style={{ 
+              '--stat-color': avatarBorderColor,
+              '--stat-color-shadow': hexToRgba(avatarBorderColor, 0.3)
+            }}
+          >
+            <div className="stat-value" style={{ color: avatarBorderColor }}>{stats.favorites_count}</div>
             <div className="stat-label">Избранное</div>
           </div>
-          <div className="stat-card">
-            <div className="stat-value">{stats.ratings_count}</div>
+          <div 
+            className="stat-card" 
+            style={{ 
+              '--stat-color': avatarBorderColor,
+              '--stat-color-shadow': hexToRgba(avatarBorderColor, 0.3)
+            }}
+          >
+            <div className="stat-value" style={{ color: avatarBorderColor }}>{stats.ratings_count}</div>
             <div className="stat-label">Оценок</div>
           </div>
-          <div className="stat-card">
-            <div className="stat-value">{stats.comments_count}</div>
+          <div 
+            className="stat-card" 
+            style={{ 
+              '--stat-color': avatarBorderColor,
+              '--stat-color-shadow': hexToRgba(avatarBorderColor, 0.3)
+            }}
+          >
+            <div className="stat-value" style={{ color: avatarBorderColor }}>{stats.comments_count}</div>
             <div className="stat-label">Комментариев</div>
           </div>
         </div>

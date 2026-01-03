@@ -43,7 +43,7 @@
   position: absolute;
   top: 12px;
   left: 12px;
-  background: linear-gradient(135deg, rgba(229, 9, 20, 0.95) 0%, rgba(200, 8, 18, 0.95) 100%);
+  background: linear-gradient(135deg, var(--user-accent-color-rgba, rgba(229, 9, 20, 0.95)) 0%, var(--user-accent-color-shadow, rgba(200, 8, 18, 0.95)) 100%);
   color: white;
   padding: 0.625rem 1rem;
   border-radius: 12px;
@@ -52,7 +52,7 @@
   display: flex;
   align-items: center;
   gap: 0.375rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 8px rgba(229, 9, 20, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 8px var(--user-accent-color-shadow, rgba(229, 9, 20, 0.3));
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -141,20 +141,20 @@
 }
 
 .genre-tag {
-  background: linear-gradient(135deg, rgba(229, 9, 20, 0.15) 0%, rgba(229, 9, 20, 0.05) 100%);
+  background: linear-gradient(135deg, var(--user-accent-color-rgba, rgba(229, 9, 20, 0.15)) 0%, var(--user-accent-color-shadow-low, rgba(229, 9, 20, 0.05)) 100%);
   color: var(--text-primary);
   padding: 0.375rem 0.875rem;
   border-radius: 16px;
   font-size: 0.75rem;
   font-weight: 600;
-  border: 1px solid rgba(229, 9, 20, 0.3);
+  border: 1px solid var(--user-accent-color-border-low, rgba(229, 9, 20, 0.3));
   transition: all 0.3s ease;
   cursor: default;
 }
 
 .genre-tag:hover {
-  background: linear-gradient(135deg, rgba(229, 9, 20, 0.25) 0%, rgba(229, 9, 20, 0.15) 100%);
-  border-color: rgba(229, 9, 20, 0.5);
+  background: linear-gradient(135deg, var(--user-accent-color-shadow-low, rgba(229, 9, 20, 0.25)) 0%, var(--user-accent-color-rgba, rgba(229, 9, 20, 0.15)) 100%);
+  border-color: var(--user-accent-color-border-medium, rgba(229, 9, 20, 0.5));
   transform: translateY(-2px);
 }
 
@@ -325,9 +325,9 @@
 }
 
 .rate-button:hover:not(:disabled) {
-  background-color: rgba(229, 9, 20, 0.1);
-  border-color: var(--accent);
-  color: var(--accent);
+  background-color: var(--user-accent-color-rgba, rgba(229, 9, 20, 0.1));
+  border-color: var(--user-accent-color, var(--accent));
+  color: var(--user-accent-color, var(--accent));
   transform: translateY(-2px);
 }
 
@@ -410,15 +410,15 @@
 }
 
 .favorite-button:hover {
-  background-color: rgba(229, 9, 20, 0.1);
-  border-color: var(--accent);
+  background-color: var(--user-accent-color-rgba, rgba(229, 9, 20, 0.1));
+  border-color: var(--user-accent-color, var(--accent));
   transform: translateY(-2px);
 }
 
 .favorite-button.active {
-  background-color: rgba(229, 9, 20, 0.1);
-  border-color: var(--accent);
-  color: var(--accent);
+  background-color: var(--user-accent-color-rgba, rgba(229, 9, 20, 0.1));
+  border-color: var(--user-accent-color, var(--accent));
+  color: var(--user-accent-color, var(--accent));
 }
 
 .favorite-button svg {
@@ -427,6 +427,11 @@
 
 .favorite-button:hover svg {
   transform: scale(1.1);
+}
+
+.favorite-button.active .favorite-heart-icon {
+  fill: var(--user-accent-color, var(--accent));
+  stroke: var(--user-accent-color, var(--accent));
 }
 
 /* Комментарии */
@@ -480,13 +485,13 @@
 
 .comment-input:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--user-accent-color, var(--accent));
 }
 
 .comment-submit-btn {
   align-self: flex-end;
   padding: 0.75rem 2rem;
-  background-color: var(--accent);
+  background-color: var(--user-accent-color, var(--accent));
   color: white;
   border: none;
   border-radius: 12px;
@@ -496,7 +501,7 @@
 }
 
 .comment-submit-btn:hover:not(:disabled) {
-  background-color: #c40812;
+  background-color: var(--user-accent-color-shadow, #c40812);
 }
 
 .comment-submit-btn:disabled {

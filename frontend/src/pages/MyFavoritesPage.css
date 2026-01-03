@@ -57,8 +57,8 @@
 }
 
 .carousel-btn:hover:not(:disabled) {
-  background-color: var(--accent);
-  border-color: var(--accent);
+  background-color: var(--user-accent-color, var(--accent));
+  border-color: var(--user-accent-color, var(--accent));
   transform: scale(1.05);
 }
 
@@ -91,7 +91,7 @@
 }
 
 .indicator.active {
-  background-color: var(--accent);
+  background-color: var(--user-accent-color, var(--accent));
   width: 24px;
   border-radius: 6px;
 }

@@ -160,19 +160,21 @@
   border: 1px solid rgba(255, 255, 255, 0.05);
   text-align: center;
   transition: all 0.3s ease;
+  --stat-color: var(--accent);
 }
 
 .stat-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(229, 9, 20, 0.3);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  border-color: var(--stat-color);
+  box-shadow: 0 8px 24px var(--stat-color-shadow, rgba(0, 0, 0, 0.3));
 }
 
 .stat-value {
   font-size: 2.5rem;
   font-weight: 800;
-  color: var(--accent);
+  color: var(--stat-color, var(--accent));
   margin-bottom: 0.5rem;
+  transition: color 0.3s ease;
 }
 
 .stat-label {

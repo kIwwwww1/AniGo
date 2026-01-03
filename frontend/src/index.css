@@ -23,6 +23,9 @@
   --accent: #e50914;
   --accent-hover: #f40612;
   --border: #333333;
+  --user-accent-color: var(--accent);
+  --user-gradient-text: linear-gradient(135deg, #ff6b6b 0%, var(--accent) 50%, #cc0000 100%);
+  --user-gradient-underline: linear-gradient(90deg, #ff6b6b 0%, var(--accent) 100%);
 }
 
 body {

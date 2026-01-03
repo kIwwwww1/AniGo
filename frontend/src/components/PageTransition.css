@@ -1,0 +1,17 @@
+.page-content {
+  opacity: 1;
+  transition: opacity 0.3s ease-in;
+  visibility: visible;
+}
+
+.page-content.loaded {
+  opacity: 1;
+  visibility: visible;
+}
+
+.page-content.loading {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
