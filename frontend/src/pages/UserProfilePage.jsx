@@ -6,17 +6,77 @@ import '../components/AnimeCardGrid.css'
 import './UserProfilePage.css'
 import '../pages/HomePage.css'
 
+const AVAILABLE_COLORS = [
+  { name: 'Белый', value: '#ffffff' },
+  { name: 'Черный', value: '#000000' },
+  { name: 'Серый', value: '#808080' },
+  { name: 'Бежевый', value: '#c4c4af' },
+  { name: 'Синий', value: '#0066ff' },
+  { name: 'Зеленый', value: '#00cc00' },
+  { name: 'Красный', value: '#ff0000' },
+  { name: 'Розовый', value: '#ff69b4' },
+  { name: 'Желтый', value: '#ffd700' },
+  { name: 'Фиолетовый', value: '#9932cc' }
+]
+
 function UserProfilePage() {
   const { username } = useParams()
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [showSettings, setShowSettings] = useState(false)
+  const [usernameColor, setUsernameColor] = useState('#ffffff')
+  const [avatarBorderColor, setAvatarBorderColor] = useState('#ff0000')
   const itemsPerPage = 6
   const maxPagesToShow = 3
 
   useEffect(() => {
     loadUserProfile()
+    loadUserColors()
   }, [username])
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showSettings && !event.target.closest('.profile-settings-panel') && !event.target.closest('.profile-settings-icon')) {
+        setShowSettings(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showSettings])
+
+  const loadUserColors = () => {
+    if (username) {
+      const savedUsernameColor = localStorage.getItem(`user_${username}_username_color`)
+      const savedAvatarBorderColor = localStorage.getItem(`user_${username}_avatar_border_color`)
+      
+      const availableColorValues = AVAILABLE_COLORS.map(c => c.value)
+      
+      if (savedUsernameColor && availableColorValues.includes(savedUsernameColor)) {
+        setUsernameColor(savedUsernameColor)
+      }
+      if (savedAvatarBorderColor && availableColorValues.includes(savedAvatarBorderColor)) {
+        setAvatarBorderColor(savedAvatarBorderColor)
+      }
+    }
+  }
+
+  const saveUsernameColor = (color) => {
+    setUsernameColor(color)
+    if (username) {
+      localStorage.setItem(`user_${username}_username_color`, color)
+    }
+  }
+
+  const saveAvatarBorderColor = (color) => {
+    setAvatarBorderColor(color)
+    if (username) {
+      localStorage.setItem(`user_${username}_avatar_border_color`, color)
+    }
+  }
 
   const loadUserProfile = async () => {
     try {
@@ -42,6 +102,20 @@ function UserProfilePage() {
       month: 'long',
       day: 'numeric'
     })
+  }
+
+  const hexToRgba = (hex, alpha = 0.3) => {
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  }
+
+  const hexToRgb = (hex) => {
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+    return { r, g, b }
   }
 
   if (loading) {
@@ -81,29 +155,114 @@ function UserProfilePage() {
     <div className="user-profile-page">
       <div className="container">
         <div className="profile-header">
+          <div className="profile-settings-icon" onClick={() => setShowSettings(!showSettings)}>
+            <svg 
+              width="24" 
+              height="24" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="1.5" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </div>
+
+          {showSettings && (
+            <div className="profile-settings-panel">
+              <div className="settings-panel-header">
+                <h3>Настройки профиля</h3>
+                <button className="settings-close-btn" onClick={() => setShowSettings(false)}>×</button>
+              </div>
+              <div className="settings-panel-content">
+                <div className="color-picker-group">
+                  <label>Цвет никнейма:</label>
+                  <div className="color-buttons-grid">
+                    {AVAILABLE_COLORS.map((color) => (
+                      <button
+                        key={color.value}
+                        className={`color-button ${usernameColor === color.value ? 'active' : ''}`}
+                        style={{ backgroundColor: color.value }}
+                        onClick={() => saveUsernameColor(color.value)}
+                        title={color.name}
+                        aria-label={color.name}
+                      >
+                        {usernameColor === color.value && (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="color-picker-group">
+                  <label>Цвет обводки аватарки:</label>
+                  <div className="color-buttons-grid">
+                    {AVAILABLE_COLORS.map((color) => (
+                      <button
+                        key={color.value}
+                        className={`color-button ${avatarBorderColor === color.value ? 'active' : ''}`}
+                        style={{ backgroundColor: color.value }}
+                        onClick={() => saveAvatarBorderColor(color.value)}
+                        title={color.name}
+                        aria-label={color.name}
+                      >
+                        {avatarBorderColor === color.value && (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="profile-avatar-section">
             {user.avatar_url ? (
               <img 
                 src={user.avatar_url} 
                 alt={user.username}
                 className="profile-avatar"
+                style={{ 
+                  borderColor: avatarBorderColor,
+                  boxShadow: `0 8px 24px ${hexToRgba(avatarBorderColor, 0.3)}`
+                }}
               />
             ) : (
-              <div className="profile-avatar" style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'var(--bg-secondary)',
-                color: 'var(--text-secondary)',
-                fontSize: '3rem',
-                fontWeight: 'bold'
-              }}>
+              <div 
+                className="profile-avatar" 
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: 'var(--bg-secondary)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '3rem',
+                  fontWeight: 'bold',
+                  borderColor: avatarBorderColor,
+                  boxShadow: `0 8px 24px ${hexToRgba(avatarBorderColor, 0.3)}`
+                }}
+              >
                 {user.username?.[0]?.toUpperCase() || 'U'}
               </div>
             )}
           </div>
           <div className="profile-info-section">
-            <h1 className="profile-username">{user.username}</h1>
+            <h1 
+              className="profile-username"
+              style={{ 
+                color: usernameColor
+              }}
+            >
+              {user.username}
+            </h1>
             {user.email && <p className="profile-email">{user.email}</p>}
             {user.created_at && (
               <p className="profile-joined">
