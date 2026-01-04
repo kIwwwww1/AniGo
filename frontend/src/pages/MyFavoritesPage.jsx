@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { userAPI } from '../services/api'
-import AnimeGrid from '../components/AnimeGrid'
 import '../components/AnimeCardGrid.css'
 import './MyFavoritesPage.css'
+import './AllAnimePage.css'
 
 function MyFavoritesPage() {
-  const [favorites, setFavorites] = useState([])
+  const [allFavorites, setAllFavorites] = useState([]) // Все избранное
+  const [displayedFavorites, setDisplayedFavorites] = useState([]) // Отображаемое избранное
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(null)
   const navigate = useNavigate()
-  const itemsPerPage = 6
+  const itemsPerRow = 6
+  const limit = 12 // Количество элементов для загрузки за раз
 
   useEffect(() => {
     loadFavorites()
@@ -25,9 +28,12 @@ function MyFavoritesPage() {
         const animeList = Array.isArray(response.message) 
           ? response.message.map(fav => fav.anime || fav)
           : []
-        setFavorites(animeList)
+        setAllFavorites(animeList)
+        // Показываем первые элементы
+        setDisplayedFavorites(animeList.slice(0, limit))
       } else {
-        setFavorites([])
+        setAllFavorites([])
+        setDisplayedFavorites([])
       }
       setError(null)
     } catch (err) {
@@ -41,11 +47,26 @@ function MyFavoritesPage() {
         setError('Ошибка загрузки избранного')
         console.error('Ошибка загрузки избранного:', err)
       }
-      setFavorites([])
+      setAllFavorites([])
+      setDisplayedFavorites([])
     } finally {
       setLoading(false)
     }
   }
+
+  const handleLoadMore = () => {
+    if (!loadingMore && displayedFavorites.length < allFavorites.length) {
+      setLoadingMore(true)
+      // Имитируем небольшую задержку для плавности
+      setTimeout(() => {
+        const nextBatch = allFavorites.slice(0, displayedFavorites.length + limit)
+        setDisplayedFavorites(nextBatch)
+        setLoadingMore(false)
+      }, 300)
+    }
+  }
+
+  const hasMore = displayedFavorites.length < allFavorites.length
 
   if (loading) {
     return (
@@ -67,11 +88,28 @@ function MyFavoritesPage() {
     )
   }
 
-  if (favorites.length === 0) {
+  // Определяем класс оценки в зависимости от значения
+  const getScoreClass = (scoreValue) => {
+    if (!scoreValue) return ''
+    const score = parseFloat(scoreValue)
+    if (score === 10) return 'score-perfect'
+    if (score >= 7 && score < 10) return 'score-high'
+    if (score >= 4 && score < 7) return 'score-medium'
+    if (score >= 1 && score < 4) return 'score-low'
+    return ''
+  }
+
+  // Разбиваем список на строки по 6 элементов
+  const rows = []
+  for (let i = 0; i < displayedFavorites.length; i += itemsPerRow) {
+    rows.push(displayedFavorites.slice(i, i + itemsPerRow))
+  }
+
+  if (allFavorites.length === 0) {
     return (
       <div className="my-favorites-page">
         <div className="container">
-          <section className="popular-anime-section">
+          <section className="all-anime-section">
             <div className="section-header">
               <div className="section-title-wrapper">
                 <h2 className="section-title">Мои избранные аниме</h2>
@@ -98,17 +136,72 @@ function MyFavoritesPage() {
   return (
     <div className="my-favorites-page">
       <div className="container">
-        <AnimeGrid
-          title="Мои избранные аниме"
-          animeList={favorites}
-          itemsPerPage={itemsPerPage}
-          maxPagesToShow={Math.ceil(favorites.length / itemsPerPage)}
-          showExpandButton={false}
-          showControls={favorites.length > itemsPerPage}
-          showIndicators={favorites.length > itemsPerPage}
-          emptyMessage="Нет избранных аниме"
-          className="popular-anime-section"
-        />
+        <section className="all-anime-section">
+          <div className="section-header">
+            <div className="section-title-wrapper">
+              <h2 className="section-title">Мои избранные аниме</h2>
+              <p className="favorites-count">Всего: {allFavorites.length}</p>
+            </div>
+          </div>
+
+          {error && <div className="error-message">{error}</div>}
+
+          {displayedFavorites.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+              Нет избранных аниме
+            </div>
+          ) : (
+            <>
+              <div className="all-anime-grid">
+                {rows.map((row, rowIndex) => (
+                  <div key={rowIndex} className="all-anime-row">
+                    {row.map((anime) => {
+                      const score = anime.score ? parseFloat(anime.score) : null
+                      const scoreClass = getScoreClass(score)
+                      const scoreDisplay = score ? score.toFixed(1) : null
+
+                      return (
+                        <div key={anime.id} className="all-anime-item">
+                          <Link
+                            to={`/watch/${anime.id}`}
+                            className="anime-card-grid-card"
+                          >
+                            <div className="anime-card-poster">
+                              <img 
+                                src={anime.poster_url || '/placeholder.jpg'} 
+                                alt={anime.title}
+                                loading="lazy"
+                              />
+                              {score && (
+                                <div className={`anime-card-score ${scoreClass}`}>
+                                  {score === 10 ? <span className="star-icon">🌟</span> : <span>★</span>}
+                                  {scoreDisplay}
+                                </div>
+                              )}
+                            </div>
+                          </Link>
+                          <div className="anime-card-title">{anime.title || 'Без названия'}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+
+              {hasMore && (
+                <div className="load-more-container">
+                  <button 
+                    className="load-more-btn"
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                  >
+                    {loadingMore ? 'Загрузка...' : 'Показать больше'}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </section>
       </div>
     </div>
   )

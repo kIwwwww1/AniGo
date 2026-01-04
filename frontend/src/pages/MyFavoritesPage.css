@@ -1,99 +1,15 @@
-/* Стили только для заголовков и контролов */
-/* Стили карточек находятся в AnimeCardGrid.css */
+/* Стили для страницы избранного */
+/* Стили сетки и карточек наследуются из AllAnimePage.css */
 
 .my-favorites-page {
   min-height: calc(100vh - 200px);
   padding: 2rem 0;
 }
 
-.popular-anime-section {
-  margin-bottom: 4rem;
-  padding: 2rem 0;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-}
-
-.section-title-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.section-title {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0;
-}
-
 .favorites-count {
   font-size: 1rem;
   color: var(--text-secondary);
   margin: 0;
-}
-
-.carousel-controls {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.carousel-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background-color: var(--bg-card);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.carousel-btn:hover:not(:disabled) {
-  background-color: var(--user-accent-color, var(--accent));
-  border-color: var(--user-accent-color, var(--accent));
-  transform: scale(1.05);
-}
-
-.carousel-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.carousel-indicators {
-  display: flex;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-top: 1.5rem;
-}
-
-.indicator {
-  width: 8px;
-  height: 8px;
-  border-radius: 4px;
-  background-color: var(--border);
-  border: none;
-  cursor: pointer;
-  transition: all 0.3s;
-  padding: 0;
-}
-
-.indicator:hover {
-  background-color: var(--text-secondary);
-  transform: scale(1.2);
-}
-
-.indicator.active {
-  background-color: var(--user-accent-color, var(--accent));
-  width: 24px;
-  border-radius: 6px;
 }
 
 .loading {
