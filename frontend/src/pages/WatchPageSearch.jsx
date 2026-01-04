@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { animeAPI, userAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
 import VideoPlayer from '../components/VideoPlayer'
@@ -8,13 +8,16 @@ import './WatchPage.css'
 
 function WatchPageSearch() {
   const { animeName } = useParams()
+  const navigate = useNavigate()
   const [anime, setAnime] = useState(null)
   const [randomAnime, setRandomAnime] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [authError, setAuthError] = useState(false)
   const [selectedPlayer, setSelectedPlayer] = useState(null)
   const [commentText, setCommentText] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
+  const [avatarErrors, setAvatarErrors] = useState({}) // Ошибки загрузки аватарок комментариев
 
   useEffect(() => {
     if (animeName) {
@@ -41,16 +44,27 @@ function WatchPageSearch() {
   const loadAnime = async () => {
     try {
       setLoading(true)
+      setAuthError(false)
       const response = await animeAPI.getAnimeBySearchName(animeName)
       if (response.message) {
-        setAnime(response.message)
-        // Если получили аниме с ID, можно перенаправить на обычную страницу
-        // или оставить на этой странице
+        const animeData = response.message
+        // Если аниме имеет ID и players, проверяем авторизацию перед показом плеера
+        if (animeData.id && animeData.players && animeData.players.length > 0) {
+          // Перенаправляем на защищенную страницу просмотра
+          navigate(`/watch/${animeData.id}`)
+          return
+        }
+        setAnime(animeData)
       }
       setError(null)
     } catch (err) {
-      setError('Ошибка загрузки аниме')
-      console.error(err)
+      if (err.response?.status === 401) {
+        setAuthError(true)
+        setError('Для просмотра аниме необходимо войти в аккаунт')
+      } else {
+        setError('Ошибка загрузки аниме')
+        console.error(err)
+      }
     } finally {
       setLoading(false)
     }
@@ -99,7 +113,27 @@ function WatchPageSearch() {
     return (
       <div className="watch-page">
         <div className="container">
-          <div className="error-message">{error || 'Аниме не найдено'}</div>
+          <div className="error-message">
+            {error || 'Аниме не найдено'}
+            {authError && (
+              <div style={{ marginTop: '20px' }}>
+                <button
+                  onClick={() => navigate('/')}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#e50914',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '5px',
+                    cursor: 'pointer',
+                    fontSize: '16px'
+                  }}
+                >
+                  Вернуться на главную
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     )

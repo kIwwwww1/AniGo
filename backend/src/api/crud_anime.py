@@ -63,8 +63,10 @@ async def get_anime_paginators(pagin_data: PaginatorAnimeDep,
 
 
 @anime_router.get('/{anime_id:int}', response_model=dict)
-async def watch_anime_by_id(anime_id: int, session: SessionDep, background_tasks: BackgroundTasks):
-    '''Поиск аниме в базе по id с полными данными'''
+async def watch_anime_by_id(anime_id: int, session: SessionDep, background_tasks: BackgroundTasks, 
+                            token_data: CookieDataDep):
+    '''Поиск аниме в базе по id с полными данными
+    Требует аутентификации (JWT токен в cookies)'''
 
     try:
         anime = await get_anime_in_db_by_id(anime_id, session, background_tasks)
