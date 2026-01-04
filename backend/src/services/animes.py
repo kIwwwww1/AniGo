@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, exists
-from datetime import datetime
+from datetime import datetime, timedelta
 from loguru import logger
 from sqlalchemy.orm import noload
 # 
@@ -183,11 +183,11 @@ async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession, background
 async def get_popular_anime(paginator_data: PaginatorData, session: AsyncSession):
     '''Получить популярное аниме (все аниме из базы, отсортированные по популярности)'''
 
-    # Упрощенная фильтрация: оценка >= 7.5, минимум 6 комментариев, обновлено сегодня
+    # Упрощенная фильтрация: оценка >= 7.5, минимум 6 комментариев, обновлено за последние 2 недели
     
-    # Получаем начало и конец сегодняшнего дня
-    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    today_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+    # Получаем дату 2 недели назад и текущую дату
+    two_weeks_ago = datetime.now() - timedelta(days=14)
+    now = datetime.now()
     
     # Подзапрос для подсчета комментариев
     comments_subquery = (
@@ -212,16 +212,16 @@ async def get_popular_anime(paginator_data: PaginatorData, session: AsyncSession
             AnimeModel.score >= 7.5,
             # Комментариев минимум 6
             comments_subquery >= 6,
-            # Дата последнего обновления сегодня
-            AnimeModel.last_updated >= today_start,
-            AnimeModel.last_updated <= today_end,
+            # Дата последнего обновления за последние 2 недели
+            AnimeModel.last_updated >= two_weeks_ago,
+            AnimeModel.last_updated <= now,
         )
     ).order_by(
         AnimeModel.score.desc().nulls_last(),  # Сначала по рейтингу (высокий -> низкий)
         AnimeModel.id.desc()  # Потом по ID (новые -> старые)
     ).limit(paginator_data.limit).offset(paginator_data.offset)
     
-    logger.info(f'Выполняется запрос популярных аниме с фильтрами: score >= 7.5, comments >= 6, last_updated сегодня')
+    logger.info(f'Выполняется запрос популярных аниме с фильтрами: score >= 7.5, comments >= 6, last_updated за последние 2 недели')
     animes = (await session.execute(query)).scalars().all()
     logger.info(f'Найдено аниме: {len(animes) if animes else 0}')
 
