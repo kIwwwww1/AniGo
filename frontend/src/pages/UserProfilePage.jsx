@@ -816,19 +816,26 @@ function UserProfilePage() {
               )}
             </h1>
             <div className="profile-badges">
-              {user.role && (
-                <span className={`profile-role role-${user.role}`}>
-                  {user.role === 'admin' ? 'Администратор' : 'Пользователь'}
-                </span>
-              )}
-              {user.created_at && (
-                <span className="profile-role profile-joined-badge">
-                  {formatDate(user.created_at)}
+              {user.type_account && (user.type_account === 'owner' || user.type_account === 'admin') && (
+                <span className={`profile-role role-${user.type_account}`}>
+                  {user.type_account === 'admin' ? 'Администратор' : 'Владелец'}
                 </span>
               )}
               {user.id < 100 && (
                 <span className="profile-role profile-premium-badge">
                   Один из 100
+                </span>
+              )}
+              {user.type_account && (user.type_account !== 'owner' && user.type_account !== 'admin') && (
+                <span className={`profile-role role-${user.type_account}`}>
+                  {user.type_account === 'base' ? 'Базовый' : 
+                   user.type_account === 'premium' ? 'Премиум' : 
+                   user.type_account}
+                </span>
+              )}
+              {user.created_at && (
+                <span className="profile-role profile-joined-badge">
+                  {formatDate(user.created_at)}
                 </span>
               )}
             </div>

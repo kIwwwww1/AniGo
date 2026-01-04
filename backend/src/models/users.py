@@ -10,8 +10,9 @@ class UserModel(Base):
     username: Mapped[str] = mapped_column(unique=True, nullable=False)
     email: Mapped[str] = mapped_column(unique=True)
     password_hash: Mapped[str] = mapped_column(nullable=False)
-    avatar_url: Mapped[str] = mapped_column(default='/Users/kiww1/AniGo/6434d6b8c1419741cb26ec1cd842aca8.jpg')
+    avatar_url: Mapped[str | None] = mapped_column(nullable=True)
     role: Mapped[str] = mapped_column(default='user')
+    type_account: Mapped[str] = mapped_column(default='base', nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now()
@@ -22,3 +23,4 @@ class UserModel(Base):
     ratings: Mapped[list['RatingModel']] = relationship(back_populates='user', lazy='selectin')
     comments: Mapped[list['CommentModel']] = relationship(back_populates="user", lazy='selectin')
     watch_history: Mapped[list['WatchHistoryModel']] = relationship(back_populates="user", lazy='selectin')
+    best_anime: Mapped[list['BestUserAnimeModel']] = relationship(back_populates='user', lazy='selectin')

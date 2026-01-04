@@ -30,6 +30,7 @@ class AnimeModel(Base):
     watch_history: Mapped[list['WatchHistoryModel']] = relationship(back_populates="anime", lazy='selectin')
     genres: Mapped[list['GenreModel']] = relationship(back_populates="animes", secondary='anime_genres', lazy='selectin')
     themes: Mapped[list['ThemeModel']] = relationship(back_populates="animes", secondary='anime_themes', lazy='selectin')
+    best_user_anime: Mapped[list['BestUserAnimeModel']] = relationship(back_populates="anime", lazy='selectin')
 
 
 

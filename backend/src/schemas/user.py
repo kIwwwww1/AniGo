@@ -1,4 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
+from typing import Literal
+
+AccountTypes = Literal['base', 'premium', 'admin', 'owner']
 
 class UserName(BaseModel):
     username: str = Field(min_length=3, max_length=15)
@@ -11,6 +14,10 @@ class LoginUser(UserName):
 
 class CreateNewUser(LoginUser, UserEmail):
     pass
+
+class UserTypeAccount(BaseModel):
+    type_account: AccountTypes
+    
 
 class CreateUserComment(BaseModel):
     text: str = Field(min_length=1, max_length=100)

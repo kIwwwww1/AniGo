@@ -248,15 +248,99 @@ h1.profile-username.premium-user {
 }
 
 .profile-role.role-admin {
-  background: linear-gradient(135deg, rgba(229, 9, 20, 0.2) 0%, rgba(229, 9, 20, 0.1) 100%);
-  color: var(--accent);
-  border: 1px solid rgba(229, 9, 20, 0.3);
+  background: linear-gradient(135deg, rgba(26, 26, 26, 0.7) 0%, rgba(20, 20, 20, 0.7) 100%) padding-box,
+              linear-gradient(135deg, #ff006e 0%, #8338ec 25%, #3a86ff 50%, #06ffa5 75%, #ff006e 100%) border-box;
+  background-size: 100% 100%, 200% 200%;
+  color: var(--text-primary);
+  font-weight: 700;
+  border: 2px solid transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 12px rgba(255, 0, 110, 0.2);
+  animation: rainbow-border-shimmer 3s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.profile-role.role-admin::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: admin-shine 2s ease-in-out infinite;
+}
+
+@keyframes rainbow-border-shimmer {
+  0%, 100% {
+    background-position: 0% 0%, 0% 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 12px rgba(255, 0, 110, 0.2);
+  }
+  50% {
+    background-position: 0% 0%, 100% 50%;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 16px rgba(58, 134, 255, 0.4);
+  }
+}
+
+@keyframes admin-shine {
+  0% {
+    left: -100%;
+  }
+  50%, 100% {
+    left: 100%;
+  }
 }
 
 .profile-role.role-user {
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-secondary);
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.profile-role.role-base,
+.profile-role.role-premium {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-transform: none;
+}
+
+.profile-role.role-owner {
+  background: linear-gradient(135deg, rgba(26, 26, 26, 0.7) 0%, rgba(20, 20, 20, 0.7) 100%) padding-box,
+              linear-gradient(135deg, #ff006e 0%, #8338ec 25%, #3a86ff 50%, #06ffa5 75%, #ff006e 100%) border-box;
+  background-size: 100% 100%, 200% 200%;
+  color: var(--text-primary);
+  font-weight: 700;
+  border: 2px solid transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 12px rgba(255, 0, 110, 0.2);
+  animation: rainbow-border-shimmer 3s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+  text-transform: none;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.profile-role.role-owner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: owner-shine 2s ease-in-out infinite;
+}
+
+@keyframes owner-shine {
+  0% {
+    left: -100%;
+  }
+  50%, 100% {
+    left: 100%;
+  }
 }
 
 .profile-role.profile-premium-badge {

@@ -74,6 +74,10 @@ async def add_user(new_user: CreateNewUser, response: Response,
             select(UserModel).filter_by(email=new_user.email))
             ).scalar_one()
         
+        # Если пользователь первый (id == 1), устанавливаем тип аккаунта 'owner'
+        if user.id == 1:
+            user.type_account = 'owner'
+        
         await add_token_in_cookie(sub=str(user.id), role=user.role, 
                                   response=response)
         await session.commit()
@@ -117,6 +121,10 @@ async def get_user_by_id(user_id: int, session: AsyncSession):
         select(UserModel).filter_by(id=user_id)
     )).scalar_one_or_none()
     if user:
+        # Гарантируем, что пользователь с id == 1 всегда имеет type_account = 'owner'
+        if user.id == 1 and user.type_account != 'owner':
+            user.type_account = 'owner'
+            await session.commit()
         return user
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
@@ -144,6 +152,10 @@ async def get_user_by_username(username: str, session: AsyncSession):
             .filter_by(username=username)
     )).scalar_one_or_none()
     if user:
+        # Гарантируем, что пользователь с id == 1 всегда имеет type_account = 'owner'
+        if user.id == 1 and user.type_account != 'owner':
+            user.type_account = 'owner'
+            await session.commit()
         return user
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
