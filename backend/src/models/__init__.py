@@ -5,6 +5,7 @@ class Base(DeclarativeBase):
 # Импортируем все модели в правильном порядке
 # Сначала импортируем независимые модели, затем те, которые зависят от других
 from .users import UserModel
+from .pending_registration import PendingRegistrationModel
 from .anime import AnimeModel
 from .players import PlayerModel
 from .anime_players import AnimePlayerModel

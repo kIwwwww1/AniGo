@@ -10,10 +10,10 @@ class UserEmail(UserName):
     email: EmailStr
 
 class LoginUser(UserName):
-    password: str
+    password: str = Field(min_length=8)
 
 class CreateNewUser(LoginUser, UserEmail):
-    pass
+    password: str = Field(min_length=8)
 
 class UserTypeAccount(BaseModel):
     type_account: AccountTypes

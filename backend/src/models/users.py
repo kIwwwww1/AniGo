@@ -13,6 +13,11 @@ class UserModel(Base):
     avatar_url: Mapped[str | None] = mapped_column(nullable=True)
     role: Mapped[str] = mapped_column(default='user')
     type_account: Mapped[str] = mapped_column(default='base', nullable=False)
+    email_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
+    email_verification_token: Mapped[str | None] = mapped_column(nullable=True)
+    email_verification_token_expires: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now()

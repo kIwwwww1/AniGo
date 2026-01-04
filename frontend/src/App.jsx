@@ -8,6 +8,7 @@ import MyFavoritesPage from './pages/MyFavoritesPage'
 import UserProfilePage from './pages/UserProfilePage'
 import PopularAnimePage from './pages/PopularAnimePage'
 import AllAnimePage from './pages/AllAnimePage'
+import VerifyEmailPage from './pages/VerifyEmailPage'
 import Layout from './components/Layout'
 import ScrollToTop from './components/ScrollToTop'
 import PageTransition from './components/PageTransition'
@@ -215,6 +216,7 @@ function App() {
             <Route path="/profile/:username" element={<UserProfilePage />} />
             <Route path="/anime/all/popular" element={<PopularAnimePage />} />
             <Route path="/anime/all/anime" element={<AllAnimePage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
           </Routes>
         </Layout>
       </PageTransition>

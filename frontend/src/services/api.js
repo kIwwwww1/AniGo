@@ -141,6 +141,14 @@ export const userAPI = {
     return response.data
   },
 
+  // Подтвердить email
+  verifyEmail: async (token) => {
+    const response = await api.get('/user/verify-email', {
+      params: { token },
+    })
+    return response.data
+  },
+
   // Создать комментарий к аниме
   createComment: async (animeId, text) => {
     const response = await api.post('/user/create/comment', {

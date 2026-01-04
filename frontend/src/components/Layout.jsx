@@ -9,6 +9,9 @@ function Layout({ children }) {
   const [scrolled, setScrolled] = useState(false)
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [showRegisterModal, setShowRegisterModal] = useState(false)
+  const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false)
+  const [verificationEmail, setVerificationEmail] = useState('')
+  const [verificationTimer, setVerificationTimer] = useState(120) // 2 минуты в секундах
   const [loginForm, setLoginForm] = useState({
     username: '',
     password: ''
@@ -43,6 +46,22 @@ function Layout({ children }) {
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  // Таймер для модального окна подтверждения email
+  useEffect(() => {
+    if (showEmailVerificationModal && verificationTimer > 0) {
+      const interval = setInterval(() => {
+        setVerificationTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+      return () => clearInterval(interval)
+    }
+  }, [showEmailVerificationModal, verificationTimer])
 
   // Функция для проверки авторизации
   const checkAuth = async () => {
@@ -292,15 +311,20 @@ function Layout({ children }) {
       return
     }
 
+    if (registerForm.password.length < 8) {
+      setRegisterError('Пароль должен быть не менее 8 символов')
+      return
+    }
+
     try {
       setRegisterLoading(true)
       await userAPI.createAccount(registerForm.username, registerForm.email, registerForm.password)
+      // Показываем модальное окно с таймером вместо закрытия
+      setVerificationEmail(registerForm.email)
+      setVerificationTimer(120) // 2 минуты
       setShowRegisterModal(false)
+      setShowEmailVerificationModal(true)
       setRegisterForm({ username: '', email: '', password: '' })
-      // Небольшая задержка для установки cookie
-      await new Promise(resolve => setTimeout(resolve, 500))
-      // Обновляем состояние пользователя после успешной регистрации
-      await checkAuth()
       setRegisterLoading(false)
     } catch (err) {
       setRegisterError(err.response?.data?.detail || 'Ошибка при создании аккаунта')
@@ -691,6 +715,48 @@ function Layout({ children }) {
               >
                 Войти
               </button></p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно подтверждения email */}
+      {showEmailVerificationModal && (
+        <div className="modal-overlay">
+          <div className="modal-content verification-modal">
+            <h2 className="modal-title">Подтвердите ваш email</h2>
+            <div className="verification-content">
+              <p className="verification-text">
+                Письмо с подтверждением отправлено на <strong>{verificationEmail}</strong>
+              </p>
+              <p className="verification-text">
+                Пожалуйста, проверьте вашу почту и перейдите по ссылке для завершения регистрации.
+              </p>
+              
+              <div className="timer-container">
+                <div className="timer-label">Ссылка действительна:</div>
+                <div className={`timer-display ${verificationTimer < 30 ? 'timer-warning' : ''}`}>
+                  {Math.floor(verificationTimer / 60)}:{(verificationTimer % 60).toString().padStart(2, '0')}
+                </div>
+              </div>
+
+              {verificationTimer === 0 && (
+                <div className="timer-expired">
+                  <p>⏱️ Время действия ссылки истекло. Пожалуйста, зарегистрируйтесь заново.</p>
+                </div>
+              )}
+
+              <div className="verification-actions">
+                <button 
+                  className="verification-close-btn"
+                  onClick={() => {
+                    setShowEmailVerificationModal(false)
+                    setVerificationTimer(120)
+                  }}
+                >
+                  Закрыть
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -7,7 +7,7 @@ from src.dependencies.all_dep import SessionDep, UserExistsDep
 from src.services.users import (add_user, create_user_comment, 
                                 create_rating, get_user_by_id, login_user,
                                 toggle_favorite, check_favorite, check_rating, get_user_favorites,
-                                get_user_by_username)
+                                get_user_by_username, verify_email)
 from src.schemas.user import (CreateNewUser, CreateUserComment, 
                               CreateUserRating, LoginUser, CreateUserFavorite)
 from src.auth.auth import get_token, delete_token
@@ -38,9 +38,19 @@ async def login(login_data: LoginUser, response: Response,
 @user_router.post('/create/account')
 async def create_new_user(new_user: CreateNewUser, response: Response, 
                           session: SessionDep):
-    '''Создание нового пользователя'''
+    '''Создание нового пользователя (требует подтверждения email)'''
 
     resp = await add_user(new_user, response, session)
+    return {'message': resp}
+
+
+@user_router.get('/verify-email')
+async def verify_user_email(token: str, response: Response, session: SessionDep):
+    '''Подтверждение email по токену'''
+    from loguru import logger
+    logger.info(f"Received verification request with token: {token[:30]}... (length: {len(token)})")
+    
+    resp = await verify_email(token, session, response)
     return {'message': resp}
 
 

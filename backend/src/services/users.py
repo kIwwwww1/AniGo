@@ -1,8 +1,11 @@
 from fastapi import HTTPException, status, Response, Request
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime, timezone
+from loguru import logger
 # 
 from src.models.users import UserModel
+from src.models.pending_registration import PendingRegistrationModel
 from src.models.ratings import RatingModel
 from src.models.comments import CommentModel
 from src.models.favorites import FavoriteModel
@@ -10,6 +13,9 @@ from src.schemas.user import CreateNewUser, CreateUserComment, CreateUserRating,
 from src.auth.auth import (add_token_in_cookie, hashed_password,
                            get_token, password_verification)
 from src.services.animes import get_anime_by_id
+from src.services.email import (generate_verification_token, 
+                                get_verification_token_expires,
+                                send_verification_email)
 
 
 async def get_user_by_token(request: Request, session: AsyncSession):
@@ -31,6 +37,16 @@ async def nickname_is_free(name: str, session: AsyncSession):
                 status_code=status.HTTP_409_CONFLICT,
                 detail='Никнейм занят'
                 )
+    
+    # Проверяем также в pending_registration
+    pending = (await session.execute(
+        select(PendingRegistrationModel).filter_by(username=name))
+        ).scalar_one_or_none()
+    if pending:
+        raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail='Никнейм занят'
+                )
     return True
 
 
@@ -41,6 +57,16 @@ async def email_is_free(email: str, session: AsyncSession):
         select(UserModel).filter_by(email=email))
         ).scalar_one_or_none()
     if user:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail='Почта занята'
+            )
+    
+    # Проверяем также в pending_registration
+    pending = (await session.execute(
+        select(PendingRegistrationModel).filter_by(email=email))
+        ).scalar_one_or_none()
+    if pending:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail='Почта занята'
@@ -61,28 +87,140 @@ async def user_exists(name: str, email: str,
 
 async def add_user(new_user: CreateNewUser, response: Response, 
                    session: AsyncSession):
-    '''Добавление нового пользователя в базу'''
+    '''Отправка письма с подтверждением email (пользователь будет создан только после подтверждения)'''
 
-    if await user_exists(new_user.username, new_user.email, session) is None:
-        session.add(UserModel(
-            username=new_user.username,
-            email=new_user.email,
-            password_hash=await hashed_password(new_user.password),
-        ))
-        await session.flush()
-        user = (await session.execute(
-            select(UserModel).filter_by(email=new_user.email))
-            ).scalar_one()
-        
-        # Если пользователь первый (id == 1), устанавливаем тип аккаунта 'owner'
-        if user.id == 1:
-            user.type_account = 'owner'
-        
-        await add_token_in_cookie(sub=str(user.id), role=user.role, 
-                                  response=response)
+    # Проверяем, что никнейм и почта свободны (функция выбросит HTTPException если заняты)
+    await user_exists(new_user.username, new_user.email, session)
+    
+    # Генерируем токен для подтверждения email
+    verification_token = generate_verification_token()
+    token_expires = get_verification_token_expires()
+    logger.info(f"Generated verification token: {verification_token[:30]}... (length: {len(verification_token)})")
+    logger.info(f"Token expires at: {token_expires}")
+    
+    # Сохраняем данные во временную таблицу (пользователь еще не создан)
+    pending_registration = PendingRegistrationModel(
+        username=new_user.username,
+        email=new_user.email,
+        password_hash=await hashed_password(new_user.password),
+        verification_token=verification_token,
+        token_expires=token_expires,
+    )
+    session.add(pending_registration)
+    await session.commit()
+    logger.info(f"Pending registration saved with ID: {pending_registration.id}")
+    
+    # Отправляем письмо с подтверждением
+    logger.info(f"Attempting to send verification email to {new_user.email}")
+    email_sent = await send_verification_email(
+        new_user.email, 
+        new_user.username, 
+        verification_token
+    )
+    if not email_sent:
+        logger.error(f"Failed to send verification email to {new_user.email}. Check logs for details.")
+        # Удаляем запись из pending_registration, если письмо не отправлено
+        await session.execute(
+            delete(PendingRegistrationModel).where(PendingRegistrationModel.id == pending_registration.id)
+        )
         await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Не удалось отправить письмо с подтверждением. Пожалуйста, проверьте настройки SMTP в файле .env и попробуйте позже.'
+        )
+    
+    logger.info(f"Verification email successfully sent to {new_user.email}")
+    return 'Письмо с подтверждением email отправлено на вашу почту. Пожалуйста, подтвердите email для завершения регистрации. Ссылка действительна 2 минуты.'
 
-        return 'Новый пользователь добавлен'
+
+async def verify_email(token: str, session: AsyncSession, response: Response) -> str:
+    '''Подтверждение email по токену и создание пользователя'''
+    
+    logger.info(f"Attempting to verify email with token: {token[:20]}... (length: {len(token)})")
+    
+    # Ищем незавершенную регистрацию по токену
+    pending = (await session.execute(
+        select(PendingRegistrationModel).filter_by(verification_token=token)
+    )).scalar_one_or_none()
+    
+    if not pending:
+        # Проверяем, есть ли вообще записи в таблице (для отладки)
+        all_pending = (await session.execute(
+            select(PendingRegistrationModel)
+        )).scalars().all()
+        logger.warning(f"Token not found. Total pending registrations: {len(all_pending)}")
+        if all_pending:
+            logger.warning(f"Sample token from DB: {all_pending[0].verification_token[:20]}... (length: {len(all_pending[0].verification_token)})")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Неверный или устаревший токен подтверждения'
+        )
+    
+    # Проверяем, не истек ли токен
+    now = datetime.now(timezone.utc)
+    logger.info(f"Token expires at: {pending.token_expires}, current time: {now}")
+    logger.info(f"Time difference: {(pending.token_expires - now).total_seconds()} seconds")
+    
+    if pending.token_expires < now:
+        # Удаляем истекшую запись
+        await session.execute(
+            delete(PendingRegistrationModel).where(PendingRegistrationModel.id == pending.id)
+        )
+        await session.commit()
+        logger.warning(f"Token expired. Expires: {pending.token_expires}, Now: {now}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Срок действия токена истек (2 минуты). Пожалуйста, зарегистрируйтесь заново.'
+        )
+    
+    # Проверяем, что пользователь с таким email или username еще не существует
+    existing_user = (await session.execute(
+        select(UserModel).filter(
+            (UserModel.email == pending.email) | (UserModel.username == pending.username)
+        )
+    )).scalar_one_or_none()
+    
+    if existing_user:
+        # Удаляем pending запись, так как пользователь уже существует
+        await session.execute(
+            delete(PendingRegistrationModel).where(PendingRegistrationModel.id == pending.id)
+        )
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail='Пользователь с таким email или username уже существует'
+        )
+    
+    # Создаем пользователя
+    # Проверяем, будет ли это первый пользователь
+    user_count = (await session.execute(
+        select(func.count(UserModel.id))
+    )).scalar()
+    
+    new_user = UserModel(
+        username=pending.username,
+        email=pending.email,
+        password_hash=pending.password_hash,
+        email_verified=True,  # Email подтвержден, так как пользователь перешел по ссылке
+        email_verification_token=None,
+        email_verification_token_expires=None,
+        type_account='owner' if user_count == 0 else 'base',  # Первый пользователь = owner
+    )
+    
+    session.add(new_user)
+    await session.flush()
+    
+    # Удаляем запись из pending_registration
+    await session.execute(
+        delete(PendingRegistrationModel).where(PendingRegistrationModel.id == pending.id)
+    )
+    await session.commit()
+    
+    # Создаем JWT токен и устанавливаем его в cookie для автоматического входа
+    await add_token_in_cookie(sub=str(new_user.id), role=new_user.role, response=response)
+    logger.info(f"User {new_user.username} (ID: {new_user.id}) successfully registered and logged in")
+    
+    return 'Регистрация завершена! Email подтвержден. Вы автоматически вошли в систему.'
 
 
 async def login_user(username: str, password: str, response: Response, 
@@ -105,6 +243,13 @@ async def login_user(username: str, password: str, response: Response,
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='Неверное имя пользователя или пароль'
+        )
+    
+    # Проверяем, подтвержден ли email
+    if not user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Пожалуйста, подтвердите ваш email адрес перед входом. Проверьте вашу почту для получения ссылки подтверждения.'
         )
     
     # Создаем токен и устанавливаем cookie
