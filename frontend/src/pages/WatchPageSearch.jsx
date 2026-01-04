@@ -14,6 +14,7 @@ function WatchPageSearch() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [authError, setAuthError] = useState(false)
+  const [retryAttempted, setRetryAttempted] = useState(false)
   const [selectedPlayer, setSelectedPlayer] = useState(null)
   const [commentText, setCommentText] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
@@ -23,6 +24,7 @@ function WatchPageSearch() {
     if (animeName) {
       // Прокручиваем страницу вверх при переходе на страницу аниме
       window.scrollTo(0, 0)
+      setRetryAttempted(false) // Сбрасываем флаг при изменении animeName
       loadAnime()
       loadRandomAnime()
     }
@@ -48,13 +50,103 @@ function WatchPageSearch() {
       const response = await animeAPI.getAnimeBySearchName(animeName)
       if (response.message) {
         const animeData = response.message
-        // Если аниме имеет ID и players, проверяем авторизацию перед показом плеера
-        if (animeData.id && animeData.players && animeData.players.length > 0) {
-          // Перенаправляем на защищенную страницу просмотра
-          navigate(`/watch/${animeData.id}`)
-          return
+        // Проверяем, что это объект аниме, а не массив (для совместимости)
+        if (Array.isArray(animeData) && animeData.length > 0) {
+          // Если пришел массив, берем первый элемент
+          const firstAnime = animeData[0]
+          if (firstAnime.id && firstAnime.players && firstAnime.players.length > 0) {
+            navigate(`/watch/${firstAnime.id}`)
+            return
+          }
+          setAnime(firstAnime)
+        } else if (animeData && typeof animeData === 'object' && animeData.id) {
+          // Если аниме имеет ID и players, проверяем авторизацию перед показом плеера
+          if (animeData.players && animeData.players.length > 0) {
+            // Перенаправляем на защищенную страницу просмотра
+            navigate(`/watch/${animeData.id}`)
+            return
+          }
+          setAnime(animeData)
+        } else {
+          // Если ничего не найдено и еще не делали повторный запрос
+          if (!retryAttempted) {
+            setRetryAttempted(true)
+            // Делаем повторный запрос
+            try {
+              const retryResponse = await animeAPI.getAnimeBySearchName(animeName)
+              if (retryResponse.message) {
+                const retryAnimeData = retryResponse.message
+                if (Array.isArray(retryAnimeData) && retryAnimeData.length > 0) {
+                  const firstAnime = retryAnimeData[0]
+                  if (firstAnime.id && firstAnime.players && firstAnime.players.length > 0) {
+                    navigate(`/watch/${firstAnime.id}`)
+                    return
+                  }
+                  setAnime(firstAnime)
+                } else if (retryAnimeData && typeof retryAnimeData === 'object' && retryAnimeData.id) {
+                  if (retryAnimeData.players && retryAnimeData.players.length > 0) {
+                    navigate(`/watch/${retryAnimeData.id}`)
+                    return
+                  }
+                  setAnime(retryAnimeData)
+                } else {
+                  setError('Аниме не найдено')
+                }
+              } else {
+                setError('Аниме не найдено')
+              }
+            } catch (retryErr) {
+              console.error('Ошибка повторного запроса:', retryErr)
+              if (retryErr.response?.status === 401) {
+                setAuthError(true)
+                setError('Для просмотра аниме необходимо войти в аккаунт')
+              } else {
+                setError('Аниме не найдено')
+              }
+            }
+          } else {
+            setError('Аниме не найдено')
+          }
         }
-        setAnime(animeData)
+      } else {
+        // Если response.message пустое и еще не делали повторный запрос
+        if (!retryAttempted) {
+          setRetryAttempted(true)
+          try {
+            const retryResponse = await animeAPI.getAnimeBySearchName(animeName)
+            if (retryResponse.message) {
+              const retryAnimeData = retryResponse.message
+              if (Array.isArray(retryAnimeData) && retryAnimeData.length > 0) {
+                const firstAnime = retryAnimeData[0]
+                if (firstAnime.id && firstAnime.players && firstAnime.players.length > 0) {
+                  navigate(`/watch/${firstAnime.id}`)
+                  return
+                }
+                setAnime(firstAnime)
+              } else if (retryAnimeData && typeof retryAnimeData === 'object' && retryAnimeData.id) {
+                if (retryAnimeData.players && retryAnimeData.players.length > 0) {
+                  navigate(`/watch/${retryAnimeData.id}`)
+                  return
+                }
+                setAnime(retryAnimeData)
+              } else {
+                setError('Аниме не найдено')
+              }
+            } else {
+              setError('Аниме не найдено')
+            }
+          } catch (retryErr) {
+            console.error('Ошибка повторного запроса:', retryErr)
+            if (retryErr.response?.status === 401) {
+              setAuthError(true)
+              setError('Для просмотра аниме необходимо войти в аккаунт')
+            } else {
+              setError('Аниме не найдено')
+            }
+          }
+        } else {
+          setError('Аниме не найдено')
+        }
       }
       setError(null)
     } catch (err) {
@@ -62,8 +154,45 @@ function WatchPageSearch() {
         setAuthError(true)
         setError('Для просмотра аниме необходимо войти в аккаунт')
       } else {
-        setError('Ошибка загрузки аниме')
-        console.error(err)
+        // Если ошибка и еще не делали повторный запрос
+        if (!retryAttempted) {
+          setRetryAttempted(true)
+          try {
+            const retryResponse = await animeAPI.getAnimeBySearchName(animeName)
+            if (retryResponse.message) {
+              const retryAnimeData = retryResponse.message
+              if (Array.isArray(retryAnimeData) && retryAnimeData.length > 0) {
+                const firstAnime = retryAnimeData[0]
+                if (firstAnime.id && firstAnime.players && firstAnime.players.length > 0) {
+                  navigate(`/watch/${firstAnime.id}`)
+                  return
+                }
+                setAnime(firstAnime)
+              } else if (retryAnimeData && typeof retryAnimeData === 'object' && retryAnimeData.id) {
+                if (retryAnimeData.players && retryAnimeData.players.length > 0) {
+                  navigate(`/watch/${retryAnimeData.id}`)
+                  return
+                }
+                setAnime(retryAnimeData)
+              } else {
+                setError('Аниме не найдено')
+              }
+            } else {
+              setError('Аниме не найдено')
+            }
+          } catch (retryErr) {
+            console.error('Ошибка повторного запроса:', retryErr)
+            if (retryErr.response?.status === 401) {
+              setAuthError(true)
+              setError('Для просмотра аниме необходимо войти в аккаунт')
+            } else {
+              setError('Аниме не найдено')
+            }
+          }
+        } else {
+          setError('Аниме не найдено')
+          console.error(err)
+        }
       }
     } finally {
       setLoading(false)

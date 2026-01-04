@@ -34,6 +34,7 @@ function Layout({ children }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searchLoading, setSearchLoading] = useState(false)
+  const searchRetryAttemptedRef = useRef(false)
   const searchInputRef = useRef(null)
   const searchLinkRef = useRef(null)
   const searchResultsRef = useRef(null)
@@ -206,6 +207,7 @@ function Layout({ children }) {
   useEffect(() => {
     if (!showSearch) {
       setSearchResults([])
+      searchRetryAttemptedRef.current = false
       return
     }
 
@@ -213,21 +215,59 @@ function Layout({ children }) {
     if (trimmedQuery.length < 3) {
       setSearchResults([])
       setSearchLoading(false)
+      searchRetryAttemptedRef.current = false
       return
     }
+
+    // Сбрасываем флаг повторной попытки при изменении запроса
+    searchRetryAttemptedRef.current = false
 
     const searchTimeout = setTimeout(async () => {
       try {
         setSearchLoading(true)
         const response = await animeAPI.getAnimeBySearchName(trimmedQuery)
-        if (response.message && Array.isArray(response.message)) {
+        if (response.message && Array.isArray(response.message) && response.message.length > 0) {
           setSearchResults(response.message.slice(0, 10)) // Ограничиваем до 10 результатов
+          searchRetryAttemptedRef.current = false // Сбрасываем флаг при успешном поиске
         } else {
-          setSearchResults([])
+          // Если ничего не найдено и еще не делали повторный запрос
+          if (!searchRetryAttemptedRef.current) {
+            searchRetryAttemptedRef.current = true
+            // Делаем повторный запрос
+            try {
+              const retryResponse = await animeAPI.getAnimeBySearchName(trimmedQuery)
+              if (retryResponse.message && Array.isArray(retryResponse.message) && retryResponse.message.length > 0) {
+                setSearchResults(retryResponse.message.slice(0, 10))
+              } else {
+                setSearchResults([])
+              }
+            } catch (retryErr) {
+              console.error('Ошибка повторного поиска:', retryErr)
+              setSearchResults([])
+            }
+          } else {
+            setSearchResults([])
+          }
         }
       } catch (err) {
         console.error('Ошибка поиска:', err)
-        setSearchResults([])
+        // Если ошибка и еще не делали повторный запрос
+        if (!searchRetryAttemptedRef.current) {
+          searchRetryAttemptedRef.current = true
+          try {
+            const retryResponse = await animeAPI.getAnimeBySearchName(trimmedQuery)
+            if (retryResponse.message && Array.isArray(retryResponse.message) && retryResponse.message.length > 0) {
+              setSearchResults(retryResponse.message.slice(0, 10))
+            } else {
+              setSearchResults([])
+            }
+          } catch (retryErr) {
+            console.error('Ошибка повторного поиска:', retryErr)
+            setSearchResults([])
+          }
+        } else {
+          setSearchResults([])
+        }
       } finally {
         setSearchLoading(false)
       }
@@ -257,6 +297,7 @@ function Layout({ children }) {
     setShowSearch(false)
     setSearchQuery('')
     setSearchResults([])
+    searchRetryAttemptedRef.current = false
   }
 
   const handleLogout = async () => {
