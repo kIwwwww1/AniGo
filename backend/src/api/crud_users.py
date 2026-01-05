@@ -235,3 +235,21 @@ async def change_user_password(passwords: ChangeUserPassword, request: Request,
                                session: SessionDep):
     resp = await change_password(passwords, request, session)
     return {'message': resp}
+
+@user_router.get('/settings/{username}')
+async def user_settings(username: str, session: SessionDep):
+    '''Настройки пользователя (смена пароля и ника и тд)'''
+    
+    user = await get_user_by_username(username, session)
+    
+    return {
+        'message': {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'avatar_url': user.avatar_url,
+            'role': user.role,
+            'type_account': user.type_account,
+            'created_at': user.created_at.isoformat() if user.created_at else None
+        }
+    }

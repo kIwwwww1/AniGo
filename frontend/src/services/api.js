@@ -204,6 +204,12 @@ export const userAPI = {
     const response = await api.get(`/user/profile/${encodeURIComponent(username)}`)
     return response.data
   },
+
+  // Получить настройки пользователя по username
+  getUserSettings: async (username) => {
+    const response = await api.get(`/user/settings/${encodeURIComponent(username)}`)
+    return response.data
+  },
 }
 
 export default api

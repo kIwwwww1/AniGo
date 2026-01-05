@@ -6,6 +6,7 @@ import WatchPage from './pages/WatchPage'
 import WatchPageSearch from './pages/WatchPageSearch'
 import MyFavoritesPage from './pages/MyFavoritesPage'
 import UserProfilePage from './pages/UserProfilePage'
+import SettingsPage from './pages/SettingsPage'
 import PopularAnimePage from './pages/PopularAnimePage'
 import AllAnimePage from './pages/AllAnimePage'
 import VerifyEmailPage from './pages/VerifyEmailPage'
@@ -214,6 +215,7 @@ function App() {
             <Route path="/watch/:animeId" element={<WatchPage />} />
             <Route path="/watch/search/:animeName" element={<WatchPageSearch />} />
             <Route path="/profile/:username" element={<UserProfilePage />} />
+            <Route path="/settings/:username" element={<SettingsPage />} />
             <Route path="/anime/all/popular" element={<PopularAnimePage />} />
             <Route path="/anime/all/anime" element={<AllAnimePage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
