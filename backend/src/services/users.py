@@ -498,3 +498,15 @@ async def check_rating(anime_id: int, user_id: int, session: AsyncSession):
     if rating:
         return int(rating.rating)  # Возвращаем оценку как целое число
     return None
+
+
+async def change_username(new_name: str, user_id: int, 
+                          request:Request, session: AsyncSession):
+    user = await get_user_by_token(request, session)
+    user.username = new_name
+    await session.commit()
+    return 'Имя изменено'
+
+async def change_password(new_password: str, user_id: int,
+                          request:Request, session: AsyncSession):
+    pass

@@ -7,9 +7,10 @@ from src.dependencies.all_dep import SessionDep, UserExistsDep
 from src.services.users import (add_user, create_user_comment, 
                                 create_rating, get_user_by_id, login_user,
                                 toggle_favorite, check_favorite, check_rating, get_user_favorites,
-                                get_user_by_username, verify_email)
+                                get_user_by_username, verify_email, change_username)
 from src.schemas.user import (CreateNewUser, CreateUserComment, 
-                              CreateUserRating, LoginUser, CreateUserFavorite)
+                              CreateUserRating, LoginUser, 
+                              CreateUserFavorite, UserName)
 from src.auth.auth import get_token, delete_token
 from src.db.database import engine, new_session
 from src.services.database import restart_database
@@ -221,3 +222,10 @@ async def user_profile(username: str, session: SessionDep):
         }
     }
 
+
+@user_router.patch('/change/name')
+async def user_change_name(user_id: int, new_username: UserName, request: Request,
+                           session: SessionDep):
+    resp = await change_username(new_username.username, user_id,
+                                 request, session)
+    return {'message': resp}

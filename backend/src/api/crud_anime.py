@@ -479,3 +479,4 @@ async def get_comments_paginator(anime_id: int, limit: int = 4,
     except Exception as e:
         logger.error(f'Ошибка при получении комментариев: {e}', exc_info=True)
         return {'message': []}
+    
