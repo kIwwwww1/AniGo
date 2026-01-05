@@ -210,6 +210,24 @@ export const userAPI = {
     const response = await api.get(`/user/settings/${encodeURIComponent(username)}`)
     return response.data
   },
+
+  // Изменить имя пользователя
+  changeUsername: async (newUsername) => {
+    const response = await api.patch('/user/change/name', {
+      username: newUsername,
+    })
+    return response.data
+  },
+
+  // Изменить пароль
+  changePassword: async (oldPassword, oneNewPassword, twoNewPassword) => {
+    const response = await api.patch('/user/change/password', {
+      old_password: oldPassword,
+      one_new_password: oneNewPassword,
+      two_new_password: twoNewPassword,
+    })
+    return response.data
+  },
 }
 
 export default api

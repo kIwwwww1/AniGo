@@ -160,17 +160,52 @@
   gap: 0.5rem;
 }
 
+.edit-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: all 0.3s ease;
+  border-radius: 4px;
+  margin-left: 0.25rem;
+  vertical-align: middle;
+}
+
+.edit-icon-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.05));
+  transform: scale(1.1);
+}
+
+.edit-icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
 .crown-icon-small {
   display: inline-flex;
   align-items: center;
 }
 
 .settings-email,
+.settings-password,
 .settings-role,
 .settings-account-type {
   color: var(--text-secondary);
   margin: 0.25rem 0;
   font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.password-masked {
+  font-style: italic;
+  opacity: 0.8;
 }
 
 .settings-actions {
