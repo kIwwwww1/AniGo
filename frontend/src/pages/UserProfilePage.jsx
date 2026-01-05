@@ -1023,6 +1023,7 @@ function UserProfilePage() {
           favorites={favoritesAnime}
           isOwner={isOwner}
           onUpdate={loadUserProfile}
+          avatarBorderColor={avatarBorderColor}
         />
 
         {favoritesAnime.length > 0 ? (

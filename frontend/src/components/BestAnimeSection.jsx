@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { userAPI } from '../services/api'
 import './BestAnimeSection.css'
 
-function BestAnimeCard({ anime, place, size, isOwner, onSelect, onRemove }) {
+function BestAnimeCard({ anime, place, size, isOwner, onSelect, onRemove, avatarBorderColor }) {
   const posterUrl = anime?.poster_url || '/placeholder.jpg'
   const title = anime?.title || 'Выбрать аниме'
   const score = anime?.score ? parseFloat(anime.score) : null
@@ -21,7 +21,9 @@ function BestAnimeCard({ anime, place, size, isOwner, onSelect, onRemove }) {
   const scoreClass = getScoreClass(score)
 
   return (
-    <div className={`best-anime-card best-anime-card-${size}`}>
+    <div 
+      className={`best-anime-card best-anime-card-${size}`}
+    >
       <div className="best-anime-card-place">#{place}</div>
       {anime ? (
         <>
@@ -34,6 +36,7 @@ function BestAnimeCard({ anime, place, size, isOwner, onSelect, onRemove }) {
                 onRemove(place)
               }}
               title="Удалить"
+              style={avatarBorderColor ? { backgroundColor: avatarBorderColor } : {}}
             >
               ×
             </button>
@@ -63,7 +66,7 @@ function BestAnimeCard({ anime, place, size, isOwner, onSelect, onRemove }) {
   )
 }
 
-function BestAnimeSection({ bestAnime, favorites, isOwner, onUpdate }) {
+function BestAnimeSection({ bestAnime, favorites, isOwner, onUpdate, avatarBorderColor }) {
   const [showModal, setShowModal] = useState(false)
   const [selectedPlace, setSelectedPlace] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -120,7 +123,10 @@ function BestAnimeSection({ bestAnime, favorites, isOwner, onUpdate }) {
     return null
   }
 
-  const sizes = { 1: 'large', 2: 'medium', 3: 'small' }
+  // Размеры: карточка 1 - большая, карточка 2 - средняя, карточка 3 - немного меньше карточки 2
+  const sizes = { 1: 'large', 2: 'medium-large', 3: 'medium-plus' }
+  // Порядок отображения: карточка 2, затем 1, затем 3
+  const displayOrder = [2, 1, 3]
 
   return (
     <div className="best-anime-section">
@@ -128,7 +134,7 @@ function BestAnimeSection({ bestAnime, favorites, isOwner, onUpdate }) {
         <h2 className="best-anime-section-title">Топ-3 аниме</h2>
       </div>
       <div className="best-anime-cards-container">
-        {[1, 2, 3].map((place) => {
+        {displayOrder.map((place) => {
           // Если пользователь не владелец и карточка пустая, не показываем её
           if (!isOwner && animeByPlace[place] === null) {
             return null
@@ -142,6 +148,7 @@ function BestAnimeSection({ bestAnime, favorites, isOwner, onUpdate }) {
               isOwner={isOwner}
               onSelect={handleSelect}
               onRemove={handleRemove}
+              avatarBorderColor={avatarBorderColor}
             />
           )
         })}

@@ -23,10 +23,10 @@
 
 .best-anime-card {
   position: relative;
-  background: var(--bg-card);
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  overflow: hidden;
+  background: transparent;
+  border-radius: 20px;
+  border: none;
+  overflow: visible;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -40,9 +40,24 @@
   flex: 0 0 320px;
 }
 
+.best-anime-card-medium-large {
+  width: 280px;
+  flex: 0 0 280px;
+}
+
 .best-anime-card-medium {
   width: 240px;
   flex: 0 0 240px;
+}
+
+.best-anime-card-medium-small {
+  width: 220px;
+  flex: 0 0 220px;
+}
+
+.best-anime-card-medium-plus {
+  width: 280px;
+  flex: 0 0 280px;
 }
 
 .best-anime-card-small {
@@ -80,11 +95,11 @@
   align-items: center;
   justify-content: center;
   z-index: 3;
-  transition: background 0.3s ease, transform 0.3s ease;
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .best-anime-card-remove:hover {
-  background: rgba(229, 9, 20, 1);
+  opacity: 0.8;
   transform: scale(1.1);
 }
 
@@ -100,6 +115,7 @@
   padding-top: 150%;
   overflow: hidden;
   background: var(--bg-secondary);
+  border-radius: 20px;
 }
 
 .best-anime-card-poster img {
@@ -109,6 +125,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 20px;
 }
 
 .best-anime-card-score {
@@ -146,6 +163,7 @@
 
 .best-anime-card-info {
   padding: 1rem;
+  background: transparent;
 }
 
 .best-anime-card-title {
@@ -163,6 +181,18 @@
 
 .best-anime-card-large .best-anime-card-title {
   font-size: 1.25rem;
+}
+
+.best-anime-card-medium-large .best-anime-card-title {
+  font-size: 1.15rem;
+}
+
+.best-anime-card-medium-small .best-anime-card-title {
+  font-size: 1rem;
+}
+
+.best-anime-card-medium-plus .best-anime-card-title {
+  font-size: 1.1rem;
 }
 
 .best-anime-card-small .best-anime-card-title {
@@ -213,6 +243,42 @@
 
 .best-anime-card-large .best-anime-card-empty-text {
   font-size: 1.1rem;
+}
+
+.best-anime-card-medium-large .best-anime-card-empty {
+  min-height: 525px;
+}
+
+.best-anime-card-medium-large .best-anime-card-empty-icon {
+  font-size: 3.5rem;
+}
+
+.best-anime-card-medium-large .best-anime-card-empty-text {
+  font-size: 1.05rem;
+}
+
+.best-anime-card-medium-small .best-anime-card-empty {
+  min-height: 413px;
+}
+
+.best-anime-card-medium-small .best-anime-card-empty-icon {
+  font-size: 2.5rem;
+}
+
+.best-anime-card-medium-small .best-anime-card-empty-text {
+  font-size: 0.95rem;
+}
+
+.best-anime-card-medium-plus .best-anime-card-empty {
+  min-height: 488px;
+}
+
+.best-anime-card-medium-plus .best-anime-card-empty-icon {
+  font-size: 3rem;
+}
+
+.best-anime-card-medium-plus .best-anime-card-empty-text {
+  font-size: 1rem;
 }
 
 .best-anime-card-small .best-anime-card-empty {
@@ -362,7 +428,10 @@
   }
 
   .best-anime-card-large,
+  .best-anime-card-medium-large,
   .best-anime-card-medium,
+  .best-anime-card-medium-plus,
+  .best-anime-card-medium-small,
   .best-anime-card-small {
     width: 100%;
     max-width: 320px;
