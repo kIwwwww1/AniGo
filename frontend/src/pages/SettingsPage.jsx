@@ -389,7 +389,12 @@ function SettingsPage() {
                 })()}
               </div>
               <div className="settings-user-details">
-                <h2 className="settings-username" style={{ color: usernameColor }}>
+                <h2 
+                  className={`settings-username ${(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? 'premium-user' : ''}`}
+                  style={(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? undefined : { 
+                    color: usernameColor
+                  }}
+                >
                   {user.username}
                   {user.id < 100 && (
                     <span className="crown-icon-small">
