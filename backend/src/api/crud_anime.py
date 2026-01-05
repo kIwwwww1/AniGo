@@ -8,7 +8,7 @@ from src.dependencies.all_dep import (SessionDep, PaginatorAnimeDep,
                                       CookieDataDep)
 from src.schemas.anime import PaginatorData
 from src.parsers.kodik import (get_id_and_players, get_anime_by_title)
-from src.parsers.shikimori import (shikimori_get_anime)
+from src.parsers.shikimori import (shikimori_get_anime, shikimori_get_anime_background)
 from src.services.animes import (get_anime_in_db_by_id, pagination_get_anime, 
                                  get_popular_anime, get_random_anime, get_anime_total_count, 
                                  update_anime_data_from_shikimori, comments_paginator)
@@ -19,14 +19,29 @@ anime_router = APIRouter(prefix='/anime', tags=['AnimePanel'])
 
 
 @anime_router.get('/search/{anime_name}')
-async def get_anime_by_name(anime_name: str, session: SessionDep):
+async def get_anime_by_name(anime_name: str, session: SessionDep, background_tasks: BackgroundTasks):
     '''Поиск аниме по названию
-    (Если нашли аниме в бд то выдаем из бд
-    если не нашли то парсим сайт и добавляем все аниме
-    в бд и потом выдаем (может занять много времени))'''
+    Сначала проверяет БД и возвращает результаты сразу,
+    затем в фоне парсит kodik и shikimori для поиска дополнительных результатов'''
 
-    resp = await shikimori_get_anime(anime_name, session)
-    return {'message': resp}
+    # Сначала проверяем БД и возвращаем результаты сразу
+    from src.parsers.shikimori import get_anime_by_title_db
+    try:
+        db_results = await get_anime_by_title_db(anime_name, session)
+        # Если нашли в БД - запускаем фоновый парсинг для поиска дополнительных результатов
+        background_tasks.add_task(shikimori_get_anime_background, anime_name)
+        logger.info(f"Найдено {len(db_results)} аниме в БД, запущен фоновый поиск дополнительных результатов")
+        return {'message': db_results}
+    except HTTPException:
+        # Если не нашли в БД - выполняем обычный парсинг (синхронно, т.к. пользователю нужно показать результаты)
+        logger.info(f"Не найдено в БД, выполняем синхронный парсинг для '{anime_name}'")
+        resp = await shikimori_get_anime(anime_name, session)
+        return {'message': resp}
+    except Exception as e:
+        logger.error(f"Ошибка при поиске в БД: {e}")
+        # Если ошибка при поиске в БД - пробуем обычный парсинг
+        resp = await shikimori_get_anime(anime_name, session)
+        return {'message': resp}
 
 
 
