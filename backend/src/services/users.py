@@ -586,13 +586,19 @@ async def set_best_anime(best_anime_data: CreateBestUserAnime, user_id: int, ses
         )
     )).scalar_one_or_none()
     
-    # Если это аниме уже используется, удаляем его с предыдущего места
+    # Если это аниме уже на этом месте, ничего не делаем
+    if existing_anime and existing_anime.place == best_anime_data.place:
+        return {'message': f'Аниме уже установлено на место {best_anime_data.place}'}
+    
+    # Если это аниме уже используется на другом месте, удаляем его с предыдущего места
     if existing_anime:
         await session.delete(existing_anime)
+        await session.flush()  # Применяем удаление до создания новой записи
     
     # Если на этом месте уже есть другое аниме, удаляем его
-    if existing_best and (not existing_anime or existing_best.id != existing_anime.id):
+    if existing_best:
         await session.delete(existing_best)
+        await session.flush()  # Применяем удаление до создания новой записи
     
     # Создаем новую запись
     new_best = BestUserAnimeModel(
