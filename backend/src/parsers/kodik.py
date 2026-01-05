@@ -15,8 +15,10 @@ async def get_anime_by_title(anime_name: str):
     '''Поиск аниме по названию на сайте kodik'''
 
     try:
-        id_shikimori_players = await parser_kodik.search(title=anime_name, strict=True, 
-                                                    include_material_data=True, only_anime=True)
+        id_shikimori_players = await parser_kodik.search(title=anime_name, 
+                                                        # strict=True, 
+                                                        include_material_data=True,
+                                                        only_anime=True)
         logger.info(id_shikimori_players)
         return id_shikimori_players
     except (ServiceError, NoResults):

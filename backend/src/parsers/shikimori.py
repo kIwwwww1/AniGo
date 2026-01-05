@@ -117,6 +117,244 @@ async def get_anime_by_title_db(anime_name: str, session: AsyncSession):
                             detail='Аниме не найдено')
 
 
+async def background_search_and_add_anime(anime_name: str):
+    """
+    Фоновая функция для поиска аниме на kodik/shikimori и добавления в БД
+    Если аниме уже есть в БД - пропускаем, если нет - добавляем
+    """
+    from src.db.database import new_session
+    
+    logger.info(f"🔄 Запуск фонового поиска аниме: {anime_name}")
+    
+    async with new_session() as session:
+        try:
+            # Получаем список ID аниме и плееров с kodik
+            try:
+                kodik_results = await get_anime_by_title(anime_name)
+                animes = await get_id_and_players(kodik_results)
+            except Exception as e:
+                logger.error(f"❌ Ошибка при получении списка аниме с kodik: {e}")
+                return
+
+            if not animes:
+                logger.info(f"⚠️ Аниме '{anime_name}' не найдено на kodik")
+                return
+
+            logger.info(f"📋 Найдено {len(animes)} аниме на kodik для '{anime_name}'")
+
+            # Парсим каждое аниме и добавляем в БД, если его там нет
+            added_count = 0
+            skipped_count = 0
+            
+            for sh_id, player_url in animes.items():
+                try:
+                    # Получаем данные из Shikimori (сначала пробуем основной URL)
+                    anime = None
+                    try:
+                        anime = await parser_shikimori.anime_info(shikimori_link=f"{base_get_url}{sh_id}")
+                        if anime:
+                            logger.info(f"📥 Получено аниме: {anime.get('title', 'Без названия')}")
+                    except ServiceError as e:
+                        logger.warning(f"❌ Shikimori вернул ошибку для ID {sh_id} на основном URL: {e}")
+                        # Пробуем альтернативный URL
+                        try:
+                            logger.info(f"🔄 Пробуем альтернативный URL для ID {sh_id}")
+                            anime = await parser_shikimori.anime_info(shikimori_link=f"{new_base_get_url}{sh_id}")
+                            if anime:
+                                logger.info(f"✅ Получено аниме через альтернативный URL: {anime.get('title', 'Без названия')}")
+                        except ServiceError as e2:
+                            logger.warning(f"❌ Shikimori вернул ошибку для ID {sh_id} на альтернативном URL: {e2}")
+                            continue
+                    
+                    # Если anime всё ещё None после всех попыток, пропускаем
+                    if not anime:
+                        logger.warning(f"⚠️ Не удалось получить данные для ID {sh_id}, пропускаем")
+                        continue
+
+                    original_title = anime.get("original_title")
+                    if not original_title:
+                        logger.warning(f"⚠️ У аниме {anime.get('title')} нет original_title, пропускаем")
+                        continue
+
+                    # Проверяем, существует ли уже аниме с таким title_original
+                    try:
+                        existing_anime = (
+                            await session.execute(
+                                select(AnimeModel).where(
+                                    AnimeModel.title_original == original_title
+                                )
+                            )
+                        ).scalar_one_or_none()
+                    except (DBAPIError, SQLAlchemyError) as e:
+                        logger.warning(f"Ошибка при проверке существующего аниме, делаем rollback: {e}")
+                        await session.rollback()
+                        existing_anime = (
+                            await session.execute(
+                                select(AnimeModel).where(
+                                    AnimeModel.title_original == original_title
+                                )
+                            )
+                        ).scalar_one_or_none()
+
+                    if existing_anime:
+                        # Аниме уже есть в БД, пропускаем
+                        logger.info(f"⏭️ Аниме '{anime.get('title')}' уже есть в БД, пропускаем")
+                        skipped_count += 1
+                        # Но проверяем, есть ли связь с плеером
+                        new_anime = existing_anime
+                    else:
+                        # Аниме нет в БД, добавляем
+                        episodes_count = None
+                        if anime.get("episodes"):
+                            try:
+                                episodes_count = int(anime["episodes"])
+                            except (ValueError, TypeError):
+                                pass
+
+                        score = None
+                        if anime.get("score"):
+                            try:
+                                score = float(anime["score"])
+                            except (ValueError, TypeError):
+                                pass
+
+                        # Создаём модель Anime
+                        new_anime = AnimeModel(
+                            title=anime.get("title"),
+                            title_original=original_title,
+                            poster_url=anime.get("picture"),
+                            description=anime.get("description", ""),
+                            year=anime.get("year"),
+                            type=anime.get("type", "TV"),
+                            episodes_count=episodes_count,
+                            rating=anime.get("rating"),
+                            score=score,
+                            studio=anime.get("studio"),
+                            status=anime.get("status", "unknown"),
+                        )
+
+                        # Жанры
+                        if anime.get("genres"):
+                            for genre_name in anime["genres"]:
+                                genre = await get_or_create_genre(session, genre_name)
+                                new_anime.genres.append(genre)
+
+                        # Темы
+                        if anime.get("themes"):
+                            for theme_name in anime["themes"]:
+                                theme = await get_or_create_theme(session, theme_name)
+                                new_anime.themes.append(theme)
+
+                        try:
+                            session.add(new_anime)
+                            await session.flush()
+                            await session.commit()
+                            added_count += 1
+                            logger.info(f"✅ Добавлено новое аниме: {anime.get('title')}")
+                        except (DBAPIError, SQLAlchemyError) as e:
+                            logger.error(f"Ошибка при добавлении аниме {anime.get('title')}: {e}")
+                            await session.rollback()
+                            continue
+
+                    # Плеер
+                    try:
+                        existing_player = (
+                            await session.execute(
+                                select(PlayerModel).where(
+                                    PlayerModel.base_url == player_url
+                                )
+                            )
+                        ).scalar_one_or_none()
+                    except (DBAPIError, SQLAlchemyError) as e:
+                        logger.warning(f"Ошибка при проверке плеера, делаем rollback: {e}")
+                        await session.rollback()
+                        existing_player = (
+                            await session.execute(
+                                select(PlayerModel).where(
+                                    PlayerModel.base_url == player_url
+                                )
+                            )
+                        ).scalar_one_or_none()
+
+                    if not existing_player:
+                        existing_player = PlayerModel(
+                            base_url=player_url,
+                            name="kodik",
+                            type="iframe"
+                        )
+                        try:
+                            session.add(existing_player)
+                            await session.flush()
+                        except (DBAPIError, SQLAlchemyError) as e:
+                            logger.warning(f"Ошибка при добавлении плеера, делаем rollback: {e}")
+                            await session.rollback()
+                            session.add(existing_player)
+                            await session.flush()
+
+                    # Проверяем, существует ли уже связь аниме ↔ плеер
+                    try:
+                        existing_anime_player = (
+                            await session.execute(
+                                select(AnimePlayerModel).where(
+                                    AnimePlayerModel.anime_id == new_anime.id,
+                                    AnimePlayerModel.player_id == existing_player.id,
+                                    AnimePlayerModel.embed_url == player_url
+                                )
+                            )
+                        ).scalar_one_or_none()
+                    except (DBAPIError, SQLAlchemyError) as e:
+                        logger.warning(f"Ошибка при проверке связи аниме-плеер, делаем rollback: {e}")
+                        await session.rollback()
+                        existing_anime_player = (
+                            await session.execute(
+                                select(AnimePlayerModel).where(
+                                    AnimePlayerModel.anime_id == new_anime.id,
+                                    AnimePlayerModel.player_id == existing_player.id,
+                                    AnimePlayerModel.embed_url == player_url
+                                )
+                            )
+                        ).scalar_one_or_none()
+
+                    if not existing_anime_player:
+                        # Связь аниме ↔ плеер
+                        anime_player = AnimePlayerModel(
+                            external_id=f"{sh_id}_{player_url}",
+                            embed_url=player_url,
+                            translator="Russian",
+                            quality="720p",
+                            anime=new_anime,
+                            player=existing_player,
+                        )
+                        try:
+                            session.add(anime_player)
+                            await session.commit()
+                            logger.info(f"✅ Добавлена связь аниме-плеер для: {anime.get('title')}")
+                        except (DBAPIError, SQLAlchemyError) as e:
+                            logger.error(f"Ошибка при добавлении связи аниме-плеер: {e}")
+                            await session.rollback()
+                            continue
+                    else:
+                        # Связь уже существует
+                        try:
+                            await session.commit()
+                        except (DBAPIError, SQLAlchemyError) as e:
+                            logger.warning(f"Ошибка при коммите, делаем rollback: {e}")
+                            await session.rollback()
+                    
+                    # Антибан
+                    await asyncio.sleep(1.5)
+                    
+                except Exception as e:
+                    logger.error(f"❌ Ошибка при обработке аниме с ID {sh_id}: {e}", exc_info=True)
+                    await session.rollback()
+                    continue
+
+            logger.info(f"✅ Фоновый поиск завершен для '{anime_name}': добавлено {added_count}, пропущено {skipped_count}")
+            
+        except Exception as e:
+            logger.error(f"❌ Критическая ошибка в фоновом поиске аниме '{anime_name}': {e}", exc_info=True)
+
+
 async def shikimori_get_anime(anime_name: str, session: AsyncSession):
     """
     Парсер аниме из Shikimori и добавление в БД

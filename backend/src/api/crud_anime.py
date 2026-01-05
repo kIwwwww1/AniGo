@@ -8,7 +8,7 @@ from src.dependencies.all_dep import (SessionDep, PaginatorAnimeDep,
                                       CookieDataDep)
 from src.schemas.anime import PaginatorData
 from src.parsers.kodik import (get_id_and_players, get_anime_by_title)
-from src.parsers.shikimori import (shikimori_get_anime)
+from src.parsers.shikimori import (shikimori_get_anime, background_search_and_add_anime, get_anime_by_title_db)
 from src.services.animes import (get_anime_in_db_by_id, pagination_get_anime, 
                                  get_popular_anime, get_random_anime, get_anime_total_count, 
                                  update_anime_data_from_shikimori, comments_paginator)
@@ -19,14 +19,51 @@ anime_router = APIRouter(prefix='/anime', tags=['AnimePanel'])
 
 
 @anime_router.get('/search/{anime_name}')
-async def get_anime_by_name(anime_name: str, session: SessionDep):
+async def get_anime_by_name(anime_name: str, session: SessionDep, background_tasks: BackgroundTasks):
     '''Поиск аниме по названию
-    (Если нашли аниме в бд то выдаем из бд
-    если не нашли то парсим сайт и добавляем все аниме
-    в бд и потом выдаем (может занять много времени))'''
+    Сначала ищет в БД и сразу возвращает результаты.
+    На фоне запускает поиск на kodik/shikimori и добавляет новые аниме в БД.'''
 
-    resp = await shikimori_get_anime(anime_name, session)
-    return {'message': resp}
+    # Сначала ищем в БД и сразу возвращаем результаты
+    try:
+        anime_list = await get_anime_by_title_db(anime_name, session)
+        logger.info(f"✅ Найдено {len(anime_list)} аниме в БД для запроса '{anime_name}'")
+        
+        # Конвертируем в формат ответа
+        result = []
+        for anime in anime_list:
+            try:
+                anime_dict = {
+                    'id': anime.id,
+                    'title': anime.title,
+                    'title_original': anime.title_original,
+                    'poster_url': anime.poster_url,
+                    'description': anime.description,
+                    'year': anime.year,
+                    'type': anime.type,
+                    'episodes_count': anime.episodes_count,
+                    'rating': anime.rating,
+                    'score': anime.score,
+                    'studio': anime.studio,
+                    'status': anime.status,
+                }
+                result.append(anime_dict)
+            except Exception as err:
+                logger.error(f'Ошибка при конвертации одного аниме: {err}')
+                continue
+        
+        # Запускаем фоновую задачу для поиска и добавления новых аниме
+        background_tasks.add_task(background_search_and_add_anime, anime_name)
+        logger.info(f"🔄 Запущена фоновая задача для поиска новых аниме: '{anime_name}'")
+        
+        return {'message': result}
+    
+    except HTTPException:
+        # Если не нашли в БД, все равно запускаем фоновую задачу
+        # и возвращаем пустой список (пользователь получит результаты при следующем запросе)
+        background_tasks.add_task(background_search_and_add_anime, anime_name)
+        logger.info(f"⚠️ Аниме '{anime_name}' не найдено в БД, запущена фоновая задача для поиска")
+        return {'message': []}
 
 
 
