@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { userAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
+import CrownIcon from '../components/CrownIcon'
 import './SettingsPage.css'
 
 function SettingsPage() {
@@ -11,39 +12,47 @@ function SettingsPage() {
   const [currentUser, setCurrentUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [avatarError, setAvatarError] = useState(false)
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true)
-        
-        // Загружаем текущего пользователя
-        try {
-          const currentUserResponse = await userAPI.getCurrentUser()
-          if (currentUserResponse.message) {
-            setCurrentUser(currentUserResponse.message)
-          }
-        } catch (err) {
-          console.log('Не авторизован')
-        }
-
-        // Загружаем данные пользователя для настроек
-        const response = await userAPI.getUserSettings(username)
-        if (response.message) {
-          setUser(response.message)
-        }
-      } catch (err) {
-        console.error('Ошибка загрузки настроек:', err)
-        setError(err.response?.data?.detail || 'Ошибка загрузки настроек')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (username) {
-      loadData()
-    }
+    setAvatarError(false)
+    loadUserSettings()
+    loadCurrentUser()
   }, [username])
+
+  const loadCurrentUser = async () => {
+    try {
+      const response = await userAPI.getCurrentUser()
+      if (response && response.message) {
+        setCurrentUser({
+          username: response.message.username,
+          id: response.message.id
+        })
+      } else {
+        setCurrentUser(null)
+      }
+    } catch (err) {
+      setCurrentUser(null)
+    }
+  }
+
+  const loadUserSettings = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await userAPI.getUserSettings(username)
+      if (response && response.message) {
+        setUser(response.message)
+      } else {
+        setError('Пользователь не найден')
+      }
+    } catch (err) {
+      console.error('Ошибка загрузки настроек:', err)
+      setError('Ошибка при загрузке настроек')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Проверяем, является ли текущий пользователь владельцем настроек
   const isOwner = currentUser && user && currentUser.username === user.username
@@ -51,8 +60,8 @@ function SettingsPage() {
   if (loading) {
     return (
       <div className="settings-page">
-        <div className="settings-container">
-          <div className="loading-screen">
+        <div className="container">
+          <div className="loading-container">
             <div className="loading-cat">
               <span className="cat-emoji">🐱</span>
             </div>
@@ -66,11 +75,12 @@ function SettingsPage() {
   if (error) {
     return (
       <div className="settings-page">
-        <div className="settings-container">
-          <div className="error-message">
+        <div className="container">
+          <div className="error-container">
+            <h2>Ошибка</h2>
             <p>{error}</p>
-            <button onClick={() => navigate(-1)} className="back-button">
-              Назад
+            <button onClick={() => navigate('/')} className="back-btn">
+              Вернуться на главную
             </button>
           </div>
         </div>
@@ -81,11 +91,11 @@ function SettingsPage() {
   if (!user) {
     return (
       <div className="settings-page">
-        <div className="settings-container">
-          <div className="error-message">
-            <p>Пользователь не найден</p>
-            <button onClick={() => navigate(-1)} className="back-button">
-              Назад
+        <div className="container">
+          <div className="error-container">
+            <h2>Пользователь не найден</h2>
+            <button onClick={() => navigate('/')} className="back-btn">
+              Вернуться на главную
             </button>
           </div>
         </div>
@@ -96,11 +106,12 @@ function SettingsPage() {
   if (!isOwner) {
     return (
       <div className="settings-page">
-        <div className="settings-container">
-          <div className="error-message">
-            <p>У вас нет доступа к настройкам этого пользователя</p>
-            <button onClick={() => navigate(-1)} className="back-button">
-              Назад
+        <div className="container">
+          <div className="error-container">
+            <h2>Доступ запрещен</h2>
+            <p>Вы можете просматривать только свои настройки</p>
+            <button onClick={() => navigate('/')} className="back-btn">
+              Вернуться на главную
             </button>
           </div>
         </div>
@@ -110,42 +121,75 @@ function SettingsPage() {
 
   return (
     <div className="settings-page">
-      <div className="settings-container">
+      <div className="container">
         <div className="settings-header">
-          <h1>Настройки</h1>
-          <button onClick={() => navigate(`/profile/${username}`)} className="back-to-profile-button">
-            ← Вернуться к профилю
+          <button 
+            onClick={() => navigate(`/profile/${username}`)}
+            className="back-to-profile-btn"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            <span>Назад к профилю</span>
           </button>
+          <h1 className="settings-title">Настройки</h1>
         </div>
 
         <div className="settings-content">
           <div className="settings-section">
-            <h2>Информация о пользователе</h2>
-            <div className="settings-info">
-              <div className="info-item">
-                <span className="info-label">Имя пользователя:</span>
-                <span className="info-value">{user.username}</span>
+            <div className="settings-user-info">
+              <div 
+                className="settings-avatar"
+                style={{
+                  borderColor: '#ff0000',
+                  boxShadow: '0 2px 8px #ff000040'
+                }}
+              >
+                {(() => {
+                  const avatarUrl = normalizeAvatarUrl(user.avatar_url)
+                  if (avatarUrl && !avatarError) {
+                    return (
+                      <img 
+                        src={avatarUrl} 
+                        alt={user.username}
+                        onError={() => setAvatarError(true)}
+                        onLoad={() => setAvatarError(false)}
+                      />
+                    )
+                  }
+                  return (
+                    <div className="avatar-fallback" style={{ backgroundColor: '#000000' }}>
+                      <span style={{ fontSize: '2rem', lineHeight: '1' }}>🐱</span>
+                    </div>
+                  )
+                })()}
               </div>
-              <div className="info-item">
-                <span className="info-label">Email:</span>
-                <span className="info-value">{user.email}</span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Роль:</span>
-                <span className="info-value">{user.role}</span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Тип аккаунта:</span>
-                <span className="info-value">{user.type_account}</span>
+              <div className="settings-user-details">
+                <h2 className="settings-username">
+                  {user.username}
+                  {user.id < 100 && (
+                    <span className="crown-icon-small">
+                      <CrownIcon size={16} />
+                    </span>
+                  )}
+                </h2>
+                <p className="settings-email">{user.email}</p>
+                <p className="settings-role">Роль: {user.role}</p>
+                <p className="settings-account-type">Тип аккаунта: {user.type_account}</p>
               </div>
             </div>
           </div>
 
           <div className="settings-section">
-            <h2>Дополнительные настройки</h2>
-            <p className="settings-note">
-              Здесь будут доступны дополнительные настройки аккаунта.
-            </p>
+            <h3 className="settings-section-title">Настройки аккаунта</h3>
+            <div className="settings-actions">
+              <p className="settings-info">
+                Здесь будут доступны настройки вашего аккаунта.
+              </p>
+              <p className="settings-info">
+                Для изменения имени пользователя и пароля используйте соответствующие функции в профиле.
+              </p>
+            </div>
           </div>
         </div>
       </div>
