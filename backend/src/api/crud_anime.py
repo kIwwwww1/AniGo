@@ -7,7 +7,7 @@ from typing import List
 from src.dependencies.all_dep import (SessionDep, PaginatorAnimeDep, 
                                       CookieDataDep)
 from src.schemas.anime import PaginatorData
-from src.parsers.kodik import (get_id_and_players, get_anime_by_title)
+from src.parsers.kodik import get_anime_by_shikimori_id
 from src.parsers.shikimori import (shikimori_get_anime, background_search_and_add_anime, get_anime_by_title_db)
 from src.services.animes import (get_anime_in_db_by_id, pagination_get_anime, 
                                  get_popular_anime, get_random_anime, get_anime_total_count, 
