@@ -18,10 +18,11 @@ class CreateNewUser(LoginUser, UserEmail):
 class UserTypeAccount(BaseModel):
     type_account: AccountTypes
     
-class ChangeUserPassword(LoginUser):
+class ChangeUserPassword(BaseModel):
+    old_password: str = Field(min_length=8)
     one_new_password: str = Field(min_length=8)
     two_new_password: str = Field(min_length=8)
-    
+
 
 class CreateUserComment(BaseModel):
     text: str = Field(min_length=1, max_length=100)

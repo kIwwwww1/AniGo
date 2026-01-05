@@ -9,7 +9,9 @@ from src.models.pending_registration import PendingRegistrationModel
 from src.models.ratings import RatingModel
 from src.models.comments import CommentModel
 from src.models.favorites import FavoriteModel
-from src.schemas.user import CreateNewUser, CreateUserComment, CreateUserRating, CreateUserFavorite
+from src.schemas.user import (CreateNewUser, CreateUserComment, 
+                              CreateUserRating, CreateUserFavorite,
+                              ChangeUserPassword)
 from src.auth.auth import (add_token_in_cookie, hashed_password,
                            get_token, password_verification)
 from src.services.animes import get_anime_by_id
@@ -500,13 +502,25 @@ async def check_rating(anime_id: int, user_id: int, session: AsyncSession):
     return None
 
 
-async def change_username(new_name: str, user_id: int, 
-                          request:Request, session: AsyncSession):
+async def change_username(new_name: str, request:Request,
+                           session: AsyncSession):
     user = await get_user_by_token(request, session)
-    user.username = new_name
-    await session.commit()
-    return 'Имя изменено'
+    if user.username == new_name:
+        return 'Имена не могут быть одинаковыми'
+    if await nickname_is_free(new_name, session):
+        user.username = new_name
+        await session.commit()
+        return 'Имя изменено'
+    return 'Не удалось изменить имя'
 
-async def change_password(new_password: str, user_id: int,
-                          request:Request, session: AsyncSession):
-    pass
+
+async def change_password(new_password: ChangeUserPassword, request:Request, 
+                          session: AsyncSession):
+    user = await get_user_by_token(request, session)
+    new_one_password = new_password.one_new_password
+    new_two_password = new_password.two_new_password
+    if new_one_password == new_two_password:
+        user.password_hash = await hashed_password(new_two_password)
+        await session.commit()
+        return 'Вы сменили пароль'
+
