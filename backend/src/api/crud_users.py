@@ -7,10 +7,11 @@ from src.dependencies.all_dep import SessionDep, UserExistsDep
 from src.services.users import (add_user, create_user_comment, 
                                 create_rating, get_user_by_id, login_user,
                                 toggle_favorite, check_favorite, check_rating, get_user_favorites,
-                                get_user_by_username, verify_email, change_username, change_password)
+                                get_user_by_username, verify_email, change_username, change_password,
+                                set_best_anime, get_user_best_anime, remove_best_anime)
 from src.schemas.user import (CreateNewUser, CreateUserComment, 
                               CreateUserRating, LoginUser, 
-                              CreateUserFavorite, UserName, ChangeUserPassword)
+                              CreateUserFavorite, UserName, ChangeUserPassword, CreateBestUserAnime)
 from src.auth.auth import get_token, delete_token
 from src.db.database import engine, new_session
 from src.services.database import restart_database
@@ -202,6 +203,9 @@ async def user_profile(username: str, session: SessionDep):
                 }
                 favorites_list.append(anime_dict)
     
+    # Получаем топ-3 аниме пользователя
+    best_anime_list = await get_user_best_anime(user.id, session)
+    
     return {
         'message': {
             'id': user.id,
@@ -212,6 +216,7 @@ async def user_profile(username: str, session: SessionDep):
             'type_account': user.type_account,
             'created_at': user.created_at.isoformat() if user.created_at else None,
             'favorites': favorites_list,
+            'best_anime': best_anime_list,
             'stats': {
                 'favorites_count': favorites_count,
                 'ratings_count': ratings_count,
@@ -235,6 +240,49 @@ async def change_user_password(passwords: ChangeUserPassword, request: Request,
                                session: SessionDep):
     resp = await change_password(passwords, request, session)
     return {'message': resp}
+
+
+@user_router.post('/best-anime')
+async def set_user_best_anime(user: UserExistsDep, best_anime_data: CreateBestUserAnime,
+                               session: SessionDep):
+    '''Установить аниме на определенное место (1-3) в топ-3 пользователя'''
+    
+    try:
+        result = await set_best_anime(best_anime_data, user.id, session)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f'Ошибка при установке лучшего аниме: {str(e)}'
+        )
+
+
+@user_router.get('/best-anime')
+async def get_user_best_anime_list(user: UserExistsDep, session: SessionDep):
+    '''Получить топ-3 аниме текущего пользователя'''
+    
+    try:
+        best_anime = await get_user_best_anime(user.id, session)
+        return {'message': best_anime}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f'Ошибка при получении лучших аниме: {str(e)}'
+        )
+
+
+@user_router.delete('/best-anime/{place:int}')
+async def remove_user_best_anime(user: UserExistsDep, place: int, session: SessionDep):
+    '''Удалить аниме с определенного места (1-3) из топ-3 пользователя'''
+    
+    try:
+        result = await remove_best_anime(user.id, place, session)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f'Ошибка при удалении лучшего аниме: {str(e)}'
+        )
 
 
 @user_router.get('/settings/{username}')

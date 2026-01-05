@@ -228,6 +228,27 @@ export const userAPI = {
     })
     return response.data
   },
+
+  // Установить аниме на место в топ-3
+  setBestAnime: async (animeId, place) => {
+    const response = await api.post('/user/best-anime', {
+      anime_id: animeId,
+      place: place,
+    })
+    return response.data
+  },
+
+  // Получить топ-3 аниме текущего пользователя
+  getBestAnime: async () => {
+    const response = await api.get('/user/best-anime')
+    return response.data
+  },
+
+  // Удалить аниме с места в топ-3
+  removeBestAnime: async (place) => {
+    const response = await api.delete(`/user/best-anime/${place}`)
+    return response.data
+  },
 }
 
 export default api

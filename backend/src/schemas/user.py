@@ -79,3 +79,37 @@ class CreateUserFavorite(BaseModel):
                 return int(v)
             raise ValueError('anime_id должен быть целым числом, не дробным')
         return v
+
+class CreateBestUserAnime(BaseModel):
+    anime_id: int = Field(gt=0)
+    place: int = Field(ge=1, le=3)  # Место от 1 до 3
+    
+    @field_validator('anime_id', mode='before')
+    @classmethod
+    def validate_anime_id(cls, v):
+        """Конвертируем anime_id в целое число, если это возможно"""
+        if isinstance(v, str):
+            try:
+                return int(v)
+            except ValueError:
+                raise ValueError('anime_id должен быть целым числом')
+        if isinstance(v, float):
+            if v.is_integer():
+                return int(v)
+            raise ValueError('anime_id должен быть целым числом, не дробным')
+        return v
+    
+    @field_validator('place', mode='before')
+    @classmethod
+    def validate_place(cls, v):
+        """Конвертируем place в целое число, если это возможно"""
+        if isinstance(v, str):
+            try:
+                return int(v)
+            except ValueError:
+                raise ValueError('place должен быть целым числом от 1 до 3')
+        if isinstance(v, float):
+            if v.is_integer():
+                return int(v)
+            raise ValueError('place должен быть целым числом, не дробным')
+        return v

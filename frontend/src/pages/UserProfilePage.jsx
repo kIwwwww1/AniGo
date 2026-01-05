@@ -4,6 +4,7 @@ import { userAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
 import AnimeGrid from '../components/AnimeGrid'
 import CrownIcon from '../components/CrownIcon'
+import BestAnimeSection from '../components/BestAnimeSection'
 import '../components/AnimeCardGrid.css'
 import './UserProfilePage.css'
 import '../pages/HomePage.css'
@@ -578,6 +579,9 @@ function UserProfilePage() {
   // favorites теперь уже массив объектов аниме, а не массив объектов с полем anime
   const favoritesAnime = user.favorites || []
 
+  // Получаем топ-3 аниме
+  const bestAnime = user.best_anime || []
+
   // Получаем статистику из ответа API
   const stats = user.stats || {
     favorites_count: favoritesAnime.length,
@@ -1013,6 +1017,13 @@ function UserProfilePage() {
             <div className={`stat-label ${(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? 'premium-label' : ''}`}>Комментариев</div>
           </div>
         </div>
+
+        <BestAnimeSection
+          bestAnime={bestAnime}
+          favorites={favoritesAnime}
+          isOwner={isOwner}
+          onUpdate={loadUserProfile}
+        />
 
         {favoritesAnime.length > 0 ? (
           <AnimeGrid

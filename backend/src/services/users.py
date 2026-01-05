@@ -9,9 +9,10 @@ from src.models.pending_registration import PendingRegistrationModel
 from src.models.ratings import RatingModel
 from src.models.comments import CommentModel
 from src.models.favorites import FavoriteModel
+from src.models.best_user_anime import BestUserAnimeModel
 from src.schemas.user import (CreateNewUser, CreateUserComment, 
                               CreateUserRating, CreateUserFavorite,
-                              ChangeUserPassword)
+                              ChangeUserPassword, CreateBestUserAnime)
 from src.auth.auth import (add_token_in_cookie, hashed_password,
                            get_token, password_verification)
 from src.services.animes import get_anime_by_id
@@ -546,4 +547,126 @@ async def change_password(new_password: ChangeUserPassword, request:Request,
     user.password_hash = await hashed_password(new_one_password)
     await session.commit()
     return 'Вы сменили пароль'
+
+
+async def set_best_anime(best_anime_data: CreateBestUserAnime, user_id: int, session: AsyncSession):
+    '''Установить аниме на определенное место (1-3) в топ-3 пользователя'''
+    
+    # Проверяем существование пользователя и аниме
+    await get_user_by_id(user_id, session)
+    await get_anime_by_id(best_anime_data.anime_id, session)
+    
+    # Проверяем, что аниме находится в избранном пользователя
+    favorite = (await session.execute(
+        select(FavoriteModel).filter_by(
+            user_id=user_id,
+            anime_id=best_anime_data.anime_id
+        )
+    )).scalar_one_or_none()
+    
+    if not favorite:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Аниме должно быть в избранном пользователя'
+        )
+    
+    # Проверяем, есть ли уже аниме на этом месте
+    existing_best = (await session.execute(
+        select(BestUserAnimeModel).filter_by(
+            user_id=user_id,
+            place=best_anime_data.place
+        )
+    )).scalar_one_or_none()
+    
+    # Проверяем, не используется ли это аниме уже на другом месте
+    existing_anime = (await session.execute(
+        select(BestUserAnimeModel).filter_by(
+            user_id=user_id,
+            anime_id=best_anime_data.anime_id
+        )
+    )).scalar_one_or_none()
+    
+    # Если это аниме уже используется, удаляем его с предыдущего места
+    if existing_anime:
+        await session.delete(existing_anime)
+    
+    # Если на этом месте уже есть другое аниме, удаляем его
+    if existing_best and (not existing_anime or existing_best.id != existing_anime.id):
+        await session.delete(existing_best)
+    
+    # Создаем новую запись
+    new_best = BestUserAnimeModel(
+        user_id=user_id,
+        anime_id=best_anime_data.anime_id,
+        place=best_anime_data.place
+    )
+    session.add(new_best)
+    await session.commit()
+    await session.refresh(new_best)
+    
+    return {'message': f'Аниме установлено на место {best_anime_data.place}'}
+
+
+async def get_user_best_anime(user_id: int, session: AsyncSession):
+    '''Получить топ-3 аниме пользователя'''
+    
+    from sqlalchemy.orm import selectinload
+    from src.models.anime import AnimeModel
+    
+    best_anime_list = (await session.execute(
+        select(BestUserAnimeModel)
+        .options(selectinload(BestUserAnimeModel.anime))
+        .filter_by(user_id=user_id)
+        .order_by(BestUserAnimeModel.place)
+    )).scalars().all()
+    
+    result = []
+    for best_anime in best_anime_list:
+        if best_anime.anime:
+            anime_dict = {
+                'id': best_anime.anime.id,
+                'title': best_anime.anime.title,
+                'title_original': best_anime.anime.title_original,
+                'poster_url': best_anime.anime.poster_url,
+                'description': best_anime.anime.description,
+                'year': best_anime.anime.year,
+                'type': best_anime.anime.type,
+                'episodes_count': best_anime.anime.episodes_count,
+                'rating': best_anime.anime.rating,
+                'score': best_anime.anime.score,
+                'studio': best_anime.anime.studio,
+                'status': best_anime.anime.status,
+                'place': best_anime.place
+            }
+            result.append(anime_dict)
+    
+    return result
+
+
+async def remove_best_anime(user_id: int, place: int, session: AsyncSession):
+    '''Удалить аниме с определенного места (1-3) из топ-3 пользователя'''
+    
+    if place < 1 or place > 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Место должно быть от 1 до 3'
+        )
+    
+    best_anime = (await session.execute(
+        select(BestUserAnimeModel).filter_by(
+            user_id=user_id,
+            place=place
+        )
+    )).scalar_one_or_none()
+    
+    if not best_anime:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f'На месте {place} нет аниме'
+        )
+    
+    await session.delete(best_anime)
+    await session.commit()
+    
+    return {'message': f'Аниме удалено с места {place}'}
 
