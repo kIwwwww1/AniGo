@@ -425,7 +425,7 @@ function WatchPageSearch() {
                             }
                             return (
                               <div className="comment-avatar avatar-fallback" style={{ backgroundColor: '#000000' }}>
-                                <span style={{ fontSize: '1.5rem', lineHeight: '1' }}>🐱</span>
+                                <span>🐱</span>
                               </div>
                             )
                           })()}
