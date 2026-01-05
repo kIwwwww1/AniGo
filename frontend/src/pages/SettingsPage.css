@@ -106,11 +106,33 @@
 }
 
 .settings-user-section {
-  background: var(--theme-gradient, linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%)) !important;
+  background: var(--theme-gradient, linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%));
   border-radius: 16px;
   border: 1px solid;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Премиум стили для плашки пользователя в настройках */
+.settings-user-section.premium-header {
+  border: 2px solid transparent !important;
+  background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%) padding-box,
+              linear-gradient(135deg, #ffc800 0%, #fff200 25%, #ffd700 50%, #fff200 75%, #ffc800 100%) border-box !important;
+  background-size: 200% 200%;
+  animation: gold-border-shimmer 3s ease-in-out infinite;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(255, 215, 0, 0.3), 0 0 20px rgba(255, 215, 0, 0.2) !important;
+}
+
+@keyframes gold-border-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 .settings-section-title {
@@ -201,7 +223,6 @@
 
 .settings-email,
 .settings-password,
-.settings-role,
 .settings-account-type {
   color: var(--text-secondary);
   margin: 0.25rem 0;

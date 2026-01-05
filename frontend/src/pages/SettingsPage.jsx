@@ -31,6 +31,7 @@ function SettingsPage() {
   const [themeColor1, setThemeColor1] = useState(null)
   const [themeColor2, setThemeColor2] = useState(null)
   const [gradientDirection, setGradientDirection] = useState('diagonal-right')
+  const [isPremiumProfile, setIsPremiumProfile] = useState(false)
   const [showChangeUsernameModal, setShowChangeUsernameModal] = useState(false)
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false)
   const [newUsername, setNewUsername] = useState('')
@@ -52,6 +53,13 @@ function SettingsPage() {
     loadThemeColor()
   }, [username])
 
+  useEffect(() => {
+    // Загружаем премиум профиль после загрузки user
+    if (user) {
+      loadPremiumProfile()
+    }
+  }, [user, username])
+
   // Слушаем изменения цветов и темы
   useEffect(() => {
     const handleColorUpdate = () => {
@@ -62,25 +70,32 @@ function SettingsPage() {
       loadThemeColor()
     }
     
-    window.addEventListener('avatarBorderColorUpdated', handleColorUpdate)
-    window.addEventListener('userAccentColorUpdated', handleColorUpdate)
-    window.addEventListener('siteThemeUpdated', handleThemeUpdate)
-    window.addEventListener('storage', (e) => {
+    const handleStorageChange = (e) => {
       if (e.key && e.key.startsWith('user_') && e.key.endsWith('_username_color')) {
         loadUserColors()
       } else if (e.key && e.key.startsWith('user_') && e.key.endsWith('_avatar_border_color')) {
         loadUserColors()
       } else if (e.key === 'site-theme-color-1' || e.key === 'site-theme-color-2' || e.key === 'site-gradient-direction') {
         loadThemeColor()
+      } else if (e.key && e.key.startsWith('user_') && e.key.endsWith('_premium_profile')) {
+        if (user) {
+          loadPremiumProfile()
+        }
       }
-    })
+    }
+    
+    window.addEventListener('avatarBorderColorUpdated', handleColorUpdate)
+    window.addEventListener('userAccentColorUpdated', handleColorUpdate)
+    window.addEventListener('siteThemeUpdated', handleThemeUpdate)
+    window.addEventListener('storage', handleStorageChange)
     
     return () => {
       window.removeEventListener('avatarBorderColorUpdated', handleColorUpdate)
       window.removeEventListener('userAccentColorUpdated', handleColorUpdate)
       window.removeEventListener('siteThemeUpdated', handleThemeUpdate)
+      window.removeEventListener('storage', handleStorageChange)
     }
-  }, [username])
+  }, [username, user])
 
   const loadCurrentUser = async () => {
     try {
@@ -160,6 +175,27 @@ function SettingsPage() {
     const g = parseInt(hex.slice(3, 5), 16)
     const b = parseInt(hex.slice(5, 7), 16)
     return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  }
+
+  const loadPremiumProfile = () => {
+    if (username) {
+      const savedPremium = localStorage.getItem(`user_${username}_premium_profile`)
+      // Для пользователей с ID < 100 по умолчанию премиум включен, но можно отключить
+      // Если в localStorage явно указано 'false', то отключаем
+      if (savedPremium === 'false') {
+        setIsPremiumProfile(false)
+      } else if (savedPremium === 'true') {
+        setIsPremiumProfile(true)
+      } else {
+        // Если нет сохраненного значения, для пользователей с ID < 100 включаем по умолчанию
+        // Но только если user уже загружен
+        if (user && user.id < 100) {
+          setIsPremiumProfile(true)
+        } else {
+          setIsPremiumProfile(false)
+        }
+      }
+    }
   }
 
   // Проверяем, является ли текущий пользователь владельцем настроек
@@ -317,11 +353,14 @@ function SettingsPage() {
         </div>
 
         <div className="settings-content">
-          <div className="settings-section settings-user-section" style={{
-            background: 'var(--theme-gradient, linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%))',
-            borderColor: avatarBorderColor,
-            boxShadow: `0 8px 48px ${hexToRgba(avatarBorderColor, 0.4)}, 0 0 0 1px ${avatarBorderColor}`
-          }}>
+          <div 
+            className={`settings-section settings-user-section ${(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? 'premium-header' : ''}`}
+            style={(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? {} : {
+              background: 'var(--theme-gradient, linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%))',
+              borderColor: avatarBorderColor,
+              boxShadow: `0 8px 48px ${hexToRgba(avatarBorderColor, 0.4)}, 0 0 0 1px ${avatarBorderColor}`
+            }}
+          >
             <div className="settings-user-info">
               <div 
                 className="settings-avatar"
@@ -388,7 +427,6 @@ function SettingsPage() {
                     </svg>
                   </button>
                 </p>
-                <p className="settings-role">Роль: {user.role}</p>
                 <p className="settings-account-type">Тип аккаунта: {user.type_account}</p>
               </div>
             </div>
