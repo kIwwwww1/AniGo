@@ -277,6 +277,107 @@
   margin: 0;
 }
 
+.settings-badges-section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+}
+
+.settings-badges-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.settings-badges-description {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 0 0 1.5rem 0;
+  line-height: 1.5;
+}
+
+.settings-badges-list {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.settings-badge-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 12px;
+  cursor: move;
+  transition: all 0.3s ease;
+}
+
+.settings-badge-item:hover {
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.05));
+  border-color: var(--border, rgba(255, 255, 255, 0.2));
+  transform: translateY(-2px);
+}
+
+.settings-badge-item.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+.badge-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  cursor: grab;
+  padding: 0.25rem;
+  transition: color 0.3s ease;
+}
+
+.badge-drag-handle:active {
+  cursor: grabbing;
+}
+
+.settings-badge-item:hover .badge-drag-handle {
+  color: var(--text-primary);
+}
+
+.settings-badge-item .profile-role {
+  margin: 0;
+  width: fit-content;
+}
+
+.badge-visibility-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: all 0.3s ease;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.badge-visibility-toggle:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.05));
+}
+
+.badge-visibility-toggle.hidden {
+  opacity: 0.5;
+}
+
+.badge-visibility-toggle.hidden:hover {
+  opacity: 1;
+}
+
 @media (max-width: 768px) {
   .settings-page {
     padding: 1rem 0;

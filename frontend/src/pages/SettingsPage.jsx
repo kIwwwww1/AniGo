@@ -4,6 +4,7 @@ import { userAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
 import CrownIcon from '../components/CrownIcon'
 import './SettingsPage.css'
+import '../pages/UserProfilePage.css'
 
 const AVAILABLE_COLORS = [
   { name: 'Белый', value: '#ffffff' },
@@ -44,6 +45,8 @@ function SettingsPage() {
   })
   const [passwordError, setPasswordError] = useState('')
   const [passwordLoading, setPasswordLoading] = useState(false)
+  const [badges, setBadges] = useState([])
+  const [draggedBadge, setDraggedBadge] = useState(null)
 
   useEffect(() => {
     setAvatarError(false)
@@ -57,8 +60,247 @@ function SettingsPage() {
     // Загружаем премиум профиль после загрузки user
     if (user) {
       loadPremiumProfile()
+      loadBadges()
     }
   }, [user, username])
+
+  const formatDate = (dateString) => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    return date.toLocaleDateString('ru-RU', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+  }
+
+  const getFavoritesBadge = (favoritesCount) => {
+    if (favoritesCount >= 500) {
+      return {
+        id: 'favorites-500',
+        level: 5,
+        label: '500 избранных',
+        className: 'favorites-badge-level-5',
+        type: 'favorites'
+      }
+    } else if (favoritesCount >= 250) {
+      return {
+        id: 'favorites-250',
+        level: 4,
+        label: '250 избранных',
+        className: 'favorites-badge-level-4',
+        type: 'favorites'
+      }
+    } else if (favoritesCount >= 100) {
+      return {
+        id: 'favorites-100',
+        level: 3,
+        label: '100 избранных',
+        className: 'favorites-badge-level-3',
+        type: 'favorites'
+      }
+    } else if (favoritesCount >= 50) {
+      return {
+        id: 'favorites-50',
+        level: 2,
+        label: '50 избранных',
+        className: 'favorites-badge-level-2',
+        type: 'favorites'
+      }
+    } else if (favoritesCount >= 10) {
+      return {
+        id: 'favorites-10',
+        level: 1,
+        label: '10 избранных',
+        className: 'favorites-badge-level-1',
+        type: 'favorites'
+      }
+    }
+    return null
+  }
+
+  const getAvailableBadges = () => {
+    if (!user) return []
+    
+    const availableBadges = []
+    
+    // Бэдж роли (admin/owner/base/premium)
+    if (user.type_account && (user.type_account === 'owner' || user.type_account === 'admin')) {
+      availableBadges.push({
+        id: 'role',
+        type: 'role',
+        label: user.type_account === 'admin' ? 'Администратор' : 'Владелец',
+        className: `role-${user.type_account}`,
+        defaultVisible: true
+      })
+    } else if (user.type_account && (user.type_account !== 'owner' && user.type_account !== 'admin')) {
+      availableBadges.push({
+        id: 'role',
+        type: 'role',
+        label: user.type_account === 'base' ? 'Базовый' : 
+               user.type_account === 'premium' ? 'Премиум' : 
+               user.type_account,
+        className: `role-${user.type_account}`,
+        defaultVisible: true
+      })
+    }
+    
+    // Бэдж "Один из 100"
+    if (user.id < 100) {
+      availableBadges.push({
+        id: 'premium',
+        type: 'premium',
+        label: 'Один из 100',
+        className: 'profile-premium-badge',
+        defaultVisible: true
+      })
+    }
+    
+    // Бэдж даты регистрации
+    if (user.created_at) {
+      availableBadges.push({
+        id: 'joined',
+        type: 'joined',
+        label: formatDate(user.created_at),
+        className: 'profile-joined-badge',
+        defaultVisible: true
+      })
+    }
+    
+    // Бэйдж за избранные аниме (показываем только самый высокий уровень)
+    const favoritesCount = user.stats?.favorites_count || 0
+    const favoritesBadge = getFavoritesBadge(favoritesCount)
+    if (favoritesBadge) {
+      availableBadges.push({
+        ...favoritesBadge,
+        defaultVisible: true
+      })
+    }
+    
+    return availableBadges
+  }
+
+  const loadBadges = () => {
+    if (!user || !username) return
+    
+    const availableBadges = getAvailableBadges()
+    const savedBadges = localStorage.getItem(`user_${username}_badges_config`)
+    
+    if (savedBadges) {
+      try {
+        const config = JSON.parse(savedBadges)
+        
+        // Удаляем старые бэйджи за избранные из конфигурации, если они есть
+        const favoritesBadgeIds = ['favorites-10', 'favorites-50', 'favorites-100', 'favorites-250', 'favorites-500']
+        const currentFavoritesBadge = availableBadges.find(b => b.type === 'favorites')
+        
+        // Очищаем старые бэйджи за избранные из порядка
+        const cleanedOrder = config.order.filter(id => !favoritesBadgeIds.includes(id))
+        const cleanedVisibility = { ...config.visibility }
+        favoritesBadgeIds.forEach(id => {
+          delete cleanedVisibility[id]
+        })
+        
+        // Восстанавливаем порядок и видимость из сохраненных данных
+        const orderedBadges = cleanedOrder
+          .map(badgeId => {
+            const badge = availableBadges.find(b => b.id === badgeId)
+            if (badge) {
+              return {
+                ...badge,
+                visible: cleanedVisibility[badgeId] !== undefined ? cleanedVisibility[badgeId] : badge.defaultVisible
+              }
+            }
+            return null
+          })
+          .filter(Boolean)
+        
+        // Добавляем текущий бэйдж за избранные (если есть)
+        if (currentFavoritesBadge) {
+          const existingIndex = orderedBadges.findIndex(b => b.type === 'favorites')
+          if (existingIndex >= 0) {
+            // Заменяем старый бэйдж за избранные на новый
+            orderedBadges[existingIndex] = {
+              ...currentFavoritesBadge,
+              visible: cleanedVisibility[currentFavoritesBadge.id] !== undefined ? cleanedVisibility[currentFavoritesBadge.id] : currentFavoritesBadge.defaultVisible
+            }
+          } else {
+            // Добавляем новый бэйдж за избранные
+            orderedBadges.push({
+              ...currentFavoritesBadge,
+              visible: cleanedVisibility[currentFavoritesBadge.id] !== undefined ? cleanedVisibility[currentFavoritesBadge.id] : currentFavoritesBadge.defaultVisible
+            })
+          }
+        }
+        
+        // Добавляем другие новые бэйджи, которых нет в сохраненных
+        availableBadges.forEach(badge => {
+          if (badge.type !== 'favorites' && !orderedBadges.find(b => b.id === badge.id)) {
+            orderedBadges.push({
+              ...badge,
+              visible: cleanedVisibility[badge.id] !== undefined ? cleanedVisibility[badge.id] : badge.defaultVisible
+            })
+          }
+        })
+        
+        setBadges(orderedBadges)
+        // Сохраняем обновленную конфигурацию
+        saveBadgesConfig(orderedBadges)
+      } catch (err) {
+        console.error('Ошибка загрузки конфигурации бэджей:', err)
+        setBadges(availableBadges)
+      }
+    } else {
+      setBadges(availableBadges)
+    }
+  }
+
+  const saveBadgesConfig = (badgesToSave) => {
+    if (!username) return
+    
+    const config = {
+      order: badgesToSave.map(b => b.id),
+      visibility: {}
+    }
+    
+    badgesToSave.forEach(badge => {
+      config.visibility[badge.id] = badge.visible
+    })
+    
+    localStorage.setItem(`user_${username}_badges_config`, JSON.stringify(config))
+  }
+
+  const handleBadgeDragStart = (e, index) => {
+    setDraggedBadge(index)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleBadgeDragOver = (e) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleBadgeDrop = (e, dropIndex) => {
+    e.preventDefault()
+    if (draggedBadge === null || draggedBadge === dropIndex) return
+    
+    const newBadges = [...badges]
+    const draggedItem = newBadges[draggedBadge]
+    newBadges.splice(draggedBadge, 1)
+    newBadges.splice(dropIndex, 0, draggedItem)
+    
+    setBadges(newBadges)
+    saveBadgesConfig(newBadges)
+    setDraggedBadge(null)
+  }
+
+  const handleBadgeToggleVisibility = (badgeId) => {
+    const newBadges = badges.map(badge => 
+      badge.id === badgeId ? { ...badge, visible: !badge.visible } : badge
+    )
+    setBadges(newBadges)
+    saveBadgesConfig(newBadges)
+  }
 
   // Слушаем изменения цветов и темы
   useEffect(() => {
@@ -433,6 +675,59 @@ function SettingsPage() {
                   </button>
                 </p>
                 <p className="settings-account-type">Тип аккаунта: {user.type_account}</p>
+                
+                {/* Управление бэйджами */}
+                {badges.length > 0 && (
+                  <div className="settings-badges-section">
+                    <h3 className="settings-badges-title">Бэйджи профиля</h3>
+                    <p className="settings-badges-description">
+                      Перетаскивайте бэйджи для изменения порядка. Нажмите на глаз, чтобы скрыть/показать бэдж.
+                    </p>
+                    <div className="settings-badges-list">
+                      {badges.map((badge, index) => (
+                        <div
+                          key={badge.id}
+                          className={`settings-badge-item ${draggedBadge === index ? 'dragging' : ''}`}
+                          draggable
+                          onDragStart={(e) => handleBadgeDragStart(e, index)}
+                          onDragOver={handleBadgeDragOver}
+                          onDrop={(e) => handleBadgeDrop(e, index)}
+                        >
+                          <div className="badge-drag-handle">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <circle cx="9" cy="12" r="1"></circle>
+                              <circle cx="9" cy="5" r="1"></circle>
+                              <circle cx="9" cy="19" r="1"></circle>
+                              <circle cx="15" cy="12" r="1"></circle>
+                              <circle cx="15" cy="5" r="1"></circle>
+                              <circle cx="15" cy="19" r="1"></circle>
+                            </svg>
+                          </div>
+                          <span className={`profile-role ${badge.className}`}>
+                            {badge.label}
+                          </span>
+                          <button
+                            className={`badge-visibility-toggle ${badge.visible ? 'visible' : 'hidden'}`}
+                            onClick={() => handleBadgeToggleVisibility(badge.id)}
+                            title={badge.visible ? 'Скрыть бэдж' : 'Показать бэдж'}
+                          >
+                            {badge.visible ? (
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                              </svg>
+                            ) : (
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                <line x1="1" y1="1" x2="23" y2="23"></line>
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

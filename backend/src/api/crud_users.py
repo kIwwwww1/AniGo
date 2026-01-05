@@ -243,6 +243,15 @@ async def user_settings(username: str, session: SessionDep):
     
     user = await get_user_by_username(username, session)
     
+    # Подсчитываем статистику
+    favorites_count = len(user.favorites) if user.favorites else 0
+    ratings_count = len(user.ratings) if user.ratings else 0
+    comments_count = len(user.comments) if user.comments else 0
+    watch_history_count = len(user.watch_history) if user.watch_history else 0
+    
+    # Подсчитываем уникальные аниме в истории просмотров
+    unique_watched_anime = len(set(wh.anime_id for wh in user.watch_history)) if user.watch_history else 0
+    
     return {
         'message': {
             'id': user.id,
@@ -251,6 +260,13 @@ async def user_settings(username: str, session: SessionDep):
             'avatar_url': user.avatar_url,
             'role': user.role,
             'type_account': user.type_account,
-            'created_at': user.created_at.isoformat() if user.created_at else None
+            'created_at': user.created_at.isoformat() if user.created_at else None,
+            'stats': {
+                'favorites_count': favorites_count,
+                'ratings_count': ratings_count,
+                'comments_count': comments_count,
+                'watch_history_count': watch_history_count,
+                'unique_watched_anime': unique_watched_anime
+            }
         }
     }

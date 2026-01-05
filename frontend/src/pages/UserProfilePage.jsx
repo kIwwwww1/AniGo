@@ -500,6 +500,46 @@ function UserProfilePage() {
     })
   }
 
+  const getFavoritesBadge = (favoritesCount) => {
+    if (favoritesCount >= 500) {
+      return {
+        id: 'favorites-500',
+        level: 5,
+        label: '500 избранных',
+        className: 'favorites-badge-level-5'
+      }
+    } else if (favoritesCount >= 250) {
+      return {
+        id: 'favorites-250',
+        level: 4,
+        label: '250 избранных',
+        className: 'favorites-badge-level-4'
+      }
+    } else if (favoritesCount >= 100) {
+      return {
+        id: 'favorites-100',
+        level: 3,
+        label: '100 избранных',
+        className: 'favorites-badge-level-3'
+      }
+    } else if (favoritesCount >= 50) {
+      return {
+        id: 'favorites-50',
+        level: 2,
+        label: '50 избранных',
+        className: 'favorites-badge-level-2'
+      }
+    } else if (favoritesCount >= 10) {
+      return {
+        id: 'favorites-10',
+        level: 1,
+        label: '10 избранных',
+        className: 'favorites-badge-level-1'
+      }
+    }
+    return null
+  }
+
   const hexToRgba = (hex, alpha = 0.3) => {
     const r = parseInt(hex.slice(1, 3), 16)
     const g = parseInt(hex.slice(3, 5), 16)
@@ -816,28 +856,127 @@ function UserProfilePage() {
               )}
             </h1>
             <div className="profile-badges">
-              {user.type_account && (user.type_account === 'owner' || user.type_account === 'admin') && (
-                <span className={`profile-role role-${user.type_account}`}>
-                  {user.type_account === 'admin' ? 'Администратор' : 'Владелец'}
-                </span>
-              )}
-              {user.id < 100 && (
-                <span className="profile-role profile-premium-badge">
-                  Один из 100
-                </span>
-              )}
-              {user.type_account && (user.type_account !== 'owner' && user.type_account !== 'admin') && (
-                <span className={`profile-role role-${user.type_account}`}>
-                  {user.type_account === 'base' ? 'Базовый' : 
-                   user.type_account === 'premium' ? 'Премиум' : 
-                   user.type_account}
-                </span>
-              )}
-              {user.created_at && (
-                <span className="profile-role profile-joined-badge">
-                  {formatDate(user.created_at)}
-                </span>
-              )}
+              {(() => {
+                // Получаем конфигурацию бэджей из localStorage
+                const savedBadges = localStorage.getItem(`user_${username}_badges_config`)
+                let badgesConfig = null
+                
+                if (savedBadges) {
+                  try {
+                    badgesConfig = JSON.parse(savedBadges)
+                  } catch (err) {
+                    console.error('Ошибка загрузки конфигурации бэджей:', err)
+                  }
+                }
+                
+                // Создаем массив всех доступных бэджей
+                const allBadges = []
+                
+                if (user.type_account && (user.type_account === 'owner' || user.type_account === 'admin')) {
+                  allBadges.push({
+                    id: 'role',
+                    element: (
+                      <span key="role" className={`profile-role role-${user.type_account}`}>
+                        {user.type_account === 'admin' ? 'Администратор' : 'Владелец'}
+                      </span>
+                    )
+                  })
+                } else if (user.type_account && (user.type_account !== 'owner' && user.type_account !== 'admin')) {
+                  allBadges.push({
+                    id: 'role',
+                    element: (
+                      <span key="role" className={`profile-role role-${user.type_account}`}>
+                        {user.type_account === 'base' ? 'Базовый' : 
+                         user.type_account === 'premium' ? 'Премиум' : 
+                         user.type_account}
+                      </span>
+                    )
+                  })
+                }
+                
+                if (user.id < 100) {
+                  allBadges.push({
+                    id: 'premium',
+                    element: (
+                      <span key="premium" className="profile-role profile-premium-badge">
+                        Один из 100
+                      </span>
+                    )
+                  })
+                }
+                
+                if (user.created_at) {
+                  allBadges.push({
+                    id: 'joined',
+                    element: (
+                      <span key="joined" className="profile-role profile-joined-badge">
+                        {formatDate(user.created_at)}
+                      </span>
+                    )
+                  })
+                }
+                
+                // Бэйдж за избранные аниме (показываем только самый высокий уровень)
+                const favoritesCount = user.stats?.favorites_count || (user.favorites?.length || 0)
+                const favoritesBadge = getFavoritesBadge(favoritesCount)
+                if (favoritesBadge) {
+                  allBadges.push({
+                    id: favoritesBadge.id,
+                    element: (
+                      <span key={favoritesBadge.id} className={`profile-role ${favoritesBadge.className}`}>
+                        {favoritesBadge.label}
+                      </span>
+                    )
+                  })
+                }
+                
+                // Если есть сохраненная конфигурация, используем её порядок и видимость
+                if (badgesConfig) {
+                  // Удаляем старые бэйджи за избранные из конфигурации
+                  const favoritesBadgeIds = ['favorites-10', 'favorites-50', 'favorites-100', 'favorites-250', 'favorites-500']
+                  const currentFavoritesBadge = allBadges.find(b => b.id && b.id.startsWith('favorites-'))
+                  
+                  // Очищаем старые бэйджи за избранные из порядка
+                  const cleanedOrder = badgesConfig.order.filter(id => !favoritesBadgeIds.includes(id))
+                  
+                  const orderedBadges = cleanedOrder
+                    .map(badgeId => {
+                      const badge = allBadges.find(b => b.id === badgeId)
+                      if (badge && badgesConfig.visibility[badgeId] !== false) {
+                        return badge.element
+                      }
+                      return null
+                    })
+                    .filter(Boolean)
+                  
+                  // Добавляем текущий бэйдж за избранные (если есть и видим)
+                  if (currentFavoritesBadge && badgesConfig.visibility[currentFavoritesBadge.id] !== false) {
+                    const existingIndex = orderedBadges.findIndex((_, idx) => {
+                      const badgeId = cleanedOrder[idx]
+                      return badgeId && badgeId.startsWith('favorites-')
+                    })
+                    if (existingIndex >= 0) {
+                      orderedBadges[existingIndex] = currentFavoritesBadge.element
+                    } else {
+                      orderedBadges.push(currentFavoritesBadge.element)
+                    }
+                  }
+                  
+                  // Добавляем другие новые бэйджи, которых нет в сохраненных
+                  allBadges.forEach(badge => {
+                    if (badge.id && !badge.id.startsWith('favorites-') && 
+                        !badgesConfig.order.includes(badge.id) && 
+                        badgesConfig.visibility[badge.id] !== false) {
+                      orderedBadges.push(badge.element)
+                    }
+                  })
+                  
+                  return orderedBadges
+                }
+                
+                // Если нет сохраненной конфигурации, показываем все бэйджи в порядке по умолчанию
+                return allBadges.map(b => b.element)
+              })()}
             </div>
           </div>
         </div>
