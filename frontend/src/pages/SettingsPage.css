@@ -105,6 +105,14 @@
   backdrop-filter: blur(10px);
 }
 
+.settings-user-section {
+  background: var(--theme-gradient, linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%)) !important;
+  border-radius: 16px;
+  border: 1px solid;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
 .settings-section-title {
   font-size: 1.5rem;
   font-weight: 700;

@@ -236,6 +236,7 @@ async def change_user_password(passwords: ChangeUserPassword, request: Request,
     resp = await change_password(passwords, request, session)
     return {'message': resp}
 
+
 @user_router.get('/settings/{username}')
 async def user_settings(username: str, session: SessionDep):
     '''Настройки пользователя (смена пароля и ника и тд)'''

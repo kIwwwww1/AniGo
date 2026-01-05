@@ -517,10 +517,33 @@ async def change_username(new_name: str, request:Request,
 async def change_password(new_password: ChangeUserPassword, request:Request, 
                           session: AsyncSession):
     user = await get_user_by_token(request, session)
+    old_password = new_password.old_password
     new_one_password = new_password.one_new_password
     new_two_password = new_password.two_new_password
-    if new_one_password == new_two_password:
-        user.password_hash = await hashed_password(new_two_password)
-        await session.commit()
-        return 'Вы сменили пароль'
+    
+    # Проверяем, что старый пароль правильный
+    if not await password_verification(user.password_hash, old_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Неверный текущий пароль'
+        )
+    
+    # Проверяем, что новые пароли совпадают
+    if new_one_password != new_two_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Новые пароли не совпадают'
+        )
+    
+    # Проверяем, что новый пароль отличается от старого
+    if await password_verification(user.password_hash, new_one_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Новый пароль должен отличаться от текущего'
+        )
+    
+    # Хешируем и сохраняем новый пароль
+    user.password_hash = await hashed_password(new_one_password)
+    await session.commit()
+    return 'Вы сменили пароль'
 

@@ -5,6 +5,19 @@ import { normalizeAvatarUrl } from '../utils/avatarUtils'
 import CrownIcon from '../components/CrownIcon'
 import './SettingsPage.css'
 
+const AVAILABLE_COLORS = [
+  { name: 'Белый', value: '#ffffff' },
+  { name: 'Черный', value: '#000000' },
+  { name: 'Серый', value: '#808080' },
+  { name: 'Бежевый', value: '#c4c4af' },
+  { name: 'Синий', value: '#0066ff' },
+  { name: 'Зеленый', value: '#00cc00' },
+  { name: 'Красный', value: '#ff0000' },
+  { name: 'Розовый', value: '#ff69b4' },
+  { name: 'Желтый', value: '#ffd700' },
+  { name: 'Фиолетовый', value: '#9932cc' }
+]
+
 function SettingsPage() {
   const { username } = useParams()
   const navigate = useNavigate()
@@ -13,6 +26,11 @@ function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [avatarError, setAvatarError] = useState(false)
+  const [usernameColor, setUsernameColor] = useState('#ffffff')
+  const [avatarBorderColor, setAvatarBorderColor] = useState('#ff0000')
+  const [themeColor1, setThemeColor1] = useState(null)
+  const [themeColor2, setThemeColor2] = useState(null)
+  const [gradientDirection, setGradientDirection] = useState('diagonal-right')
   const [showChangeUsernameModal, setShowChangeUsernameModal] = useState(false)
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false)
   const [newUsername, setNewUsername] = useState('')
@@ -30,6 +48,38 @@ function SettingsPage() {
     setAvatarError(false)
     loadUserSettings()
     loadCurrentUser()
+    loadUserColors()
+    loadThemeColor()
+  }, [username])
+
+  // Слушаем изменения цветов и темы
+  useEffect(() => {
+    const handleColorUpdate = () => {
+      loadUserColors()
+    }
+    
+    const handleThemeUpdate = () => {
+      loadThemeColor()
+    }
+    
+    window.addEventListener('avatarBorderColorUpdated', handleColorUpdate)
+    window.addEventListener('userAccentColorUpdated', handleColorUpdate)
+    window.addEventListener('siteThemeUpdated', handleThemeUpdate)
+    window.addEventListener('storage', (e) => {
+      if (e.key && e.key.startsWith('user_') && e.key.endsWith('_username_color')) {
+        loadUserColors()
+      } else if (e.key && e.key.startsWith('user_') && e.key.endsWith('_avatar_border_color')) {
+        loadUserColors()
+      } else if (e.key === 'site-theme-color-1' || e.key === 'site-theme-color-2' || e.key === 'site-gradient-direction') {
+        loadThemeColor()
+      }
+    })
+    
+    return () => {
+      window.removeEventListener('avatarBorderColorUpdated', handleColorUpdate)
+      window.removeEventListener('userAccentColorUpdated', handleColorUpdate)
+      window.removeEventListener('siteThemeUpdated', handleThemeUpdate)
+    }
   }, [username])
 
   const loadCurrentUser = async () => {
@@ -66,6 +116,52 @@ function SettingsPage() {
     }
   }
 
+  const loadUserColors = () => {
+    if (username) {
+      const savedUsernameColor = localStorage.getItem(`user_${username}_username_color`)
+      const savedAvatarBorderColor = localStorage.getItem(`user_${username}_avatar_border_color`)
+      
+      const availableColorValues = AVAILABLE_COLORS.map(c => c.value)
+      
+      if (savedUsernameColor && availableColorValues.includes(savedUsernameColor)) {
+        setUsernameColor(savedUsernameColor)
+      }
+      if (savedAvatarBorderColor && availableColorValues.includes(savedAvatarBorderColor)) {
+        setAvatarBorderColor(savedAvatarBorderColor)
+      }
+    }
+  }
+
+  const loadThemeColor = () => {
+    const savedThemeColor1 = localStorage.getItem('site-theme-color-1')
+    const savedThemeColor2 = localStorage.getItem('site-theme-color-2')
+    const savedGradientDirection = localStorage.getItem('site-gradient-direction') || 'diagonal-right'
+    
+    if (savedThemeColor1 && AVAILABLE_COLORS.some(c => c.value === savedThemeColor1)) {
+      setThemeColor1(savedThemeColor1)
+      if (savedThemeColor2 && AVAILABLE_COLORS.some(c => c.value === savedThemeColor2)) {
+        setThemeColor2(savedThemeColor2)
+        setGradientDirection(savedGradientDirection)
+        if (window.applyCustomTheme) {
+          window.applyCustomTheme(savedThemeColor1, savedThemeColor2, savedGradientDirection)
+        }
+      } else {
+        setThemeColor2(savedThemeColor1)
+        setGradientDirection(savedGradientDirection)
+        if (window.applyCustomTheme) {
+          window.applyCustomTheme(savedThemeColor1, savedThemeColor1, savedGradientDirection)
+        }
+      }
+    }
+  }
+
+  const hexToRgba = (hex, alpha) => {
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  }
+
   // Проверяем, является ли текущий пользователь владельцем настроек
   const isOwner = currentUser && user && currentUser.username === user.username
 
@@ -88,14 +184,10 @@ function SettingsPage() {
       await userAPI.changeUsername(newUsername.trim())
       setShowChangeUsernameModal(false)
       setNewUsername('')
-      // Обновляем данные пользователя
-      await loadUserSettings()
-      await loadCurrentUser()
-      // Перенаправляем на новый username
-      navigate(`/settings/${newUsername.trim()}`)
+      // Перезагружаем страницу после успешной смены имени
+      window.location.reload()
     } catch (err) {
       setUsernameError(err.response?.data?.detail || 'Ошибка при изменении имени')
-    } finally {
       setUsernameLoading(false)
     }
   }
@@ -131,11 +223,17 @@ function SettingsPage() {
         passwordForm.newPassword,
         passwordForm.confirmPassword
       )
-      setShowChangePasswordModal(false)
-      setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' })
+      // Удаляем сессию через API logout (удаляет куку на сервере)
+      try {
+        await userAPI.logout()
+      } catch (logoutErr) {
+        // Игнорируем ошибки logout, так как главное - пароль уже изменен
+        console.log('Logout после смены пароля:', logoutErr)
+      }
+      // Перезагружаем страницу, чтобы пользователь зашел заново
+      window.location.reload()
     } catch (err) {
       setPasswordError(err.response?.data?.detail || 'Ошибка при изменении пароля')
-    } finally {
       setPasswordLoading(false)
     }
   }
@@ -219,13 +317,17 @@ function SettingsPage() {
         </div>
 
         <div className="settings-content">
-          <div className="settings-section">
+          <div className="settings-section settings-user-section" style={{
+            background: 'var(--theme-gradient, linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%))',
+            borderColor: avatarBorderColor,
+            boxShadow: `0 8px 48px ${hexToRgba(avatarBorderColor, 0.4)}, 0 0 0 1px ${avatarBorderColor}`
+          }}>
             <div className="settings-user-info">
               <div 
                 className="settings-avatar"
                 style={{
-                  borderColor: '#ff0000',
-                  boxShadow: '0 2px 8px #ff000040'
+                  borderColor: avatarBorderColor,
+                  boxShadow: `0 2px 8px ${hexToRgba(avatarBorderColor, 0.4)}`
                 }}
               >
                 {(() => {
@@ -248,7 +350,7 @@ function SettingsPage() {
                 })()}
               </div>
               <div className="settings-user-details">
-                <h2 className="settings-username">
+                <h2 className="settings-username" style={{ color: usernameColor }}>
                   {user.username}
                   {user.id < 100 && (
                     <span className="crown-icon-small">
