@@ -4,7 +4,7 @@ from loguru import logger
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
-from sqlalchemy.exc import DBAPIError, SQLAlchemyError
+from sqlalchemy.exc import DBAPIError, SQLAlchemyError, IntegrityError
 from anime_parsers_ru import ShikimoriParserAsync
 from anime_parsers_ru.errors import ServiceError, NoResults
 # 
@@ -271,63 +271,136 @@ async def background_search_and_add_anime(anime_name: str):
 
                         # Сначала добавляем объект в сессию, чтобы избежать SAWarning
                         session.add(new_anime)
-                        await session.flush()  # Flush чтобы получить ID
-
-                        # Сохраняем ID до коммита, чтобы не обращаться к объекту после коммита
-                        anime_id = new_anime.id
-
-                        # Сохраняем ID жанров и тем для прямой вставки в association tables
-                        genre_ids = []
-                        if anime.get("genres"):
-                            for genre_name in anime["genres"]:
-                                genre = await get_or_create_genre(session, genre_name)
-                                genre_ids.append(genre.id)
-
-                        theme_ids = []
-                        if anime.get("themes"):
-                            for theme_name in anime["themes"]:
-                                theme = await get_or_create_theme(session, theme_name)
-                                theme_ids.append(theme.id)
-
+                        
+                        # Флаг для отслеживания, было ли найдено существующее аниме после ошибки
+                        anime_found_after_error = False
+                        
                         try:
-                            await session.commit()
-                            
-                            # После коммита добавляем связи через прямую вставку в association tables
-                            if genre_ids:
-                                from src.models.genres import anime_genres
-                                for genre_id in genre_ids:
-                                    try:
-                                        await session.execute(
-                                            anime_genres.insert().values(
-                                                anime_id=anime_id,
-                                                genre_id=genre_id
-                                            )
-                                        )
-                                    except Exception:
-                                        # Игнорируем ошибки дубликатов
-                                        pass
-                            
-                            if theme_ids:
-                                from src.models.themes import anime_themes
-                                for theme_id in theme_ids:
-                                    try:
-                                        await session.execute(
-                                            anime_themes.insert().values(
-                                                anime_id=anime_id,
-                                                theme_id=theme_id
-                                            )
-                                        )
-                                    except Exception:
-                                        # Игнорируем ошибки дубликатов
-                                        pass
-                            
-                            await session.commit()
-                            added_count += 1
-                            logger.info(f"✅ Добавлено новое аниме: {anime.get('title')}")
-                        except (DBAPIError, SQLAlchemyError) as e:
-                            logger.error(f"Ошибка при добавлении аниме {anime.get('title')}: {e}")
+                            await session.flush()  # Flush чтобы получить ID
+                        except IntegrityError as e:
+                            # Обработка ошибки уникальности на этапе flush
                             await session.rollback()
-                            continue
+                            
+                            error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+                            if 'title_original' in error_str or 'duplicate key' in error_str.lower():
+                                logger.warning(f"⚠️ Аниме с title_original '{original_title}' уже существует (race condition при flush), ищем в БД")
+                                
+                                # Пытаемся найти существующее аниме
+                                try:
+                                    existing_anime = (
+                                        await session.execute(
+                                            select(AnimeModel).where(
+                                                AnimeModel.title_original == original_title
+                                            )
+                                        )
+                                    ).scalar_one_or_none()
+                                    
+                                    if existing_anime:
+                                        new_anime = existing_anime
+                                        anime_id = existing_anime.id
+                                        anime_found_after_error = True
+                                        logger.info(f"⏭️ Найдено существующее аниме: {anime.get('title')}, используем его")
+                                        skipped_count += 1
+                                    else:
+                                        logger.error(f"❌ Не удалось найти аниме после ошибки уникальности: {anime.get('title')}")
+                                        continue
+                                except Exception as lookup_error:
+                                    logger.error(f"❌ Ошибка при поиске существующего аниме: {lookup_error}")
+                                    continue
+                            else:
+                                logger.error(f"❌ Ошибка IntegrityError при flush аниме {anime.get('title')}: {e}")
+                                continue
+
+                        # Если аниме было найдено после ошибки, пропускаем создание нового
+                        if not anime_found_after_error:
+                            # Сохраняем ID до коммита, чтобы не обращаться к объекту после коммита
+                            anime_id = new_anime.id
+
+                            # Сохраняем ID жанров и тем для прямой вставки в association tables
+                            genre_ids = []
+                            if anime.get("genres"):
+                                for genre_name in anime["genres"]:
+                                    genre = await get_or_create_genre(session, genre_name)
+                                    genre_ids.append(genre.id)
+
+                            theme_ids = []
+                            if anime.get("themes"):
+                                for theme_name in anime["themes"]:
+                                    theme = await get_or_create_theme(session, theme_name)
+                                    theme_ids.append(theme.id)
+
+                            try:
+                                await session.commit()
+                                
+                                # После коммита добавляем связи через прямую вставку в association tables
+                                if genre_ids:
+                                    from src.models.genres import anime_genres
+                                    for genre_id in genre_ids:
+                                        try:
+                                            await session.execute(
+                                                anime_genres.insert().values(
+                                                    anime_id=anime_id,
+                                                    genre_id=genre_id
+                                                )
+                                            )
+                                        except Exception:
+                                            # Игнорируем ошибки дубликатов
+                                            pass
+                                
+                                if theme_ids:
+                                    from src.models.themes import anime_themes
+                                    for theme_id in theme_ids:
+                                        try:
+                                            await session.execute(
+                                                anime_themes.insert().values(
+                                                    anime_id=anime_id,
+                                                    theme_id=theme_id
+                                                )
+                                            )
+                                        except Exception:
+                                            # Игнорируем ошибки дубликатов
+                                            pass
+                                
+                                await session.commit()
+                                added_count += 1
+                                logger.info(f"✅ Добавлено новое аниме: {anime.get('title')}")
+                            except IntegrityError as e:
+                                # Обработка ошибки уникальности (race condition)
+                                await session.rollback()
+                                
+                                # Проверяем, является ли это ошибкой уникальности на title_original
+                                error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+                                if 'title_original' in error_str or 'duplicate key' in error_str.lower():
+                                    logger.warning(f"⚠️ Аниме с title_original '{original_title}' уже существует (race condition), ищем в БД")
+                                    
+                                    # Пытаемся найти существующее аниме
+                                    try:
+                                        existing_anime = (
+                                            await session.execute(
+                                                select(AnimeModel).where(
+                                                    AnimeModel.title_original == original_title
+                                                )
+                                            )
+                                        ).scalar_one_or_none()
+                                        
+                                        if existing_anime:
+                                            new_anime = existing_anime
+                                            anime_id = existing_anime.id
+                                            logger.info(f"⏭️ Найдено существующее аниме: {anime.get('title')}, используем его")
+                                            skipped_count += 1
+                                        else:
+                                            logger.error(f"❌ Не удалось найти аниме после ошибки уникальности: {anime.get('title')}")
+                                            continue
+                                    except Exception as lookup_error:
+                                        logger.error(f"❌ Ошибка при поиске существующего аниме: {lookup_error}")
+                                        continue
+                                else:
+                                    logger.error(f"❌ Ошибка IntegrityError при добавлении аниме {anime.get('title')}: {e}")
+                                    continue
+                            except (DBAPIError, SQLAlchemyError) as e:
+                                logger.error(f"❌ Ошибка при добавлении аниме {anime.get('title')}: {e}")
+                                await session.rollback()
+                                continue
 
                     # Плеер
                     try:
@@ -358,11 +431,54 @@ async def background_search_and_add_anime(anime_name: str):
                         try:
                             session.add(existing_player)
                             await session.flush()
+                        except IntegrityError as e:
+                            # Обработка ошибки уникальности (race condition)
+                            await session.rollback()
+                            
+                            error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+                            if 'base_url' in error_str or 'duplicate key' in error_str.lower():
+                                logger.warning(f"⚠️ Плеер с base_url '{player_url}' уже существует (race condition), ищем в БД")
+                                
+                                # Пытаемся найти существующий плеер
+                                try:
+                                    existing_player = (
+                                        await session.execute(
+                                            select(PlayerModel).where(
+                                                PlayerModel.base_url == player_url
+                                            )
+                                        )
+                                    ).scalar_one_or_none()
+                                    
+                                    if not existing_player:
+                                        logger.error(f"❌ Не удалось найти плеер после ошибки уникальности: {player_url}")
+                                        continue
+                                    else:
+                                        logger.info(f"⏭️ Найден существующий плеер, используем его")
+                                except Exception as lookup_error:
+                                    logger.error(f"❌ Ошибка при поиске существующего плеера: {lookup_error}")
+                                    continue
+                            else:
+                                logger.error(f"❌ Ошибка IntegrityError при добавлении плеера: {e}")
+                                continue
                         except (DBAPIError, SQLAlchemyError) as e:
                             logger.warning(f"Ошибка при добавлении плеера, делаем rollback: {e}")
                             await session.rollback()
-                            session.add(existing_player)
-                            await session.flush()
+                            # Пытаемся найти существующий плеер после ошибки
+                            try:
+                                existing_player = (
+                                    await session.execute(
+                                        select(PlayerModel).where(
+                                            PlayerModel.base_url == player_url
+                                        )
+                                    )
+                                ).scalar_one_or_none()
+                                
+                                if not existing_player:
+                                    logger.error(f"❌ Не удалось найти плеер после ошибки: {player_url}")
+                                    continue
+                            except Exception as lookup_error:
+                                logger.error(f"❌ Ошибка при поиске существующего плеера: {lookup_error}")
+                                continue
 
                     # Сохраняем player_id для использования
                     player_id = existing_player.id
@@ -610,65 +726,139 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
 
                 # Сначала добавляем объект в сессию, чтобы избежать SAWarning
                 session.add(new_anime)
-                await session.flush()  # Flush чтобы получить ID
-
-                # Сохраняем ID до коммита
-                anime_id = new_anime.id
-
-                # Сохраняем ID жанров и тем для прямой вставки в association tables
-                genre_ids = []
-                if anime.get("genres"):
-                    for genre_name in anime["genres"]:
-                        genre = await get_or_create_genre(session, genre_name)
-                        genre_ids.append(genre.id)
-
-                theme_ids = []
-                if anime.get("themes"):
-                    for theme_name in anime["themes"]:
-                        theme = await get_or_create_theme(session, theme_name)
-                        theme_ids.append(theme.id)
-
+                
+                # Флаг для отслеживания, было ли найдено существующее аниме после ошибки
+                anime_found_after_error = False
+                original_title_value = anime.get("original_title")
+                
                 try:
-                    # Коммитим аниме сразу после добавления
-                    await session.commit()
-                    
-                    # После коммита добавляем связи через прямую вставку в association tables
-                    if genre_ids:
-                        from src.models.genres import anime_genres
-                        for genre_id in genre_ids:
-                            try:
-                                await session.execute(
-                                    anime_genres.insert().values(
-                                        anime_id=anime_id,
-                                        genre_id=genre_id
-                                    )
-                                )
-                            except Exception:
-                                # Игнорируем ошибки дубликатов
-                                pass
-                    
-                    if theme_ids:
-                        from src.models.themes import anime_themes
-                        for theme_id in theme_ids:
-                            try:
-                                await session.execute(
-                                    anime_themes.insert().values(
-                                        anime_id=anime_id,
-                                        theme_id=theme_id
-                                    )
-                                )
-                            except Exception:
-                                # Игнорируем ошибки дубликатов
-                                pass
-                    
-                    await session.commit()
-                    added_animes.append(new_anime)
-                    logger.info(f"✅ Добавлено новое аниме: {anime.get('title')}")
-                except (DBAPIError, SQLAlchemyError) as e:
-                    logger.error(f"Ошибка при добавлении аниме {anime.get('title')}: {e}")
+                    await session.flush()  # Flush чтобы получить ID
+                except IntegrityError as e:
+                    # Обработка ошибки уникальности на этапе flush
                     await session.rollback()
-                    # Пропускаем это аниме и продолжаем со следующим
-                    continue
+                    
+                    error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+                    if 'title_original' in error_str or 'duplicate key' in error_str.lower():
+                        logger.warning(f"⚠️ Аниме с title_original '{original_title_value}' уже существует (race condition при flush), ищем в БД")
+                        
+                        # Пытаемся найти существующее аниме
+                        try:
+                            existing_anime = (
+                                await session.execute(
+                                    select(AnimeModel).where(
+                                        AnimeModel.title_original == original_title_value
+                                    )
+                                )
+                            ).scalar_one_or_none()
+                            
+                            if existing_anime:
+                                new_anime = existing_anime
+                                anime_id = existing_anime.id
+                                anime_found_after_error = True
+                                logger.info(f"⏭️ Найдено существующее аниме: {anime.get('title')}, используем его")
+                                added_animes.append(new_anime)
+                            else:
+                                logger.error(f"❌ Не удалось найти аниме после ошибки уникальности: {anime.get('title')}")
+                                continue
+                        except Exception as lookup_error:
+                            logger.error(f"❌ Ошибка при поиске существующего аниме: {lookup_error}")
+                            continue
+                    else:
+                        logger.error(f"❌ Ошибка IntegrityError при flush аниме {anime.get('title')}: {e}")
+                        continue
+
+                # Если аниме было найдено после ошибки, пропускаем создание нового
+                if not anime_found_after_error:
+                    # Сохраняем ID до коммита
+                    anime_id = new_anime.id
+
+                    # Сохраняем ID жанров и тем для прямой вставки в association tables
+                    genre_ids = []
+                    if anime.get("genres"):
+                        for genre_name in anime["genres"]:
+                            genre = await get_or_create_genre(session, genre_name)
+                            genre_ids.append(genre.id)
+
+                    theme_ids = []
+                    if anime.get("themes"):
+                        for theme_name in anime["themes"]:
+                            theme = await get_or_create_theme(session, theme_name)
+                            theme_ids.append(theme.id)
+
+                    try:
+                        # Коммитим аниме сразу после добавления
+                        await session.commit()
+                        
+                        # После коммита добавляем связи через прямую вставку в association tables
+                        if genre_ids:
+                            from src.models.genres import anime_genres
+                            for genre_id in genre_ids:
+                                try:
+                                    await session.execute(
+                                        anime_genres.insert().values(
+                                            anime_id=anime_id,
+                                            genre_id=genre_id
+                                        )
+                                    )
+                                except Exception:
+                                    # Игнорируем ошибки дубликатов
+                                    pass
+                        
+                        if theme_ids:
+                            from src.models.themes import anime_themes
+                            for theme_id in theme_ids:
+                                try:
+                                    await session.execute(
+                                        anime_themes.insert().values(
+                                            anime_id=anime_id,
+                                            theme_id=theme_id
+                                        )
+                                    )
+                                except Exception:
+                                    # Игнорируем ошибки дубликатов
+                                    pass
+                        
+                        await session.commit()
+                        added_animes.append(new_anime)
+                        logger.info(f"✅ Добавлено новое аниме: {anime.get('title')}")
+                    except IntegrityError as e:
+                        # Обработка ошибки уникальности (race condition)
+                        await session.rollback()
+                        
+                        # Проверяем, является ли это ошибкой уникальности на title_original
+                        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+                        if 'title_original' in error_str or 'duplicate key' in error_str.lower():
+                            logger.warning(f"⚠️ Аниме с title_original '{original_title_value}' уже существует (race condition), ищем в БД")
+                            
+                            # Пытаемся найти существующее аниме
+                            try:
+                                existing_anime = (
+                                    await session.execute(
+                                        select(AnimeModel).where(
+                                            AnimeModel.title_original == original_title_value
+                                        )
+                                    )
+                                ).scalar_one_or_none()
+                                
+                                if existing_anime:
+                                    new_anime = existing_anime
+                                    anime_id = existing_anime.id
+                                    logger.info(f"⏭️ Найдено существующее аниме: {anime.get('title')}, используем его")
+                                    added_animes.append(new_anime)
+                                else:
+                                    logger.error(f"❌ Не удалось найти аниме после ошибки уникальности: {anime.get('title')}")
+                                    continue
+                            except Exception as lookup_error:
+                                logger.error(f"❌ Ошибка при поиске существующего аниме: {lookup_error}")
+                                continue
+                        else:
+                            logger.error(f"❌ Ошибка IntegrityError при добавлении аниме {anime.get('title')}: {e}")
+                            continue
+                    except (DBAPIError, SQLAlchemyError) as e:
+                        logger.error(f"❌ Ошибка при добавлении аниме {anime.get('title')}: {e}")
+                        await session.rollback()
+                        # Пропускаем это аниме и продолжаем со следующим
+                        continue
 
             #  Плеер
             try:
@@ -699,11 +889,54 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
                 try:
                     session.add(existing_player)
                     await session.flush()
+                except IntegrityError as e:
+                    # Обработка ошибки уникальности (race condition)
+                    await session.rollback()
+                    
+                    error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+                    if 'base_url' in error_str or 'duplicate key' in error_str.lower():
+                        logger.warning(f"⚠️ Плеер с base_url '{player_url}' уже существует (race condition), ищем в БД")
+                        
+                        # Пытаемся найти существующий плеер
+                        try:
+                            existing_player = (
+                                await session.execute(
+                                    select(PlayerModel).where(
+                                        PlayerModel.base_url == player_url
+                                    )
+                                )
+                            ).scalar_one_or_none()
+                            
+                            if not existing_player:
+                                logger.error(f"❌ Не удалось найти плеер после ошибки уникальности: {player_url}")
+                                continue
+                            else:
+                                logger.info(f"⏭️ Найден существующий плеер, используем его")
+                        except Exception as lookup_error:
+                            logger.error(f"❌ Ошибка при поиске существующего плеера: {lookup_error}")
+                            continue
+                    else:
+                        logger.error(f"❌ Ошибка IntegrityError при добавлении плеера: {e}")
+                        continue
                 except (DBAPIError, SQLAlchemyError) as e:
                     logger.warning(f"Ошибка при добавлении плеера, делаем rollback: {e}")
                     await session.rollback()
-                    session.add(existing_player)
-                    await session.flush()
+                    # Пытаемся найти существующий плеер после ошибки
+                    try:
+                        existing_player = (
+                            await session.execute(
+                                select(PlayerModel).where(
+                                    PlayerModel.base_url == player_url
+                                )
+                            )
+                        ).scalar_one_or_none()
+                        
+                        if not existing_player:
+                            logger.error(f"❌ Не удалось найти плеер после ошибки: {player_url}")
+                            continue
+                    except Exception as lookup_error:
+                        logger.error(f"❌ Ошибка при поиске существующего плеера: {lookup_error}")
+                        continue
 
             #  Проверяем, существует ли уже связь аниме ↔ плеер
             try:
