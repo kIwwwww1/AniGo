@@ -106,6 +106,14 @@ export const animeAPI = {
     return response.data
   },
 
+  // Получить аниме отсортированные по оценке
+  getAnimeByScore: async (order = 'asc', limit = 12, offset = 0) => {
+    const response = await api.get('/anime/all/anime/score', {
+      params: { order, limit, offset },
+    })
+    return response.data
+  },
+
   // Получить комментарии к аниме с пагинацией
   getCommentsPaginated: async (animeId, limit = 4, offset = 0) => {
     const response = await api.get('/anime/comment/paginator', {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { animeAPI, userAPI } from '../services/api'
 import '../components/AnimeCardGrid.css'
@@ -9,13 +9,69 @@ function AllAnimePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [hasMore, setHasMore] = useState(true)
+  const [sortBy, setSortBy] = useState('none') // 'none', 'score_asc', 'score_desc'
   const limit = 12
   const itemsPerRow = 6
+
+  const loadAnime = useCallback(async (offset) => {
+    try {
+      setLoading(true)
+      let response
+      
+      // Выбираем API в зависимости от сортировки
+      if (sortBy === 'score_asc') {
+        // Сортировка по оценке по возрастанию (низкая → высокая)
+        response = await animeAPI.getAnimeByScore('asc', limit, offset)
+      } else if (sortBy === 'score_desc') {
+        // Сортировка по оценке по убыванию (высокая → низкая)
+        response = await animeAPI.getAnimeByScore('desc', limit, offset)
+      } else {
+        // Без сортировки
+        response = await animeAPI.getAllAnime(limit, offset)
+      }
+      
+      // Обрабатываем ответ - может быть массив или объект с message
+      let animeData = Array.isArray(response.message) 
+        ? response.message 
+        : (response.message || [])
+      
+      if (animeData.length > 0) {
+        if (offset === 0) {
+          setAnimeList(animeData)
+        } else {
+          setAnimeList(prev => [...prev, ...animeData])
+        }
+        setHasMore(animeData.length === limit)
+      } else {
+        setHasMore(false)
+        if (offset === 0) {
+          setAnimeList([])
+        }
+      }
+      setError(null)
+    } catch (err) {
+      const errorMessage = err.response?.data?.detail || err.message || 'Ошибка загрузки аниме'
+      setError(errorMessage)
+      console.error('Ошибка загрузки аниме:', err)
+      setHasMore(false)
+      if (offset === 0) {
+        setAnimeList([])
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [sortBy, limit])
 
   useEffect(() => {
     loadAnime(0)
     loadAvatarBorderColor()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Загружаем только при монтировании компонента
+
+  useEffect(() => {
+    // Перезагружаем данные при изменении сортировки
+    loadAnime(0)
+  }, [loadAnime]) // loadAnime зависит от sortBy, поэтому это сработает при изменении сортировки
 
   // Загружаем цвет обводки аватарки и устанавливаем в CSS переменную
   const loadAvatarBorderColor = async () => {
@@ -58,43 +114,6 @@ function AllAnimePage() {
       window.removeEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
     }
   }, [])
-
-  const loadAnime = async (offset) => {
-    try {
-      setLoading(true)
-      const response = await animeAPI.getAllAnime(limit, offset)
-      
-      // Обрабатываем ответ - может быть массив или объект с message
-      const animeData = Array.isArray(response.message) 
-        ? response.message 
-        : (response.message || [])
-      
-      if (animeData.length > 0) {
-        if (offset === 0) {
-          setAnimeList(animeData)
-        } else {
-          setAnimeList(prev => [...prev, ...animeData])
-        }
-        setHasMore(animeData.length === limit)
-      } else {
-        setHasMore(false)
-        if (offset === 0) {
-          setAnimeList([])
-        }
-      }
-      setError(null)
-    } catch (err) {
-      const errorMessage = err.response?.data?.detail || err.message || 'Ошибка загрузки аниме'
-      setError(errorMessage)
-      console.error('Ошибка загрузки аниме:', err)
-      setHasMore(false)
-      if (offset === 0) {
-        setAnimeList([])
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleLoadMore = () => {
     if (!loading && hasMore) {
@@ -143,6 +162,20 @@ function AllAnimePage() {
           <div className="section-header">
             <div className="section-title-wrapper">
               <h2 className="section-title">Каталог аниме</h2>
+            </div>
+            <div className="sort-controls">
+              <label htmlFor="sort-select" className="sort-label">Сортировка:</label>
+              <select 
+                id="sort-select"
+                className="sort-select"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                disabled={loading}
+              >
+                <option value="none">Без сортировки</option>
+                <option value="score_desc">По оценке (высокая → низкая)</option>
+                <option value="score_asc">По оценке (низкая → высокая)</option>
+              </select>
             </div>
           </div>
 

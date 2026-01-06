@@ -328,3 +328,36 @@ async def sort_anime_by_rating(score: int | float, limit: int,
         .offset(offset)
         )).scalars().all()
     return sorted_animes if sorted_animes else []
+
+
+async def get_anime_sorted_by_score(limit: int, offset: int, 
+                                     order: str = 'asc', session: AsyncSession = None):
+    '''Получить все аниме отсортированные по оценке (score)
+    order: 'asc' - по возрастанию (от низкой к высокой)
+           'desc' - по убыванию (от высокой к низкой)
+    '''
+    from sqlalchemy.orm import noload
+    
+    query = select(AnimeModel).options(
+        noload(AnimeModel.players),
+        noload(AnimeModel.episodes),
+        noload(AnimeModel.favorites),
+        noload(AnimeModel.ratings),
+        noload(AnimeModel.comments),
+        noload(AnimeModel.watch_history),
+        noload(AnimeModel.genres),
+        noload(AnimeModel.themes),
+    )
+    
+    # Сортируем по score
+    if order.lower() == 'desc':
+        # По убыванию (высокая → низкая), NULL значения в конце
+        query = query.order_by(AnimeModel.score.desc().nullslast())
+    else:
+        # По возрастанию (низкая → высокая), NULL значения в конце
+        query = query.order_by(AnimeModel.score.asc().nullslast())
+    
+    query = query.limit(limit).offset(offset)
+    
+    animes = (await session.execute(query)).scalars().all()
+    return animes if animes else []

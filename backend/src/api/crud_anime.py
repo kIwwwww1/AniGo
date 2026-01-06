@@ -12,7 +12,7 @@ from src.parsers.shikimori import (shikimori_get_anime, background_search_and_ad
 from src.services.animes import (get_anime_in_db_by_id, pagination_get_anime, 
                                  get_popular_anime, get_random_anime, get_anime_total_count, 
                                  update_anime_data_from_shikimori, comments_paginator,
-                                 sort_anime_by_rating)
+                                 sort_anime_by_rating, get_anime_sorted_by_score)
 from src.schemas.anime import (PaginatorData, AnimeResponse, 
                                AnimeDetailResponse, GetAnimeByRating)
 from src.auth.auth import get_token
@@ -483,8 +483,43 @@ async def get_comments_paginator(anime_id: int, limit: int = 4,
     
 
 
-@anime_router.get('/all/anime/rating')
-async def get_anime_by_rating(score: int | float, limit: int = 12, 
-                              offset: int = 0, session: SessionDep = None):
-    resp = await sort_anime_by_rating(score, limit, offset, session)
-    return {'message': resp}
+@anime_router.get('/all/anime/score')
+async def get_anime_by_rating(limit: int = 12, offset: int = 0, 
+                              order: str = 'asc', session: SessionDep = None):
+    '''Получить все аниме отсортированные по оценке
+    order: 'asc' - по возрастанию (от низкой к высокой)
+           'desc' - по убыванию (от высокой к низкой)
+    '''
+    
+    logger.info(f'Запрос аниме отсортированных по оценке: order={order}, limit={limit}, offset={offset}')
+    
+    try:
+        resp = await get_anime_sorted_by_score(limit, offset, order, session)
+        logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
+        
+        # Конвертируем SQLAlchemy модели в Pydantic схемы
+        anime_list = []
+        for anime in resp:
+            try:
+                anime_dict = {
+                    'id': anime.id,
+                    'title': anime.title,
+                    'title_original': anime.title_original,
+                    'poster_url': anime.poster_url,
+                    'description': anime.description,
+                    'year': anime.year,
+                    'type': anime.type,
+                    'episodes_count': anime.episodes_count,
+                    'rating': anime.rating,
+                    'score': anime.score,
+                    'studio': anime.studio,
+                    'status': anime.status,
+                }
+                anime_list.append(AnimeResponse(**anime_dict))
+            except Exception as err:
+                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
+                continue
+        return {'message': anime_list}
+    except Exception as e:
+        logger.error(f'Ошибка при получении аниме по оценке: {e}', exc_info=True)
+        return {'message': []}
