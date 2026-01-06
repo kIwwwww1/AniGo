@@ -364,8 +364,12 @@ async def get_anime_sorted_by_score(limit: int, offset: int,
 
 
 async def get_anime_sorted_by_studio(studio_name: str, limit: int = 12, 
-                                     offset: int = 0, session: AsyncSession = None):
-    '''Получить все аниме от конкретной студии'''
+                                     offset: int = 0, order: str = 'none', session: AsyncSession = None):
+    '''Получить все аниме от конкретной студии
+    order: 'none' - без сортировки
+           'asc' - по оценке по возрастанию (низкая → высокая)
+           'desc' - по оценке по убыванию (высокая → низкая)
+    '''
     query = select(AnimeModel).options(
         noload(AnimeModel.players),
         noload(AnimeModel.episodes),
@@ -378,17 +382,29 @@ async def get_anime_sorted_by_studio(studio_name: str, limit: int = 12,
     )
     # Используем ilike для регистронезависимого поиска
     from sqlalchemy import func
+    query = query.where(func.lower(AnimeModel.studio) == func.lower(studio_name))
+    
+    # Применяем сортировку по оценке если нужно
+    if order.lower() == 'desc':
+        # По убыванию (высокая → низкая), NULL значения в конце
+        query = query.order_by(AnimeModel.score.desc().nullslast())
+    elif order.lower() == 'asc':
+        # По возрастанию (низкая → высокая), NULL значения в конце
+        query = query.order_by(AnimeModel.score.asc().nullslast())
+    
     animes = (await session.execute(
-        query.where(func.lower(AnimeModel.studio) == func.lower(studio_name))
-        .limit(limit)
-        .offset(offset)
+        query.limit(limit).offset(offset)
     )).scalars().all()
     return animes if animes else []
 
 
 async def get_anime_sorted_by_genre(genre: str, limit: int = 12, 
-                                     offset: int = 0, session: AsyncSession = None):
-    '''Получить все аниме по конкретному жанру'''
+                                     offset: int = 0, order: str = 'none', session: AsyncSession = None):
+    '''Получить все аниме по конкретному жанру
+    order: 'none' - без сортировки
+           'asc' - по оценке по возрастанию (низкая → высокая)
+           'desc' - по оценке по убыванию (высокая → низкая)
+    '''
     from src.models.genres import GenreModel, anime_genres
     
     query = select(AnimeModel).options(
@@ -407,6 +423,14 @@ async def get_anime_sorted_by_genre(genre: str, limit: int = 12,
     ).where(
         func.lower(GenreModel.name) == func.lower(genre)
     ).distinct()
+    
+    # Применяем сортировку по оценке если нужно
+    if order.lower() == 'desc':
+        # По убыванию (высокая → низкая), NULL значения в конце
+        query = query.order_by(AnimeModel.score.desc().nullslast())
+    elif order.lower() == 'asc':
+        # По возрастанию (низкая → высокая), NULL значения в конце
+        query = query.order_by(AnimeModel.score.asc().nullslast())
     
     animes = (await session.execute(
         query.limit(limit).offset(offset)

@@ -528,13 +528,17 @@ async def get_anime_by_rating(limit: int = 12, offset: int = 0,
 
 @anime_router.get('/all/anime/studio')
 async def get_anime_by_studio(studio_name: str, limit: int = 12, 
-                              offset: int = 0, session: SessionDep = None):
-    '''Получить все аниме от конкретной студии с пагинацией'''
+                              offset: int = 0, order: str = 'none', session: SessionDep = None):
+    '''Получить все аниме от конкретной студии с пагинацией
+    order: 'none' - без сортировки
+           'asc' - по оценке по возрастанию
+           'desc' - по оценке по убыванию
+    '''
     
-    logger.info(f'Запрос аниме по студии: studio={studio_name}, limit={limit}, offset={offset}')
+    logger.info(f'Запрос аниме по студии: studio={studio_name}, limit={limit}, offset={offset}, order={order}')
     
     try:
-        resp = await get_anime_sorted_by_studio(studio_name, limit, offset, session)
+        resp = await get_anime_sorted_by_studio(studio_name, limit, offset, order, session)
         logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
         
         # Конвертируем SQLAlchemy модели в Pydantic схемы
@@ -566,13 +570,17 @@ async def get_anime_by_studio(studio_name: str, limit: int = 12,
 
 @anime_router.get('/all/anime/genre')
 async def get_anime_by_genre(genre: str, limit: int = 12, 
-                              offset: int = 0, session: SessionDep = None):
-    '''Получить все аниме по конкретному жанру с пагинацией'''
+                              offset: int = 0, order: str = 'none', session: SessionDep = None):
+    '''Получить все аниме по конкретному жанру с пагинацией
+    order: 'none' - без сортировки
+           'asc' - по оценке по возрастанию
+           'desc' - по оценке по убыванию
+    '''
     
-    logger.info(f'Запрос аниме по жанру: genre={genre}, limit={limit}, offset={offset}')
+    logger.info(f'Запрос аниме по жанру: genre={genre}, limit={limit}, offset={offset}, order={order}')
     
     try:
-        resp = await get_anime_sorted_by_genre(genre, limit, offset, session)
+        resp = await get_anime_sorted_by_genre(genre, limit, offset, order, session)
         logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
         
         # Конвертируем SQLAlchemy модели в Pydantic схемы

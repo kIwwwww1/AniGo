@@ -22,13 +22,21 @@ function AllAnimePage() {
       setLoading(true)
       let response
       
-      // Если есть фильтр по студии, используем его
-      if (studioName) {
-        response = await animeAPI.getAnimeByStudio(studioName, limit, offset)
+      // Определяем параметр сортировки для API
+      let orderParam = 'none'
+      if (sortBy === 'score_asc') {
+        orderParam = 'asc'
+      } else if (sortBy === 'score_desc') {
+        orderParam = 'desc'
       }
-      // Если есть фильтр по жанру, используем его
+      
+      // Если есть фильтр по студии, используем его с сортировкой
+      if (studioName) {
+        response = await animeAPI.getAnimeByStudio(studioName, limit, offset, orderParam)
+      }
+      // Если есть фильтр по жанру, используем его с сортировкой
       else if (genreName) {
-        response = await animeAPI.getAnimeByGenre(genreName, limit, offset)
+        response = await animeAPI.getAnimeByGenre(genreName, limit, offset, orderParam)
       }
       // Выбираем API в зависимости от сортировки
       else if (sortBy === 'score_asc') {

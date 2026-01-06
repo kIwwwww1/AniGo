@@ -123,17 +123,17 @@ export const animeAPI = {
   },
 
   // Получить аниме по студии
-  getAnimeByStudio: async (studioName, limit = 12, offset = 0) => {
+  getAnimeByStudio: async (studioName, limit = 12, offset = 0, order = 'none') => {
     const response = await api.get('/anime/all/anime/studio', {
-      params: { studio_name: studioName, limit, offset },
+      params: { studio_name: studioName, limit, offset, order },
     })
     return response.data
   },
 
   // Получить аниме по жанру
-  getAnimeByGenre: async (genreName, limit = 12, offset = 0) => {
+  getAnimeByGenre: async (genreName, limit = 12, offset = 0, order = 'none') => {
     const response = await api.get('/anime/all/anime/genre', {
-      params: { genre: genreName, limit, offset },
+      params: { genre: genreName, limit, offset, order },
     })
     return response.data
   },
