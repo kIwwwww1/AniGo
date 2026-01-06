@@ -62,8 +62,15 @@ function SettingsPage() {
 
   useEffect(() => {
     // Загружаем премиум профиль после загрузки user
-    if (user) {
-      loadPremiumProfile()
+    if (user && username) {
+      // Проверяем, не был ли премиум профиль явно отключен
+      const savedPremium = localStorage.getItem(`user_${username}_premium_profile`)
+      // Если премиум был явно отключен, не перезагружаем его автоматически
+      if (savedPremium !== 'false') {
+        loadPremiumProfile()
+      } else {
+        setIsPremiumProfile(false)
+      }
       loadBadges()
     }
   }, [user, username, bestAnime])
@@ -351,11 +358,22 @@ function SettingsPage() {
       try {
         setAvatarUploading(true)
         const response = await userAPI.uploadAvatar(file)
-        if (response && response.message) {
+        if (response) {
           // Обновляем аватар в состоянии пользователя
-          setUser({ ...user, avatar_url: response.avatar_url || user.avatar_url })
-          setAvatarError(false) // Сбрасываем ошибку аватара
-          alert('Аватар успешно загружен')
+          // avatar_url находится на верхнем уровне ответа, а не в message
+          const newAvatarUrl = response.avatar_url || (response.message && response.message.avatar_url)
+          if (newAvatarUrl) {
+            // Обновляем аватар сразу в состоянии
+            setUser({ ...user, avatar_url: newAvatarUrl })
+            setAvatarError(false) // Сбрасываем ошибку аватара
+            // Отправляем событие для обновления аватара в Layout
+            window.dispatchEvent(new CustomEvent('avatarUpdated'))
+            // Перезагружаем настройки пользователя для получения актуальных данных
+            await loadUserSettings()
+          } else {
+            alert('Аватар загружен, но URL не получен. Попробуйте обновить страницу.')
+            await loadUserSettings()
+          }
         }
       } catch (err) {
         console.error('Ошибка загрузки аватара:', err)
@@ -436,7 +454,19 @@ function SettingsPage() {
       setError(null)
       const response = await userAPI.getUserSettings(username)
       if (response && response.message) {
-        setUser(response.message)
+        const updatedUser = response.message
+        setUser(updatedUser)
+        // После обновления пользователя перезагружаем премиум профиль
+        // но только если он не был явно отключен
+        if (username) {
+          const savedPremium = localStorage.getItem(`user_${username}_premium_profile`)
+          // Если премиум был явно отключен, не перезагружаем его
+          if (savedPremium !== 'false') {
+            loadPremiumProfile()
+          } else {
+            setIsPremiumProfile(false)
+          }
+        }
       } else {
         setError('Пользователь не найден')
       }
@@ -555,22 +585,16 @@ function SettingsPage() {
   }
 
   const loadPremiumProfile = () => {
-    if (username) {
+    if (username && user) {
       const savedPremium = localStorage.getItem(`user_${username}_premium_profile`)
-      // Для пользователей с ID < 100 по умолчанию премиум включен, но можно отключить
-      // Если в localStorage явно указано 'false', то отключаем
+      // Если явно установлено false, не включаем премиум
       if (savedPremium === 'false') {
         setIsPremiumProfile(false)
       } else if (savedPremium === 'true') {
         setIsPremiumProfile(true)
       } else {
         // Если нет сохраненного значения, для пользователей с ID < 100 включаем по умолчанию
-        // Но только если user уже загружен
-        if (user && user.id < 100) {
-          setIsPremiumProfile(true)
-        } else {
-          setIsPremiumProfile(false)
-        }
+        setIsPremiumProfile(user.id < 100)
       }
     }
   }
@@ -731,8 +755,8 @@ function SettingsPage() {
 
         <div className="settings-content">
           <div 
-            className={`settings-section settings-user-section ${(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? 'premium-header' : ''}`}
-            style={(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? {} : {
+            className={`settings-section settings-user-section ${isPremiumProfile ? 'premium-header' : ''}`}
+            style={isPremiumProfile ? {} : {
               background: 'var(--theme-gradient, linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%))',
               borderColor: avatarBorderColor,
               boxShadow: `0 8px 48px ${hexToRgba(avatarBorderColor, 0.4)}, 0 0 0 1px ${avatarBorderColor}`
@@ -762,6 +786,7 @@ function SettingsPage() {
                     return (
                       <>
                         <img 
+                          key={user.avatar_url} // Ключ для принудительного обновления при изменении URL
                           src={avatarUrl} 
                           alt={user.username}
                           onError={() => setAvatarError(true)}
@@ -819,8 +844,8 @@ function SettingsPage() {
               </div>
               <div className="settings-user-details">
                 <h2 
-                  className={`settings-username ${(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? 'premium-user' : ''}`}
-                  style={(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile ? undefined : { 
+                  className={`settings-username ${isPremiumProfile ? 'premium-user' : ''}`}
+                  style={isPremiumProfile ? undefined : { 
                     color: usernameColor
                   }}
                 >

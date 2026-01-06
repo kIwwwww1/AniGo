@@ -10,6 +10,7 @@ import SettingsPage from './pages/SettingsPage'
 import PopularAnimePage from './pages/PopularAnimePage'
 import AllAnimePage from './pages/AllAnimePage'
 import VerifyEmailPage from './pages/VerifyEmailPage'
+import AdminPanel from './pages/AdminPanel'
 import Layout from './components/Layout'
 import ScrollToTop from './components/ScrollToTop'
 import PageTransition from './components/PageTransition'
@@ -216,6 +217,7 @@ function App() {
             <Route path="/watch/search/:animeName" element={<WatchPageSearch />} />
             <Route path="/profile/:username" element={<UserProfilePage />} />
             <Route path="/settings/:username" element={<SettingsPage />} />
+            <Route path="/admin" element={<AdminPanel />} />
             <Route path="/anime/all/popular" element={<PopularAnimePage />} />
             <Route path="/anime/all/anime" element={<AllAnimePage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />

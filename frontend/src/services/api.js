@@ -295,5 +295,35 @@ export const userAPI = {
   },
 }
 
+export const adminAPI = {
+  // Получить всех пользователей
+  getAllUsers: async () => {
+    const response = await api.get('/admin/all-users')
+    return response.data
+  },
+
+  // Заблокировать пользователя
+  blockUser: async (userId) => {
+    const response = await api.patch('/admin/block-user', null, {
+      params: { user_id: userId },
+    })
+    return response.data
+  },
+
+  // Разблокировать пользователя
+  unblockUser: async (userId) => {
+    const response = await api.delete('/admin/unblock-user', {
+      params: { user_id: userId },
+    })
+    return response.data
+  },
+
+  // Удалить тестовые данные
+  deleteTestData: async () => {
+    const response = await api.delete('/admin/delete-test-data')
+    return response.data
+  },
+}
+
 export default api
 

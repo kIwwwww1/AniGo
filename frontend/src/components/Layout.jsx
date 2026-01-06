@@ -82,7 +82,8 @@ function Layout({ children }) {
           username: response.message.username,
           email: response.message.email,
           avatar: response.message.avatar_url || '/Users/kiww1/AniGo/6434d6b8c1419741cb26ec1cd842aca8.jpg',
-          role: response.message.role
+          role: response.message.role,
+          type_account: response.message.type_account
         }
         console.log('User data to set:', userData)
         setUser(userData)
@@ -142,6 +143,19 @@ function Layout({ children }) {
   // Проверяем авторизацию при загрузке
   useEffect(() => {
     checkAuth()
+  }, [])
+  
+  // Слушаем обновление аватара
+  useEffect(() => {
+    const handleAvatarUpdate = () => {
+      // Перезагружаем данные пользователя после обновления аватара
+      checkAuth()
+    }
+    
+    window.addEventListener('avatarUpdated', handleAvatarUpdate)
+    return () => {
+      window.removeEventListener('avatarUpdated', handleAvatarUpdate)
+    }
   }, [])
   
   // Логируем изменения состояния user для отладки
@@ -579,6 +593,31 @@ function Layout({ children }) {
                         </svg>
                         <span>Профиль</span>
                       </button>
+                      {(user && user.type_account && (user.type_account === 'admin' || user.type_account === 'owner')) && (
+                        <button 
+                          className="dropdown-item"
+                          onClick={() => {
+                            setShowUserDropdown(false)
+                            navigate('/admin')
+                          }}
+                        >
+                          <svg 
+                            width="18" 
+                            height="18" 
+                            viewBox="0 0 24 24" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            strokeWidth="2" 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round"
+                          >
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="9" y1="3" x2="9" y2="21"></line>
+                            <line x1="3" y1="9" x2="21" y2="9"></line>
+                          </svg>
+                          <span>Админ панель</span>
+                        </button>
+                      )}
                       <button 
                         className="dropdown-item"
                         onClick={() => {

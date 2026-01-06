@@ -272,12 +272,6 @@ async def get_user_by_id(user_id: int, session: AsyncSession):
         select(UserModel).filter_by(id=user_id)
     )).scalar_one_or_none()
     if user:
-        # Гарантируем, что пользователь с id == 1 всегда имеет type_account = 'owner'
-        if user.id == 1 and user.type_account != 'owner':
-            user.type_account = 'owner'
-            await session.commit()
-            # Обновляем объект из БД для получения актуальных данных
-            await session.refresh(user)
         return user
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
@@ -305,12 +299,6 @@ async def get_user_by_username(username: str, session: AsyncSession):
             .filter_by(username=username)
     )).scalar_one_or_none()
     if user:
-        # Гарантируем, что пользователь с id == 1 всегда имеет type_account = 'owner'
-        if user.id == 1 and user.type_account != 'owner':
-            user.type_account = 'owner'
-            await session.commit()
-            # Обновляем объект из БД для получения актуальных данных
-            await session.refresh(user)
         return user
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
@@ -694,11 +682,39 @@ async def remove_best_anime(user_id: int, place: int, session: AsyncSession):
 
 
 async def add_new_user_photo(user_id: int, s3_url: str, session: AsyncSession):
+    """Обновляет аватар пользователя в базе данных"""
+    logger.info(f"Обновление аватара для пользователя {user_id}, новый URL: {s3_url}")
+    
     user = (await session.execute(
-        select(UserModel).where(UserModel.id==user_id)
-    )).scalar_one()
+        select(UserModel).where(UserModel.id == user_id)
+    )).scalar_one_or_none()
+    
+    if not user:
+        logger.error(f"Пользователь {user_id} не найден при обновлении аватара")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Пользователь не найден'
+        )
+    
+    old_avatar_url = user.avatar_url
+    logger.info(f"Старый avatar_url: {old_avatar_url}")
+    
+    # Обновляем avatar_url
     user.avatar_url = s3_url
     await session.commit()
-    # Обновляем объект из БД для получения актуальных данных
+    logger.info(f"Аватар обновлен в БД, commit выполнен")
+    
+    # Перезагружаем объект из БД для получения актуальных данных
     await session.refresh(user)
+    logger.info(f"Объект пользователя обновлен, avatar_url: {user.avatar_url}")
+    
+    # Проверяем, что данные действительно обновились
+    if user.avatar_url != s3_url:
+        logger.error(f"Ошибка: avatar_url не совпадает! Ожидалось: {s3_url}, получено: {user.avatar_url}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Ошибка при обновлении аватара в базе данных'
+        )
+    
+    logger.info(f"Аватар успешно обновлен для пользователя {user_id}")
     return 'Аватар успешно изменен'

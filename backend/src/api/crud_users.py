@@ -4,6 +4,7 @@ from fastapi import (APIRouter, Response, Request,
                      HTTPException, UploadFile)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from loguru import logger
 # 
 from src.models.users import UserModel
 from src.dependencies.all_dep import SessionDep, UserExistsDep
@@ -389,7 +390,21 @@ async def create_user_avatar(photo: UploadFile, user: UserExistsDep, session: Se
     file_wrapper = FileWrapper(file_content, photo.filename, photo.content_type)
     
     # Загружаем фото в S3
+    logger.info(f"Начало загрузки аватара для пользователя {user.id}")
     photo_url = await s3_client.upload_user_photo(user_photo=file_wrapper, user_id=user.id)
-    await add_new_user_photo(s3_url=photo_url, user_id=user.id, session=session)
+    logger.info(f"Фото загружено в S3, URL: {photo_url}")
     
-    return {'message': 'Аватар успешно загружен', 'avatar_url': photo_url}
+    # Обновляем аватар в базе данных
+    await add_new_user_photo(s3_url=photo_url, user_id=user.id, session=session)
+    logger.info(f"Аватар обновлен в БД")
+    
+    # Перезагружаем пользователя из БД для получения актуальных данных
+    updated_user = (await session.execute(
+        select(UserModel).where(UserModel.id == user.id)
+    )).scalar_one_or_none()
+    
+    # Используем URL из БД, если он есть, иначе используем photo_url
+    final_avatar_url = updated_user.avatar_url if updated_user and updated_user.avatar_url else photo_url
+    logger.info(f"Финальный avatar_url для ответа: {final_avatar_url}")
+    
+    return {'message': 'Аватар успешно загружен', 'avatar_url': final_avatar_url}
