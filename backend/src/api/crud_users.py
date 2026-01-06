@@ -324,6 +324,73 @@ async def user_settings(username: str, session: SessionDep):
 
 
 @user_router.patch('/avatar')
-async def create_user_avatar(photo: UploadFile, user_id: int, session: SessionDep):
-    photo_url = await s3_client.upload_user_photo(user_photo=photo, user_id=user_id)
-    await add_new_user_photo(s3_url=photo_url, user_id=user_id, session=session)
+async def create_user_avatar(photo: UploadFile, user: UserExistsDep, session: SessionDep):
+    '''Загрузить аватар пользователя с валидацией размера файла и размеров изображения'''
+    from PIL import Image
+    import io
+    
+    # Проверяем тип файла
+    if not photo.content_type or not photo.content_type.startswith('image/'):
+        raise HTTPException(
+            status_code=400,
+            detail='Файл должен быть изображением'
+        )
+    
+    # Читаем файл
+    file_content = await photo.read()
+    file_size = len(file_content)
+    
+    # Проверяем размер файла (максимум 2 МБ)
+    MAX_FILE_SIZE = 2 * 1024 * 1024  # 2 МБ
+    if file_size > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f'Размер файла не должен превышать 2 МБ. Текущий размер: {file_size / 1024 / 1024:.2f} МБ'
+        )
+    
+    # Проверяем размеры изображения
+    try:
+        image = Image.open(io.BytesIO(file_content))
+        width, height = image.size
+        MAX_DIMENSION = 2000  # Максимальный размер в пикселях
+        
+        if width > MAX_DIMENSION or height > MAX_DIMENSION:
+            raise HTTPException(
+                status_code=400,
+                detail=f'Размер изображения не должен превышать {MAX_DIMENSION}x{MAX_DIMENSION} пикселей. Текущий размер: {width}x{height}'
+            )
+    except HTTPException:
+        # Пробрасываем HTTPException дальше
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f'Ошибка при обработке изображения: {str(e)}'
+        )
+    
+    # Загружаем фото в S3 напрямую с содержимым файла
+    # Создаем временный UploadFile для совместимости с s3_client
+    from io import BytesIO
+    from fastapi import UploadFile
+    
+    # Создаем новый BytesIO объект с содержимым файла
+    photo_file = BytesIO(file_content)
+    photo_file.seek(0)
+    
+    # Создаем новый UploadFile объект для передачи в s3_client
+    class FileWrapper:
+        def __init__(self, file_content, filename, content_type):
+            self._file_content = file_content
+            self.filename = filename
+            self.content_type = content_type
+        
+        async def read(self):
+            return self._file_content
+    
+    file_wrapper = FileWrapper(file_content, photo.filename, photo.content_type)
+    
+    # Загружаем фото в S3
+    photo_url = await s3_client.upload_user_photo(user_photo=file_wrapper, user_id=user.id)
+    await add_new_user_photo(s3_url=photo_url, user_id=user.id, session=session)
+    
+    return {'message': 'Аватар успешно загружен', 'avatar_url': photo_url}

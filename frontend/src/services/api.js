@@ -281,6 +281,18 @@ export const userAPI = {
     const response = await api.delete(`/user/best-anime/${place}`)
     return response.data
   },
+
+  // Загрузить аватар пользователя
+  uploadAvatar: async (file) => {
+    const formData = new FormData()
+    formData.append('photo', file)
+    const response = await api.patch('/user/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  },
 }
 
 export default api

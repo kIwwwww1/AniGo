@@ -36,7 +36,7 @@ class S3Client:
                 Key=object_name,
                 Body=file_context,
             )
-            return domen_url + f'photo/profile/user_{user_id}.jpg'
+            return domen_url + f'/photo/profile/user_{user_id}.jpg'
             
 
 s3_client = S3Client(

@@ -55,3 +55,4 @@ urllib3==2.6.2
 uvicorn==0.40.0
 wrapt==2.0.1
 yarl==1.22.0
+Pillow==11.0.0

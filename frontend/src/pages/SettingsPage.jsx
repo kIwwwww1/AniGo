@@ -47,6 +47,8 @@ function SettingsPage() {
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [badges, setBadges] = useState([])
   const [draggedBadge, setDraggedBadge] = useState(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarHover, setAvatarHover] = useState(false)
 
   useEffect(() => {
     setAvatarError(false)
@@ -300,6 +302,65 @@ function SettingsPage() {
     )
     setBadges(newBadges)
     saveBadgesConfig(newBadges)
+  }
+
+  const handleAvatarFileSelect = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Валидация типа файла
+    if (!file.type.startsWith('image/')) {
+      alert('Файл должен быть изображением')
+      return
+    }
+
+    // Валидация размера файла (максимум 2 МБ)
+    const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2 МБ
+    if (file.size > MAX_FILE_SIZE) {
+      alert(`Размер файла не должен превышать 2 МБ. Текущий размер: ${(file.size / 1024 / 1024).toFixed(2)} МБ`)
+      return
+    }
+
+    // Валидация размеров изображения
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+    
+    img.onload = async () => {
+      const MAX_DIMENSION = 2000 // Максимальный размер в пикселях
+      if (img.width > MAX_DIMENSION || img.height > MAX_DIMENSION) {
+        URL.revokeObjectURL(objectUrl)
+        alert(`Размер изображения не должен превышать ${MAX_DIMENSION}x${MAX_DIMENSION} пикселей. Текущий размер: ${img.width}x${img.height}`)
+        return
+      }
+
+      // Загружаем файл
+      try {
+        setAvatarUploading(true)
+        const response = await userAPI.uploadAvatar(file)
+        if (response && response.message) {
+          // Обновляем аватар в состоянии пользователя
+          setUser({ ...user, avatar_url: response.avatar_url || user.avatar_url })
+          setAvatarError(false) // Сбрасываем ошибку аватара
+          alert('Аватар успешно загружен')
+        }
+      } catch (err) {
+        console.error('Ошибка загрузки аватара:', err)
+        alert(err.response?.data?.detail || 'Ошибка при загрузке аватара')
+      } finally {
+        setAvatarUploading(false)
+        URL.revokeObjectURL(objectUrl)
+        // Сбрасываем input
+        e.target.value = ''
+      }
+    }
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      alert('Ошибка при загрузке изображения')
+      e.target.value = ''
+    }
+
+    img.src = objectUrl
   }
 
   // Слушаем изменения цветов и темы
@@ -605,28 +666,80 @@ function SettingsPage() {
           >
             <div className="settings-user-info">
               <div 
-                className="settings-avatar"
+                className={`settings-avatar ${avatarHover ? 'avatar-hover' : ''}`}
                 style={{
                   borderColor: avatarBorderColor,
                   boxShadow: `0 2px 8px ${hexToRgba(avatarBorderColor, 0.4)}`
                 }}
+                onMouseEnter={() => setAvatarHover(true)}
+                onMouseLeave={() => setAvatarHover(false)}
               >
+                <input
+                  type="file"
+                  accept="image/*"
+                  id="avatar-upload"
+                  style={{ display: 'none' }}
+                  onChange={handleAvatarFileSelect}
+                  disabled={avatarUploading}
+                />
                 {(() => {
                   const avatarUrl = normalizeAvatarUrl(user.avatar_url)
                   if (avatarUrl && !avatarError) {
                     return (
-                      <img 
-                        src={avatarUrl} 
-                        alt={user.username}
-                        onError={() => setAvatarError(true)}
-                        onLoad={() => setAvatarError(false)}
-                      />
+                      <>
+                        <img 
+                          src={avatarUrl} 
+                          alt={user.username}
+                          onError={() => setAvatarError(true)}
+                          onLoad={() => setAvatarError(false)}
+                        />
+                        {avatarHover && !avatarUploading && (
+                          <div 
+                            className="avatar-overlay"
+                            onClick={() => document.getElementById('avatar-upload')?.click()}
+                          >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                              <polyline points="17 8 12 3 7 8"></polyline>
+                              <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            <span>Загрузить фото</span>
+                          </div>
+                        )}
+                        {avatarUploading && (
+                          <div className="avatar-uploading">
+                            <div className="avatar-uploading-spinner"></div>
+                            <span>Загрузка...</span>
+                          </div>
+                        )}
+                      </>
                     )
                   }
                   return (
-                    <div className="avatar-fallback" style={{ backgroundColor: '#000000' }}>
-                      <span style={{ fontSize: '2rem', lineHeight: '1' }}>🐱</span>
-                    </div>
+                    <>
+                      <div className="avatar-fallback" style={{ backgroundColor: '#000000' }}>
+                        <span style={{ fontSize: '2rem', lineHeight: '1' }}>🐱</span>
+                      </div>
+                      {avatarHover && !avatarUploading && (
+                        <div 
+                          className="avatar-overlay"
+                          onClick={() => document.getElementById('avatar-upload')?.click()}
+                        >
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                          </svg>
+                          <span>Загрузить фото</span>
+                        </div>
+                      )}
+                      {avatarUploading && (
+                        <div className="avatar-uploading">
+                          <div className="avatar-uploading-spinner"></div>
+                          <span>Загрузка...</span>
+                        </div>
+                      )}
+                    </>
                   )
                 })()}
               </div>
