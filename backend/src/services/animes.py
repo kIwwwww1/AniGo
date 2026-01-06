@@ -317,3 +317,14 @@ async def comments_paginator(limit: int, offset: int,
     )).scalars().all()
     
     return comments if comments else []
+
+async def sort_anime_by_rating(score: int | float, limit: int, 
+                               offset: int, session: AsyncSession):
+    sorted_animes = (await session.execute(
+        select(AnimeModel)
+        .where(AnimeModel.score >= score)
+        .order_by(AnimeModel.score.asc())
+        .limit(limit)
+        .offset(offset)
+        )).scalars().all()
+    return sorted_animes if sorted_animes else []

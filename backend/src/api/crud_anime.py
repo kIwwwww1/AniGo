@@ -11,8 +11,10 @@ from src.parsers.kodik import get_anime_by_shikimori_id
 from src.parsers.shikimori import (shikimori_get_anime, background_search_and_add_anime, get_anime_by_title_db)
 from src.services.animes import (get_anime_in_db_by_id, pagination_get_anime, 
                                  get_popular_anime, get_random_anime, get_anime_total_count, 
-                                 update_anime_data_from_shikimori, comments_paginator)
-from src.schemas.anime import PaginatorData, AnimeResponse, AnimeDetailResponse
+                                 update_anime_data_from_shikimori, comments_paginator,
+                                 sort_anime_by_rating)
+from src.schemas.anime import (PaginatorData, AnimeResponse, 
+                               AnimeDetailResponse, GetAnimeByRating)
 from src.auth.auth import get_token
 
 anime_router = APIRouter(prefix='/anime', tags=['AnimePanel'])
@@ -64,7 +66,6 @@ async def get_anime_by_name(anime_name: str, session: SessionDep, background_tas
         background_tasks.add_task(background_search_and_add_anime, anime_name)
         logger.info(f"⚠️ Аниме '{anime_name}' не найдено в БД, запущена фоновая задача для поиска")
         return {'message': []}
-
 
 
 @anime_router.get('/get/paginators', response_model=dict)
@@ -480,3 +481,10 @@ async def get_comments_paginator(anime_id: int, limit: int = 4,
         logger.error(f'Ошибка при получении комментариев: {e}', exc_info=True)
         return {'message': []}
     
+
+
+@anime_router.get('/all/anime/rating')
+async def get_anime_by_rating(score: int | float, limit: int = 12, 
+                              offset: int = 0, session: SessionDep = None):
+    resp = await sort_anime_by_rating(score, limit, offset, session)
+    return {'message': resp}
