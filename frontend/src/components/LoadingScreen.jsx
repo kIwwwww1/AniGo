@@ -56,7 +56,7 @@ function LoadingScreen({ isLoading }) {
     >
       <div className="loading-screen-content">
         <div className="loading-logo">
-          <h1>AniGo</h1>
+          <h1>Yumivo</h1>
         </div>
         <div className="loading-spinner">
           <div className="spinner-ring"></div>

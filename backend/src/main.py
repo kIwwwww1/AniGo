@@ -16,15 +16,31 @@ from src.api.crud_anime import anime_router
 app = FastAPI()
 
 # Настройка CORS для работы с фронтендом
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+# Получаем разрешенные домены из переменных окружения или используем дефолтные
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Разрешенные домены из переменных окружения (через запятую)
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+if allowed_origins_env:
+    allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",")]
+else:
+    # Дефолтные для разработки
+    allowed_origins = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://frontend:3000",
         "http://localhost:80",
         "http://127.0.0.1:80",
-    ],
+        "https://localhost",
+        "https://127.0.0.1",
+    ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -40,8 +56,21 @@ async def get_avatar(filename: str):
     """Отдача аватарок пользователей"""
     from loguru import logger
     
-    # Базовый путь к аватаркам (корень проекта)
-    base_path = Path("/Users/kiww1/AniGo")
+    # Базовый путь к аватаркам (из переменной окружения или корень проекта)
+    # В Docker контейнере используем /app, в локальной разработке - текущую директорию
+    base_path_env = os.getenv("AVATARS_BASE_PATH", "")
+    if base_path_env:
+        base_path = Path(base_path_env)
+    else:
+        # Для локальной разработки используем корень проекта
+        # Для продакшена в Docker это будет /app (рабочая директория)
+        import sys
+        if sys.platform != "win32":
+            # В Linux/Docker используем рабочую директорию
+            base_path = Path("/app")
+        else:
+            # В Windows/Mac для локальной разработки
+            base_path = Path(os.getcwd())
     # Безопасно обрабатываем имя файла (убираем возможные пути)
     safe_filename = Path(filename).name
     avatar_path = base_path / safe_filename

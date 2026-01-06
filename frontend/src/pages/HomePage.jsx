@@ -157,8 +157,8 @@ function HomePage() {
     <div className="home-page">
       <div className="container">
         <section className="hero">
-          <h2 className="hero-title">Добро пожаловать в AniGo</h2>
-          <p className="hero-subtitle">Смотрите лучшие аниме онлайн</p>
+          <h2 className="hero-title">Добро пожаловать в Yumivo</h2>
+          <p className="hero-subtitle">Yumivo — аниме, которое хочется смотреть</p>
         </section>
 
         {/* Карусель популярных аниме */}

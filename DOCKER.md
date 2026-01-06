@@ -1,4 +1,4 @@
-# Docker инструкции для AniGo
+# Docker инструкции для Yumivo
 
 ## Разработка (Development)
 

@@ -79,7 +79,7 @@ async def send_verification_email(email: str, username: str, token: str) -> bool
     try:
         # Создаем сообщение
         message = MIMEMultipart("alternative")
-        message["Subject"] = "Подтверждение email - AniGo"
+        message["Subject"] = "Подтверждение email - Yumivo"
         message["From"] = SMTP_FROM_EMAIL
         message["To"] = email
         
@@ -90,7 +90,7 @@ async def send_verification_email(email: str, username: str, token: str) -> bool
         text = f"""
 Здравствуйте, {username}!
 
-Спасибо за регистрацию на AniGo!
+Спасибо за регистрацию на Yumivo!
 
 Для завершения регистрации и подтверждения вашего email адреса, пожалуйста, перейдите по следующей ссылке:
 
@@ -101,7 +101,7 @@ async def send_verification_email(email: str, username: str, token: str) -> bool
 Ссылка действительна в течение 2 минут.
 
 С уважением,
-Команда AniGo
+Команда Yumivo
 """
         
         # HTML версия письма
@@ -141,14 +141,14 @@ async def send_verification_email(email: str, username: str, token: str) -> bool
 <body>
     <div class="container">
         <h2>Здравствуйте, {username}!</h2>
-        <p>Спасибо за регистрацию на AniGo!</p>
+        <p>Спасибо за регистрацию на Yumivo!</p>
         <p>Для завершения регистрации и подтверждения вашего email адреса, пожалуйста, нажмите на кнопку ниже:</p>
         <a href="{verification_url}" class="button">Подтвердить email</a>
         <p>Или скопируйте и вставьте следующую ссылку в браузер:</p>
         <p style="word-break: break-all; color: #666;">{verification_url}</p>
         <p style="color: #999; font-size: 12px;">Если вы не регистрировались на нашем сайте, просто проигнорируйте это письмо.</p>
         <p style="color: #999; font-size: 12px;">Ссылка действительна в течение 2 минут.</p>
-        <p>С уважением,<br>Команда AniGo</p>
+        <p>С уважением,<br>Команда Yumivo</p>
     </div>
 </body>
 </html>

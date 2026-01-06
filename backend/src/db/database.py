@@ -12,7 +12,20 @@ DB_PORT = getenv("DB_PORT", 5432)
 
 DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{DB_HOST}:{DB_PORT}/{POSTGRES_DB}"
 
-engine = create_async_engine(DATABASE_URL)
+# Настройка пула соединений для продакшена
+# pool_size - базовый размер пула соединений
+# max_overflow - дополнительные соединения при нагрузке
+# pool_pre_ping - проверка соединений перед использованием
+# pool_recycle - переподключение каждые 3600 секунд (1 час)
+engine = create_async_engine(
+    DATABASE_URL,
+    pool_size=20,          # Базовый пул: 20 соединений
+    max_overflow=40,       # Дополнительные: до 40 соединений (итого до 60)
+    pool_pre_ping=True,    # Проверка соединений перед использованием
+    pool_recycle=3600,     # Переподключение каждый час
+    echo=False,            # Отключить SQL логирование в продакшене
+    future=True
+)
 
 new_session = async_sessionmaker(engine, expire_on_commit=False)
 

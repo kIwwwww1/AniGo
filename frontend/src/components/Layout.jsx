@@ -379,7 +379,7 @@ function Layout({ children }) {
         <div className="container">
           <div className="header-left">
             <Link to="/" className="logo">
-              <h1>AniGo</h1>
+              <h1>Yumivo</h1>
             </Link>
             <nav className="nav">
               <Link to="/" className="nav-link">Главная</Link>
@@ -638,7 +638,7 @@ function Layout({ children }) {
       </main>
       <footer className="footer">
         <div className="container">
-          <p>&copy; 2024 AniGo. Все права защищены.</p>
+          <p>&copy; 2024 Yumivo. Все права защищены.</p>
         </div>
       </footer>
 
