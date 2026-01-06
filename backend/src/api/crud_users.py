@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Response, Request, HTTPException
+from fastapi import (APIRouter, Response, Request, 
+                     HTTPException, UploadFile)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 # 
@@ -8,13 +9,15 @@ from src.services.users import (add_user, create_user_comment,
                                 create_rating, get_user_by_id, login_user,
                                 toggle_favorite, check_favorite, check_rating, get_user_favorites,
                                 get_user_by_username, verify_email, change_username, change_password,
-                                set_best_anime, get_user_best_anime, remove_best_anime)
+                                set_best_anime, get_user_best_anime, remove_best_anime,
+                                add_new_user_photo)
 from src.schemas.user import (CreateNewUser, CreateUserComment, 
                               CreateUserRating, LoginUser, 
                               CreateUserFavorite, UserName, ChangeUserPassword, CreateBestUserAnime)
 from src.auth.auth import get_token, delete_token
 from src.db.database import engine, new_session
 from src.services.database import restart_database
+from src.services.s3 import s3_client
 
 
 user_router = APIRouter(prefix='/user', tags=['UserPanel'])
@@ -318,3 +321,9 @@ async def user_settings(username: str, session: SessionDep):
             }
         }
     }
+
+
+@user_router.patch('/avatar')
+async def create_user_avatar(photo: UploadFile, user_id: int, session: SessionDep):
+    photo_url = await s3_client.upload_user_photo(user_photo=photo, user_id=user_id)
+    await add_new_user_photo(s3_url=photo_url, user_id=user_id, session=session)

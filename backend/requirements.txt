@@ -3,6 +3,7 @@ aiohappyeyeballs==2.6.1
 aiohttp==3.13.2
 aioitertools==0.13.0
 aiosignal==1.4.0
+aiosmtplib==5.0.0
 anime_parsers_ru==1.13.1
 annotated-doc==0.0.4
 annotated-types==0.7.0
@@ -38,12 +39,15 @@ pydantic_core==2.41.5
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.1
 python-jose==3.5.0
+python-multipart==0.0.21
 requests==2.32.5
 rsa==4.9.1
 six==1.17.0
 soupsieve==2.8.1
 SQLAlchemy==2.0.45
 starlette==0.50.0
+types-aiobotocore==3.1.0
+types-aiobotocore-s3==3.1.0
 types-awscrt==0.30.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0

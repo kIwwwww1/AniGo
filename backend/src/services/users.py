@@ -676,3 +676,11 @@ async def remove_best_anime(user_id: int, place: int, session: AsyncSession):
     
     return {'message': f'Аниме удалено с места {place}'}
 
+
+async def add_new_user_photo(user_id: int, s3_url: str, session: AsyncSession):
+    user = (await session.execute(
+        select(UserModel).where(UserModel.id==user_id)
+    )).scalar_one()
+    user.avatar_url = s3_url
+    await session.commit()
+    return 'Аватар успешно изменен'
