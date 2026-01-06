@@ -157,6 +157,7 @@ function PopularAnimeCarousel() {
       emptyMessage="Нет популярных аниме"
       onExpand={handleExpand}
       onPageChange={handlePageChange}
+      sortCriteria="Аниме отсортированы по популярности на основе количества просмотров и запросов"
     />
   )
 }

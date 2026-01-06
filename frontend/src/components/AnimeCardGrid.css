@@ -23,6 +23,7 @@
   gap: 0.5rem;
   flex: 1;
   min-width: 0;
+  position: relative;
 }
 
 .section-title {
@@ -77,6 +78,89 @@
 .section-expand-btn svg {
   width: 24px;
   height: 24px;
+}
+
+/* Стили для tooltip с информацией о сортировке */
+.sort-info-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+  margin-left: 0.5rem;
+}
+
+.tooltip-icon {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--user-accent-color, var(--accent, #e50914));
+  opacity: 0.5;
+  color: var(--user-accent-color, var(--accent, #e50914));
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem;
+  font-weight: 700;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+  cursor: help;
+  line-height: 1;
+  user-select: none;
+}
+
+.tooltip-icon:hover {
+  background: transparent;
+  border-color: var(--user-accent-color, var(--accent, #e50914));
+  opacity: 0.8;
+  color: var(--user-accent-color, var(--accent, #e50914));
+  transform: scale(1.1);
+}
+
+.tooltip-content {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(26, 26, 26, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  font-size: 1rem;
+  color: var(--text-primary, #ffffff);
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: all 0.3s ease;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  max-width: 500px;
+  min-width: 300px;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.sort-info-tooltip:hover .tooltip-content {
+  opacity: 1;
+  visibility: visible;
+}
+
+.tooltip-content::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-bottom-color: rgba(26, 26, 26, 0.75);
+  filter: drop-shadow(0 -2px 2px rgba(0, 0, 0, 0.2));
 }
 
 .carousel-controls {

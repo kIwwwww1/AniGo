@@ -14,7 +14,8 @@ function AnimeGrid({
   totalCount = null, // Общее количество элементов (если известно)
   onExpand,
   onPageChange,
-  className = ''
+  className = '',
+  sortCriteria = null // Описание критерия сортировки для tooltip
 }) {
   const [currentPage, setCurrentPage] = useState(0)
   const [showAll, setShowAll] = useState(false)
@@ -108,11 +109,19 @@ function AnimeGrid({
     return (
       <section className={`anime-card-grid-section ${className}`}>
         <div className="section-header">
-          {title && (
-            <div className="section-title-wrapper">
-              <h2 className="section-title">{title}</h2>
-            </div>
-          )}
+        {title && (
+          <div className="section-title-wrapper">
+            <h2 className="section-title">{title}</h2>
+            {sortCriteria && (
+              <div className="sort-info-tooltip">
+                <span className="tooltip-icon">?</span>
+                <div className="tooltip-content">
+                  {sortCriteria}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         </div>
         <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
           {emptyMessage}
@@ -127,6 +136,14 @@ function AnimeGrid({
         {title && (
           <div className="section-title-wrapper">
             <h2 className="section-title">{title}</h2>
+            {sortCriteria && (
+              <div className="sort-info-tooltip">
+                <span className="tooltip-icon">?</span>
+                <div className="tooltip-content">
+                  {sortCriteria}
+                </div>
+              </div>
+            )}
             {showExpandButton && (
               <button 
                 className="section-expand-btn"

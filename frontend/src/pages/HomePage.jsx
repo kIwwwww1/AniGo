@@ -190,6 +190,7 @@ function HomePage() {
             onExpand={handleExpand}
             onPageChange={handlePageChange}
             className="anime-section"
+            sortCriteria="Все аниме из каталога без специальной сортировки"
           />
         )}
 
@@ -220,6 +221,7 @@ function HomePage() {
               onExpand={handleHighestScoreExpand}
               onPageChange={handleHighestScorePageChange}
               className="anime-section"
+              sortCriteria="Аниме отсортированы по оценке от высокой к низкой"
             />
           )
         )}

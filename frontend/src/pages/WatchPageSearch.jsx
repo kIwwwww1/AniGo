@@ -303,6 +303,23 @@ function WatchPageSearch() {
             )}
             
             <div className="anime-details-grid">
+              {(anime.studio || (anime.genres && anime.genres.length > 0)) && (
+                <div className="sort-info-tooltip details-grid-tooltip">
+                  <span className="tooltip-icon">?</span>
+                      <div className="tooltip-content">
+                        {anime.studio && (
+                          <div>Нажмите на название студии, чтобы увидеть все аниме от этой студии</div>
+                        )}
+                        {anime.studio && anime.genres && anime.genres.length > 0 && (
+                          <div className="tooltip-divider"></div>
+                        )}
+                        {anime.genres && anime.genres.length > 0 && (
+                          <div>Нажмите на название жанра, чтобы увидеть все аниме с этим жанром</div>
+                        )}
+                      </div>
+                </div>
+              )}
+              
               {anime.status && (
                 <div className="detail-row">
                   <span className="detail-label">Статус:</span>
