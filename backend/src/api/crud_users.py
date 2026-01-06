@@ -1,3 +1,5 @@
+from PIL import Image
+import io
 from fastapi import (APIRouter, Response, Request, 
                      HTTPException, UploadFile)
 from sqlalchemy import select
@@ -326,8 +328,7 @@ async def user_settings(username: str, session: SessionDep):
 @user_router.patch('/avatar')
 async def create_user_avatar(photo: UploadFile, user: UserExistsDep, session: SessionDep):
     '''Загрузить аватар пользователя с валидацией размера файла и размеров изображения'''
-    from PIL import Image
-    import io
+
     
     # Проверяем тип файла
     if not photo.content_type or not photo.content_type.startswith('image/'):
