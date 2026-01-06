@@ -220,7 +220,7 @@ async def verify_email(token: str, session: AsyncSession, response: Response) ->
     await session.commit()
     
     # Создаем JWT токен и устанавливаем его в cookie для автоматического входа
-    await add_token_in_cookie(sub=str(new_user.id), role=new_user.role, response=response)
+    await add_token_in_cookie(sub=str(new_user.id), type_account=new_user.type_account, response=response)
     logger.info(f"User {new_user.username} (ID: {new_user.id}) successfully registered and logged in")
     
     return 'Регистрация завершена! Email подтвержден. Вы автоматически вошли в систему.'
@@ -256,7 +256,7 @@ async def login_user(username: str, password: str, response: Response,
         )
     
     # Создаем токен и устанавливаем cookie
-    await add_token_in_cookie(sub=str(user.id), role=user.role, 
+    await add_token_in_cookie(sub=str(user.id), type_account=user.type_account, 
                               response=response)
     
     return 'Успешный вход'

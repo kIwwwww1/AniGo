@@ -11,7 +11,7 @@ import os
 from src.api.crud_database import database_router
 from src.api.crud_users import user_router
 from src.api.crud_anime import anime_router
-from backend.src.api.crud_admin import admin_router
+from src.api.crud_admin import admin_router
 
 
 app = FastAPI()
@@ -110,4 +110,6 @@ async def get_avatar(filename: str):
 
 
 if __name__ == '__main__':
-    uvicorn.run('backend.src.main:app', reload=True, host='0.0.0.0', port=8000)
+    # Локальный запуск: из директории `backend/` командой `python -m src.main`
+    # или `uvicorn src.main:app --reload`
+    uvicorn.run('src.main:app', reload=True, host='0.0.0.0', port=8000)

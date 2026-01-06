@@ -99,7 +99,7 @@ async def get_current_user_info(user: UserExistsDep):
             'username': user.username,
             'email': user.email,
             'avatar_url': user.avatar_url,
-            'role': user.role
+            'type_account': user.type_account
         }
     }
 
@@ -217,7 +217,6 @@ async def user_profile(username: str, session: SessionDep):
             'username': user.username,
             'email': user.email,
             'avatar_url': user.avatar_url,
-            'role': user.role,
             'type_account': user.type_account,
             'created_at': user.created_at.isoformat() if user.created_at else None,
             'favorites': favorites_list,
@@ -311,7 +310,6 @@ async def user_settings(username: str, session: SessionDep):
             'username': user.username,
             'email': user.email,
             'avatar_url': user.avatar_url,
-            'role': user.role,
             'type_account': user.type_account,
             'created_at': user.created_at.isoformat() if user.created_at else None,
             'stats': {

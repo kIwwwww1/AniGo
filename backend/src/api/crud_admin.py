@@ -16,6 +16,8 @@ from src.auth.auth import get_token, delete_token
 
 admin_router = APIRouter(prefix='/admin', tags=['AdminPanel'])
 
+# async def is_admin(user_id: int, )
 
+@admin_router.delete('delete/user/comment')
 async def delete_comment(commend: int, session: SessionDep):
     pass

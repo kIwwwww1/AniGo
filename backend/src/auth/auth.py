@@ -21,19 +21,19 @@ bcrypt_context = CryptContext(schemes=['argon2'], deprecated='auto')
 oauth2_bearer = OAuth2PasswordBearer(tokenUrl='auth/token')
     
 
-async def create_token(sub: str, role: str) -> str:
+async def create_token(sub: str, type_account: str) -> str:
     '''Создать токен'''
 
-    _encode = {'sub': str(sub), 'role': role}
+    _encode = {'sub': str(sub), 'type_account': type_account}
     logger.info('Создание токена')
     return jwt.encode(_encode, SECRET_KEY, SECRET_ALGORITHM)
 
 
-async def add_token_in_cookie(sub: str, role: str, 
+async def add_token_in_cookie(sub: str, type_account: str, 
                               response: Response):
     '''Добавление токена в куки'''
 
-    token = await create_token(sub, role)
+    token = await create_token(sub, type_account)
     response.set_cookie(
         key=COOKIES_SESSION_ID_KEY, 
         value=token,
