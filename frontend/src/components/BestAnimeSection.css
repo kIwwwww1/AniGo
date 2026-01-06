@@ -11,6 +11,21 @@
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
+  position: relative;
+  display: inline-block;
+}
+
+.best-anime-section-title::before {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 0;
+  width: 60px;
+  height: 4px;
+  background: var(--user-gradient-underline, linear-gradient(90deg, #e50914 0%, #ffd700 100%));
+  border-radius: 2px;
+  opacity: 0.8;
+  transition: background 0.3s ease;
 }
 
 .best-anime-cards-container {

@@ -78,6 +78,7 @@ function BestAnimeSection({ bestAnime, favorites, isOwner, onUpdate, avatarBorde
     3: bestAnime.find(a => a.place === 3) || null,
   }
 
+
   const handleSelect = (place) => {
     setSelectedPlace(place)
     setShowModal(true)
@@ -131,7 +132,12 @@ function BestAnimeSection({ bestAnime, favorites, isOwner, onUpdate, avatarBorde
   return (
     <div className="best-anime-section">
       <div className="best-anime-section-header">
-        <h2 className="best-anime-section-title">Топ-3 аниме</h2>
+        <h2 
+          className="best-anime-section-title"
+          style={avatarBorderColor ? { color: avatarBorderColor } : {}}
+        >
+          Топ-3 аниме
+        </h2>
       </div>
       <div className="best-anime-cards-container">
         {displayOrder.map((place) => {
