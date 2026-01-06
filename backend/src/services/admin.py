@@ -187,10 +187,10 @@ def _generate_comment() -> str:
 
 async def admin_create_test_users(count: int, session: AsyncSession) -> dict:
     """Создает указанное количество тестовых пользователей с комментариями, избранным и топ-3 аниме"""
-    # Получаем список доступных аниме (ID от 1 до 50)
+    # Получаем список всех доступных аниме в БД
     available_anime_ids = []
     result = await session.execute(
-        select(AnimeModel.id).filter(AnimeModel.id <= 50)
+        select(AnimeModel.id)
     )
     available_anime_ids = [row[0] for row in result.all()]
     
@@ -269,8 +269,18 @@ async def admin_create_test_users(count: int, session: AsyncSession) -> dict:
                 user_comments += 1
                 total_comments += 1
             
-            # Избранное (от 1 до 10)
-            num_favorites = random.randint(1, 10)
+            # Избранное
+            # Для первых 5 пользователей: гарантированное количество
+            # 1-й: 10, 2-й: 50, 3-й: 100, 4-й: 250, 5-й: 500
+            # Если такого количества нет, добавляем максимум доступных
+            # Для остальных: от 1 до 10
+            if i < 5:
+                target_favorites = [10, 50, 100, 250, 500][i]
+                max_available = len(available_anime_ids)
+                num_favorites = min(target_favorites, max_available)
+            else:
+                num_favorites = random.randint(1, 10)
+            
             favorite_anime_ids = random.sample(available_anime_ids, min(num_favorites, len(available_anime_ids)))
             
             for anime_id in favorite_anime_ids:
