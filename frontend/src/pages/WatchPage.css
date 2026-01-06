@@ -133,6 +133,21 @@
   white-space: nowrap;
 }
 
+.detail-value.studio-link {
+  color: var(--user-accent-color, var(--accent, #e50914));
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.detail-value.studio-link:hover {
+  color: var(--user-accent-color, var(--accent-hover, #f40612));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transform: translateX(2px);
+}
+
 .detail-row-genres {
   width: 100%;
   flex-wrap: wrap;
@@ -154,11 +169,26 @@
   border: 1px solid var(--user-accent-color-border-low, rgba(229, 9, 20, 0.3));
   transition: all 0.3s ease;
   cursor: default;
+  text-decoration: none;
+  display: inline-block;
 }
 
 .genre-tag:hover {
   background: linear-gradient(135deg, var(--user-accent-color-shadow-low, rgba(229, 9, 20, 0.25)) 0%, var(--user-accent-color-rgba, rgba(229, 9, 20, 0.15)) 100%);
   border-color: var(--user-accent-color-border-medium, rgba(229, 9, 20, 0.5));
+  transform: translateY(-2px);
+}
+
+.genre-tag.genre-link {
+  cursor: pointer;
+  color: var(--user-accent-color, var(--accent, #e50914));
+}
+
+.genre-tag.genre-link:hover {
+  background: linear-gradient(135deg, var(--user-accent-color-rgba, rgba(229, 9, 20, 0.3)) 0%, var(--user-accent-color-shadow-low, rgba(229, 9, 20, 0.2)) 100%);
+  border-color: var(--user-accent-color, var(--accent, #e50914));
+  color: var(--user-accent-color, var(--accent, #f40612));
+  box-shadow: 0 4px 12px var(--user-accent-color-shadow, rgba(229, 9, 20, 0.3));
   transform: translateY(-2px);
 }
 

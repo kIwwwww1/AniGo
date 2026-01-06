@@ -4,6 +4,7 @@ from sqlalchemy import select, func, and_, exists
 from datetime import datetime, timedelta
 from loguru import logger
 from sqlalchemy.orm import noload
+
 # 
 from src.models.anime import AnimeModel
 from src.models.users import UserModel
@@ -336,7 +337,6 @@ async def get_anime_sorted_by_score(limit: int, offset: int,
     order: 'asc' - по возрастанию (от низкой к высокой)
            'desc' - по убыванию (от высокой к низкой)
     '''
-    from sqlalchemy.orm import noload
     
     query = select(AnimeModel).options(
         noload(AnimeModel.players),
@@ -360,4 +360,55 @@ async def get_anime_sorted_by_score(limit: int, offset: int,
     query = query.limit(limit).offset(offset)
     
     animes = (await session.execute(query)).scalars().all()
+    return animes if animes else []
+
+
+async def get_anime_sorted_by_studio(studio_name: str, limit: int = 12, 
+                                     offset: int = 0, session: AsyncSession = None):
+    '''Получить все аниме от конкретной студии'''
+    query = select(AnimeModel).options(
+        noload(AnimeModel.players),
+        noload(AnimeModel.episodes),
+        noload(AnimeModel.favorites),
+        noload(AnimeModel.ratings),
+        noload(AnimeModel.comments),
+        noload(AnimeModel.watch_history),
+        noload(AnimeModel.genres),
+        noload(AnimeModel.themes),
+    )
+    # Используем ilike для регистронезависимого поиска
+    from sqlalchemy import func
+    animes = (await session.execute(
+        query.where(func.lower(AnimeModel.studio) == func.lower(studio_name))
+        .limit(limit)
+        .offset(offset)
+    )).scalars().all()
+    return animes if animes else []
+
+
+async def get_anime_sorted_by_genre(genre: str, limit: int = 12, 
+                                     offset: int = 0, session: AsyncSession = None):
+    '''Получить все аниме по конкретному жанру'''
+    from src.models.genres import GenreModel, anime_genres
+    
+    query = select(AnimeModel).options(
+        noload(AnimeModel.players),
+        noload(AnimeModel.episodes),
+        noload(AnimeModel.favorites),
+        noload(AnimeModel.ratings),
+        noload(AnimeModel.comments),
+        noload(AnimeModel.watch_history),
+        noload(AnimeModel.genres),
+        noload(AnimeModel.themes),
+    ).join(
+        anime_genres
+    ).join(
+        GenreModel
+    ).where(
+        func.lower(GenreModel.name) == func.lower(genre)
+    ).distinct()
+    
+    animes = (await session.execute(
+        query.limit(limit).offset(offset)
+    )).scalars().all()
     return animes if animes else []

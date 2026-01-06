@@ -1,10 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { animeAPI, userAPI } from '../services/api'
 import '../components/AnimeCardGrid.css'
 import './AllAnimePage.css'
 
 function AllAnimePage() {
+  const [searchParams] = useSearchParams()
+  const studioName = searchParams.get('studio')
+  const genreName = searchParams.get('genre')
+  
   const [animeList, setAnimeList] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -18,8 +22,16 @@ function AllAnimePage() {
       setLoading(true)
       let response
       
+      // Если есть фильтр по студии, используем его
+      if (studioName) {
+        response = await animeAPI.getAnimeByStudio(studioName, limit, offset)
+      }
+      // Если есть фильтр по жанру, используем его
+      else if (genreName) {
+        response = await animeAPI.getAnimeByGenre(genreName, limit, offset)
+      }
       // Выбираем API в зависимости от сортировки
-      if (sortBy === 'score_asc') {
+      else if (sortBy === 'score_asc') {
         // Сортировка по оценке по возрастанию (низкая → высокая)
         response = await animeAPI.getAnimeByScore('asc', limit, offset)
       } else if (sortBy === 'score_desc') {
@@ -60,7 +72,7 @@ function AllAnimePage() {
     } finally {
       setLoading(false)
     }
-  }, [sortBy, limit])
+  }, [sortBy, limit, studioName, genreName])
 
   useEffect(() => {
     loadAnime(0)
@@ -69,9 +81,9 @@ function AllAnimePage() {
   }, []) // Загружаем только при монтировании компонента
 
   useEffect(() => {
-    // Перезагружаем данные при изменении сортировки
+    // Перезагружаем данные при изменении сортировки или студии
     loadAnime(0)
-  }, [loadAnime]) // loadAnime зависит от sortBy, поэтому это сработает при изменении сортировки
+  }, [loadAnime]) // loadAnime зависит от sortBy и studioName, поэтому это сработает при изменении
 
   // Загружаем цвет обводки аватарки и устанавливаем в CSS переменную
   const loadAvatarBorderColor = async () => {
@@ -161,7 +173,13 @@ function AllAnimePage() {
         <section className="all-anime-section">
           <div className="section-header">
             <div className="section-title-wrapper">
-              <h2 className="section-title">Каталог аниме</h2>
+              <h2 className="section-title">
+                {studioName 
+                  ? `Аниме студии: ${studioName}` 
+                  : genreName 
+                    ? `Аниме жанра: ${genreName}`
+                    : 'Каталог аниме'}
+              </h2>
             </div>
             <div className="sort-controls">
               <label htmlFor="sort-select" className="sort-label">Сортировка:</label>

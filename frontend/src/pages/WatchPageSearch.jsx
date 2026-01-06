@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { animeAPI, userAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
 import VideoPlayer from '../components/VideoPlayer'
@@ -315,9 +315,13 @@ function WatchPageSearch() {
                   <span className="detail-label">Жанры:</span>
                   <div className="genres-tags">
                     {anime.genres.map((genre) => (
-                      <span key={genre.id} className="genre-tag">
+                      <Link
+                        key={genre.id}
+                        to={`/anime/all/anime?genre=${encodeURIComponent(genre.name)}`}
+                        className="genre-tag genre-link"
+                      >
                         {genre.name}
-                      </span>
+                      </Link>
                     ))}
                   </div>
                 </div>
@@ -326,7 +330,12 @@ function WatchPageSearch() {
               {anime.studio && (
                 <div className="detail-row">
                   <span className="detail-label">Студия:</span>
-                  <span className="detail-value">{anime.studio}</span>
+                  <Link 
+                    to={`/anime/all/anime?studio=${encodeURIComponent(anime.studio)}`}
+                    className="detail-value studio-link"
+                  >
+                    {anime.studio}
+                  </Link>
                 </div>
               )}
               
