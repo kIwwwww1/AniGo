@@ -18,10 +18,7 @@
 .admin-header h1 {
   font-size: 2.5rem;
   margin-bottom: 0.5rem;
-  background: linear-gradient(135deg, #e50914 0%, #f40612 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--admin-accent-color, #e50914) !important;
 }
 
 .admin-subtitle {
@@ -76,13 +73,13 @@
 
 .admin-search-input:focus {
   outline: none;
-  border-color: #e50914;
-  box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.1);
+  border-color: var(--admin-accent-color, #e50914);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--admin-accent-color, #e50914) 10%, transparent);
 }
 
 .admin-refresh-btn {
   padding: 0.75rem 1.5rem;
-  background: #e50914;
+  background: var(--admin-accent-color, #e50914);
   color: white;
   border: none;
   border-radius: 8px;
@@ -93,9 +90,9 @@
 }
 
 .admin-refresh-btn:hover:not(:disabled) {
-  background: #f40612;
+  background: color-mix(in srgb, var(--admin-accent-color, #e50914) 90%, white);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(229, 9, 20, 0.3);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--admin-accent-color, #e50914) 30%, transparent);
 }
 
 .admin-refresh-btn:disabled {
@@ -146,8 +143,8 @@
   padding: 1rem;
   text-align: left;
   font-weight: 600;
-  color: var(--text-color, #ffffff);
-  border-bottom: 2px solid var(--border-color, #333);
+  color: var(--admin-accent-color, #ffffff);
+  border-bottom: 2px solid var(--admin-accent-color, #333);
   font-size: 0.95rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -160,7 +157,7 @@
 }
 
 .admin-username-link {
-  color: #e50914;
+  color: var(--admin-accent-color, #e50914);
   text-decoration: none;
   font-weight: 500;
   transition: all 0.3s ease;
@@ -168,7 +165,7 @@
 }
 
 .admin-username-link:hover {
-  color: #f40612;
+  color: color-mix(in srgb, var(--admin-accent-color, #e50914) 90%, white);
   text-decoration: underline;
 }
 
@@ -249,14 +246,14 @@
 }
 
 .admin-btn-block {
-  background: #ff4444;
+  background: var(--admin-accent-color, #ff4444);
   color: white;
 }
 
 .admin-btn-block:hover:not(:disabled) {
-  background: #ff6666;
+  background: color-mix(in srgb, var(--admin-accent-color, #ff4444) 90%, white);
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(255, 68, 68, 0.3);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--admin-accent-color, #ff4444) 30%, transparent);
 }
 
 .admin-btn-unblock {

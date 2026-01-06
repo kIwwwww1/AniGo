@@ -9,12 +9,23 @@ function AdminPanel() {
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [currentUser, setCurrentUser] = useState(null)
+  const [avatarBorderColor, setAvatarBorderColor] = useState('#ff0000')
   const navigate = useNavigate()
 
   useEffect(() => {
     checkAdminAccess()
     loadUsers()
   }, [])
+
+  useEffect(() => {
+    // Загружаем цвет обводки аватара текущего пользователя
+    if (currentUser && currentUser.username) {
+      const savedColor = localStorage.getItem(`user_${currentUser.username}_avatar_border_color`)
+      if (savedColor) {
+        setAvatarBorderColor(savedColor)
+      }
+    }
+  }, [currentUser])
 
   const checkAdminAccess = async () => {
     try {
@@ -149,10 +160,10 @@ function AdminPanel() {
   }
 
   return (
-    <div className="admin-panel">
+    <div className="admin-panel" style={{ '--admin-accent-color': avatarBorderColor }}>
       <div className="admin-container">
         <div className="admin-header">
-          <h1>Админ панель</h1>
+          <h1 style={{ color: avatarBorderColor }}>Админ панель</h1>
           <p className="admin-subtitle">Управление пользователями</p>
         </div>
 
