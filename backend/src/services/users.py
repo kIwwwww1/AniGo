@@ -219,6 +219,9 @@ async def verify_email(token: str, session: AsyncSession, response: Response) ->
     )
     await session.commit()
     
+    # Обновляем объект из БД для получения актуальных данных (created_at и т.д.)
+    await session.refresh(new_user)
+    
     # Создаем JWT токен и устанавливаем его в cookie для автоматического входа
     await add_token_in_cookie(sub=str(new_user.id), type_account=new_user.type_account, response=response)
     logger.info(f"User {new_user.username} (ID: {new_user.id}) successfully registered and logged in")
@@ -273,6 +276,8 @@ async def get_user_by_id(user_id: int, session: AsyncSession):
         if user.id == 1 and user.type_account != 'owner':
             user.type_account = 'owner'
             await session.commit()
+            # Обновляем объект из БД для получения актуальных данных
+            await session.refresh(user)
         return user
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
@@ -304,6 +309,8 @@ async def get_user_by_username(username: str, session: AsyncSession):
         if user.id == 1 and user.type_account != 'owner':
             user.type_account = 'owner'
             await session.commit()
+            # Обновляем объект из БД для получения актуальных данных
+            await session.refresh(user)
         return user
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
@@ -329,7 +336,8 @@ async def create_comment(comment_data: CreateUserComment, user_id: int,
     session.add(new_comment)
     await session.flush()  # Получаем ID перед commit
     await session.commit()
-    # refresh не нужен с expire_on_commit=False, объект уже актуален
+    # Обновляем объект из БД для получения актуальных данных (created_at и т.д.)
+    await session.refresh(new_comment)
     
     return new_comment
 
@@ -358,6 +366,8 @@ async def create_rating(rating_data: CreateUserRating, user_id: int, session: As
         # Обновляем существующую оценку
         existing_rating.rating = rating_value
         await session.commit()
+        # Обновляем объект из БД для получения актуальных данных
+        await session.refresh(existing_rating)
         return 'Оценка обновлена'
     else:
         # Создаем новую оценку
@@ -369,6 +379,8 @@ async def create_rating(rating_data: CreateUserRating, user_id: int, session: As
         session.add(new_rating)
         await session.flush()  # Используем flush для получения ID
         await session.commit()
+        # Обновляем объект из БД для получения актуальных данных (created_at и т.д.)
+        await session.refresh(new_rating)
         return 'Оценка создана'
 
 
@@ -511,6 +523,8 @@ async def change_username(new_name: str, request:Request,
     if await nickname_is_free(new_name, session):
         user.username = new_name
         await session.commit()
+        # Обновляем объект из БД для получения актуальных данных
+        await session.refresh(user)
         return 'Имя изменено'
     return 'Не удалось изменить имя'
 
@@ -546,6 +560,8 @@ async def change_password(new_password: ChangeUserPassword, request:Request,
     # Хешируем и сохраняем новый пароль
     user.password_hash = await hashed_password(new_one_password)
     await session.commit()
+    # Обновляем объект из БД для получения актуальных данных
+    await session.refresh(user)
     return 'Вы сменили пароль'
 
 
@@ -683,4 +699,6 @@ async def add_new_user_photo(user_id: int, s3_url: str, session: AsyncSession):
     )).scalar_one()
     user.avatar_url = s3_url
     await session.commit()
+    # Обновляем объект из БД для получения актуальных данных
+    await session.refresh(user)
     return 'Аватар успешно изменен'
