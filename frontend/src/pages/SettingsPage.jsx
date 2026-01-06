@@ -442,7 +442,11 @@ function SettingsPage() {
       }
     } catch (err) {
       console.error('Ошибка загрузки настроек:', err)
-      setError('Ошибка при загрузке настроек')
+      if (err.response?.status === 403) {
+        setError('Ваш аккаунт заблокирован. Доступ к настройкам ограничен.')
+      } else {
+        setError('Ошибка при загрузке настроек')
+      }
     } finally {
       setLoading(false)
     }

@@ -25,10 +25,9 @@ async def is_admin(request: Request):
             detail='Вы не админ')
     return True
 
-        
+
 IsAdminDep = Annotated[bool, Depends(is_admin)]
 
 
-@admin_router.delete('delete/user/comment')
-async def delete_comment(is_andim: IsAdminDep, comment: int, session: SessionDep):
-    
+# @admin_router.delete('delete/user/comment')
+# async def delete_comment(is_admin: IsAdminDep, comment: int, session: SessionDep):

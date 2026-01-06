@@ -86,6 +86,10 @@ function WatchPage() {
         // Пользователь не авторизован
         setAuthError(true)
         setError('Для просмотра аниме необходимо войти в аккаунт')
+      } else if (err.response?.status === 403) {
+        // Пользователь заблокирован
+        setAuthError(true)
+        setError('Ваш аккаунт заблокирован. Доступ к просмотру аниме ограничен.')
       } else {
         setError('Ошибка загрузки аниме')
         console.error(err)

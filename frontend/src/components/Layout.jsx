@@ -92,8 +92,12 @@ function Layout({ children }) {
         setUser(null)
       }
     } catch (err) {
-      // Пользователь не авторизован
-      console.log('User not authenticated:', err.response?.status, err.response?.data)
+      // Пользователь не авторизован или заблокирован
+      console.log('User not authenticated or blocked:', err.response?.status, err.response?.data)
+      if (err.response?.status === 403) {
+        // Пользователь заблокирован - показываем сообщение
+        alert('Ваш аккаунт заблокирован. Доступ к некоторым функциям ограничен.')
+      }
       setUser(null)
     } finally {
       setLoadingUser(false)

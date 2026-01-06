@@ -43,6 +43,12 @@ function MyFavoritesPage() {
         setTimeout(() => {
           navigate('/')
         }, 2000)
+      } else if (err.response?.status === 403) {
+        setError('Ваш аккаунт заблокирован. Доступ к избранному ограничен.')
+        // Перенаправляем на главную через 2 секунды
+        setTimeout(() => {
+          navigate('/')
+        }, 2000)
       } else {
         setError('Ошибка загрузки избранного')
         console.error('Ошибка загрузки избранного:', err)
