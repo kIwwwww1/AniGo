@@ -137,6 +137,14 @@ export const animeAPI = {
     })
     return response.data
   },
+
+  // Получить аниме с высшей оценкой
+  getHighestScoreAnime: async (limit = 12, offset = 0, order = 'desc') => {
+    const response = await api.get('/anime/get/highest-score', {
+      params: { limit, offset, order },
+    })
+    return response.data
+  },
 }
 
 export const userAPI = {
