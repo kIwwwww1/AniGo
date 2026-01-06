@@ -555,6 +555,32 @@ function UserProfilePage() {
     return { r, g, b }
   }
 
+  const createGradientFromColor = (color) => {
+    // Функции для работы с цветом
+    const lightenColor = (hex, percent) => {
+      const num = parseInt(hex.replace('#', ''), 16)
+      const r = Math.min(255, Math.floor((num >> 16) + (255 - (num >> 16)) * percent))
+      const g = Math.min(255, Math.floor(((num >> 8) & 0x00FF) + (255 - ((num >> 8) & 0x00FF)) * percent))
+      const b = Math.min(255, Math.floor((num & 0x0000FF) + (255 - (num & 0x0000FF)) * percent))
+      return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+    }
+    
+    const darkenColor = (hex, percent) => {
+      const num = parseInt(hex.replace('#', ''), 16)
+      const r = Math.floor((num >> 16) * (1 - percent))
+      const g = Math.floor(((num >> 8) & 0x00FF) * (1 - percent))
+      const b = Math.floor((num & 0x0000FF) * (1 - percent))
+      return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+    }
+    
+    const lightColor = lightenColor(color, 0.3)
+    const mediumColor = color
+    const darkColor = darkenColor(color, 0.2)
+    
+    // Создаем градиент с вариациями цвета
+    return `linear-gradient(135deg, ${darkColor} 0%, ${mediumColor} 25%, ${lightColor} 50%, ${mediumColor} 75%, ${darkColor} 100%)`
+  }
+
   if (loading) {
     return (
       <div className="user-profile-page">
@@ -776,8 +802,8 @@ function UserProfilePage() {
                     )}
                   </button>
                   <p className="premium-profile-description">
-                    {user && user.id < 100 
-                      ? 'Вы один из первых 100 пользователей - можете включать/отключать премиум оформление'
+                    {user && user.id < 25 
+                      ? 'Вы один из первых 25 пользователей - можете включать/отключать премиум оформление'
                       : 'Включает золотой градиент для имени пользователя и карточек аниме'
                     }
                   </p>
@@ -853,7 +879,7 @@ function UserProfilePage() {
               data-premium={(user.id < 100 && isPremiumProfile !== false) || isPremiumProfile}
             >
               {user.username}
-              {user.id < 100 && (
+              {user.id < 25 && (
                 <span className="crown-icon">
                   <CrownIcon size={28} />
                 </span>
@@ -898,12 +924,12 @@ function UserProfilePage() {
                   })
                 }
                 
-                if (user.id < 100) {
+                if (user.id < 25) {
                   allBadges.push({
                     id: 'premium',
                     element: (
                       <span key="premium" className="profile-role profile-premium-badge">
-                        Один из 100
+                        Один из 25
                       </span>
                     )
                   })
@@ -929,6 +955,35 @@ function UserProfilePage() {
                     element: (
                       <span key={favoritesBadge.id} className={`profile-role ${favoritesBadge.className}`}>
                         {favoritesBadge.label}
+                      </span>
+                    )
+                  })
+                }
+                
+                // Бэйдж с топ-1 аниме пользователя
+                const topAnime = bestAnime.find(anime => anime.place === 1)
+                if (topAnime && topAnime.title) {
+                  // Создаем градиент на основе цвета обводки аватарки
+                  const badgeGradient = createGradientFromColor(avatarBorderColor)
+                  const badgeShadow = hexToRgba(avatarBorderColor, 0.5)
+                  const badgeShadowLight = hexToRgba(avatarBorderColor, 0.3)
+                  const badgeTextShadow = hexToRgba(avatarBorderColor, 0.6)
+                  
+                  allBadges.push({
+                    id: 'top-anime',
+                    element: (
+                      <span 
+                        key="top-anime" 
+                        className="profile-role profile-top-anime-badge"
+                        style={{
+                          background: `linear-gradient(135deg, rgba(26, 26, 26, 0.8) 0%, rgba(20, 20, 20, 0.8) 100%) padding-box, ${badgeGradient} border-box`,
+                          borderColor: 'transparent',
+                          color: avatarBorderColor,
+                          boxShadow: `0 4px 16px ${badgeShadow}, 0 0 24px ${badgeShadowLight}, 0 0 40px ${badgeShadowLight}`,
+                          textShadow: `0 0 8px ${badgeTextShadow}, 0 0 16px ${badgeShadow}`
+                        }}
+                      >
+                        {topAnime.title}
                       </span>
                     )
                   })

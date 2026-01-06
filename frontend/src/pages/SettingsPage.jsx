@@ -49,6 +49,7 @@ function SettingsPage() {
   const [draggedBadge, setDraggedBadge] = useState(null)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [avatarHover, setAvatarHover] = useState(false)
+  const [bestAnime, setBestAnime] = useState([])
 
   useEffect(() => {
     setAvatarError(false)
@@ -56,6 +57,7 @@ function SettingsPage() {
     loadCurrentUser()
     loadUserColors()
     loadThemeColor()
+    loadBestAnime()
   }, [username])
 
   useEffect(() => {
@@ -64,7 +66,7 @@ function SettingsPage() {
       loadPremiumProfile()
       loadBadges()
     }
-  }, [user, username])
+  }, [user, username, bestAnime])
 
   const formatDate = (dateString) => {
     if (!dateString) return ''
@@ -147,12 +149,12 @@ function SettingsPage() {
       })
     }
     
-    // Бэдж "Один из 100"
-    if (user.id < 100) {
+    // Бэдж "Один из 25"
+    if (user.id < 25) {
       availableBadges.push({
         id: 'premium',
         type: 'premium',
-        label: 'Один из 100',
+        label: 'Один из 25',
         className: 'profile-premium-badge',
         defaultVisible: true
       })
@@ -175,6 +177,18 @@ function SettingsPage() {
     if (favoritesBadge) {
       availableBadges.push({
         ...favoritesBadge,
+        defaultVisible: true
+      })
+    }
+    
+    // Бэйдж с топ-1 аниме пользователя
+    const topAnime = bestAnime.find(anime => anime.place === 1)
+    if (topAnime && topAnime.title) {
+      availableBadges.push({
+        id: 'top-anime',
+        type: 'top-anime',
+        label: topAnime.title,
+        className: 'profile-top-anime-badge',
         defaultVisible: true
       })
     }
@@ -434,6 +448,18 @@ function SettingsPage() {
     }
   }
 
+  const loadBestAnime = async () => {
+    try {
+      const response = await userAPI.getUserProfile(username)
+      if (response && response.message && response.message.best_anime) {
+        setBestAnime(response.message.best_anime || [])
+      }
+    } catch (err) {
+      console.error('Ошибка загрузки топ-3 аниме:', err)
+      setBestAnime([])
+    }
+  }
+
   const loadUserColors = () => {
     if (username) {
       const savedUsernameColor = localStorage.getItem(`user_${username}_username_color`)
@@ -478,6 +504,50 @@ function SettingsPage() {
     const g = parseInt(hex.slice(3, 5), 16)
     const b = parseInt(hex.slice(5, 7), 16)
     return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  }
+
+  const createGradientFromColor = (color) => {
+    // Функции для работы с цветом
+    const lightenColor = (hex, percent) => {
+      const num = parseInt(hex.replace('#', ''), 16)
+      const r = Math.min(255, Math.floor((num >> 16) + (255 - (num >> 16)) * percent))
+      const g = Math.min(255, Math.floor(((num >> 8) & 0x00FF) + (255 - ((num >> 8) & 0x00FF)) * percent))
+      const b = Math.min(255, Math.floor((num & 0x0000FF) + (255 - (num & 0x0000FF)) * percent))
+      return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+    }
+    
+    const darkenColor = (hex, percent) => {
+      const num = parseInt(hex.replace('#', ''), 16)
+      const r = Math.floor((num >> 16) * (1 - percent))
+      const g = Math.floor(((num >> 8) & 0x00FF) * (1 - percent))
+      const b = Math.floor((num & 0x0000FF) * (1 - percent))
+      return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+    }
+    
+    const lightColor = lightenColor(color, 0.3)
+    const mediumColor = color
+    const darkColor = darkenColor(color, 0.2)
+    
+    // Создаем градиент с вариациями цвета
+    return `linear-gradient(135deg, ${darkColor} 0%, ${mediumColor} 25%, ${lightColor} 50%, ${mediumColor} 75%, ${darkColor} 100%)`
+  }
+
+  const getBadgeStyle = (badge) => {
+    if (badge.type === 'top-anime') {
+      const badgeGradient = createGradientFromColor(avatarBorderColor)
+      const badgeShadow = hexToRgba(avatarBorderColor, 0.5)
+      const badgeShadowLight = hexToRgba(avatarBorderColor, 0.3)
+      const badgeTextShadow = hexToRgba(avatarBorderColor, 0.6)
+      
+      return {
+        background: `linear-gradient(135deg, rgba(26, 26, 26, 0.8) 0%, rgba(20, 20, 20, 0.8) 100%) padding-box, ${badgeGradient} border-box`,
+        borderColor: 'transparent',
+        color: avatarBorderColor,
+        boxShadow: `0 4px 16px ${badgeShadow}, 0 0 24px ${badgeShadowLight}, 0 0 40px ${badgeShadowLight}`,
+        textShadow: `0 0 8px ${badgeTextShadow}, 0 0 16px ${badgeShadow}`
+      }
+    }
+    return {}
   }
 
   const loadPremiumProfile = () => {
@@ -816,7 +886,10 @@ function SettingsPage() {
                               <circle cx="15" cy="19" r="1"></circle>
                             </svg>
                           </div>
-                          <span className={`profile-role ${badge.className}`}>
+                          <span 
+                            className={`profile-role ${badge.className}`}
+                            style={getBadgeStyle(badge)}
+                          >
                             {badge.label}
                           </span>
                           <button
