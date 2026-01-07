@@ -14,6 +14,8 @@ from src.models.players import PlayerModel
 from src.models.anime_players import AnimePlayerModel
 from src.models.genres import GenreModel
 from src.models.themes import ThemeModel
+# 
+# from anime_parsers_ru.parser_aniboom_async 
 
 
 parser_shikimori = ShikimoriParserAsync()

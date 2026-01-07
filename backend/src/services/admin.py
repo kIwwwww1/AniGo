@@ -17,9 +17,14 @@ from src.models.best_user_anime import BestUserAnimeModel
 from src.models.watch_history import WatchHistoryModel
 from src.auth.auth import hashed_password
 
-async def admin_get_all_users(session: AsyncSession):
-    '''Получить всех пользователей'''
-    result = await session.execute(select(UserModel))
+async def admin_get_all_users(limit: int, offset: int, session: AsyncSession):
+    '''Получить всех пользователей с пагинацией'''
+
+    result = await session.execute(
+        select(UserModel)
+        .limit(limit)
+        .offset(offset)
+        )
     users = result.scalars().all()
     return users
 

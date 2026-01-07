@@ -296,9 +296,11 @@ export const userAPI = {
 }
 
 export const adminAPI = {
-  // Получить всех пользователей
-  getAllUsers: async () => {
-    const response = await api.get('/admin/all-users')
+  // Получить всех пользователей с пагинацией
+  getAllUsers: async (limit = 10, offset = 0) => {
+    const response = await api.get('/admin/all-users', {
+      params: { limit, offset },
+    })
     return response.data
   },
 

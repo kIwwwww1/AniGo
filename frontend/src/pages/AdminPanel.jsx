@@ -10,11 +10,14 @@ function AdminPanel() {
   const [searchQuery, setSearchQuery] = useState('')
   const [currentUser, setCurrentUser] = useState(null)
   const [avatarBorderColor, setAvatarBorderColor] = useState('#ff0000')
+  const [currentPage, setCurrentPage] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
+  const usersLimit = 10 // Количество пользователей на странице
   const navigate = useNavigate()
 
   useEffect(() => {
     checkAdminAccess()
-    loadUsers()
+    loadUsers(0)
   }, [])
 
   useEffect(() => {
@@ -46,13 +49,25 @@ function AdminPanel() {
     }
   }
 
-  const loadUsers = async () => {
+  const loadUsers = async (page = 0) => {
     try {
       setLoading(true)
       setError('')
-      const response = await adminAPI.getAllUsers()
+      const offset = page * usersLimit
+      const response = await adminAPI.getAllUsers(usersLimit, offset)
       if (response.message) {
-        setUsers(response.message)
+        const newUsers = Array.isArray(response.message) ? response.message : []
+        
+        // Если мы перешли на пустую страницу (не первую), возвращаемся на предыдущую
+        if (page > 0 && newUsers.length === 0) {
+          await loadUsers(page - 1)
+          return
+        }
+        
+        setUsers(newUsers)
+        // Следующая страница есть только если мы получили ровно usersLimit пользователей
+        setHasMore(newUsers.length === usersLimit)
+        setCurrentPage(page)
       }
     } catch (err) {
       console.error('Ошибка загрузки пользователей:', err)
@@ -62,13 +77,40 @@ function AdminPanel() {
     }
   }
 
+  const handleNextPage = async () => {
+    if (!loading && hasMore) {
+      const nextPage = currentPage + 1
+      const offset = nextPage * usersLimit
+      try {
+        const response = await adminAPI.getAllUsers(usersLimit, offset)
+        const nextUsers = Array.isArray(response.message) ? response.message : []
+        
+        // Если следующая страница пустая, не переходим
+        if (nextUsers.length === 0) {
+          setHasMore(false)
+          return
+        }
+        
+        await loadUsers(nextPage)
+      } catch (err) {
+        console.error('Ошибка проверки следующей страницы:', err)
+      }
+    }
+  }
+
+  const handlePrevPage = () => {
+    if (!loading && currentPage > 0) {
+      loadUsers(currentPage - 1)
+    }
+  }
+
   const handleBlockUser = async (userId) => {
     if (!window.confirm('Вы уверены, что хотите заблокировать этого пользователя?')) {
       return
     }
     try {
       await adminAPI.blockUser(userId)
-      await loadUsers()
+      await loadUsers(currentPage)
     } catch (err) {
       console.error('Ошибка блокировки пользователя:', err)
       alert('Не удалось заблокировать пользователя')
@@ -81,7 +123,7 @@ function AdminPanel() {
     }
     try {
       await adminAPI.unblockUser(userId)
-      await loadUsers()
+      await loadUsers(currentPage)
     } catch (err) {
       console.error('Ошибка разблокировки пользователя:', err)
       alert('Не удалось разблокировать пользователя')
@@ -116,7 +158,7 @@ function AdminPanel() {
         `- Рейтингов: ${response.statistics.deleted_ratings}\n` +
         `- Топ-3 аниме: ${response.statistics.deleted_best_anime}\n` +
         `- Истории просмотров: ${response.statistics.deleted_watch_history}`)
-      await loadUsers()
+      await loadUsers(0)
     } catch (err) {
       console.error('Ошибка удаления тестовых данных:', err)
       alert('Не удалось удалить тестовые данные')
@@ -184,7 +226,7 @@ function AdminPanel() {
           <div className="admin-controls-buttons">
             <button 
               className="admin-refresh-btn"
-              onClick={loadUsers}
+              onClick={() => loadUsers(currentPage)}
               disabled={loading}
             >
               {loading ? 'Загрузка...' : 'Обновить'}
@@ -278,6 +320,39 @@ function AdminPanel() {
             </tbody>
           </table>
         </div>
+
+        {/* Пагинация */}
+        {(users.length > 0 || currentPage > 0) && (
+          <div className="admin-pagination">
+            <button
+              type="button"
+              className="admin-pagination-btn"
+              onClick={handlePrevPage}
+              disabled={loading || currentPage === 0}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M15 18l-6-6 6-6"/>
+              </svg>
+              Назад
+            </button>
+            
+            <span className="admin-page-info">
+              Страница {currentPage + 1}
+            </span>
+            
+            <button
+              type="button"
+              className="admin-pagination-btn"
+              onClick={handleNextPage}
+              disabled={loading || !hasMore}
+            >
+              Вперед
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

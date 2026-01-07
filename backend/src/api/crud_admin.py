@@ -30,9 +30,11 @@ async def is_admin(request: Request):
 IsAdminDep = Annotated[bool, Depends(is_admin)]
 
 @admin_router.get('/all-users')
-async def get_all_users(is_admin: IsAdminDep, session: SessionDep):
+async def get_all_users(is_admin: IsAdminDep, session: SessionDep, limit: int = Query(10, ge=1, le=100), offset: int = Query(0, ge=0)):
     '''Получить всех пользователей'''
-    users = await admin_get_all_users(session)
+    users = await admin_get_all_users(limit=limit, 
+                                      offset=offset, 
+                                      session=session)
     # Преобразуем в список словарей, исключая пароли
     users_list = []
     for user in users:
