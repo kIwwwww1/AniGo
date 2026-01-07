@@ -25,7 +25,7 @@ from src.services.s3 import s3_client
 
 user_router = APIRouter(prefix='/user', tags=['UserPanel'])
 
-@user_router.delete('/restart_all_data')
+@user_router.delete('/restart_anime_data')
 async def restart_db():
     '''Удалить полность все базы'''
     

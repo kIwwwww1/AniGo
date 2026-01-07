@@ -41,9 +41,12 @@ async def nickname_is_free(name: str, session: AsyncSession):
                 detail='Никнейм занят'
                 )
     
-    # Проверяем также в pending_registration
+    # Проверяем также в pending_registration (только активные, не истекшие)
+    now = datetime.now(timezone.utc)
     pending = (await session.execute(
-        select(PendingRegistrationModel).filter_by(username=name))
+        select(PendingRegistrationModel)
+        .filter_by(username=name)
+        .filter(PendingRegistrationModel.token_expires >= now))
         ).scalar_one_or_none()
     if pending:
         raise HTTPException(
@@ -65,9 +68,12 @@ async def email_is_free(email: str, session: AsyncSession):
             detail='Почта занята'
             )
     
-    # Проверяем также в pending_registration
+    # Проверяем также в pending_registration (только активные, не истекшие)
+    now = datetime.now(timezone.utc)
     pending = (await session.execute(
-        select(PendingRegistrationModel).filter_by(email=email))
+        select(PendingRegistrationModel)
+        .filter_by(email=email)
+        .filter(PendingRegistrationModel.token_expires >= now))
         ).scalar_one_or_none()
     if pending:
         raise HTTPException(
@@ -92,6 +98,18 @@ async def add_user(new_user: CreateNewUser, response: Response,
                    session: AsyncSession):
     '''Отправка письма с подтверждением email (пользователь будет создан только после подтверждения)'''
 
+    # Удаляем старые истекшие записи с такими же email или username перед проверкой
+    now = datetime.now(timezone.utc)
+    await session.execute(
+        delete(PendingRegistrationModel).where(
+            (PendingRegistrationModel.token_expires < now) &
+            ((PendingRegistrationModel.email == new_user.email) |
+             (PendingRegistrationModel.username == new_user.username))
+        )
+    )
+    await session.commit()
+    logger.info(f"Cleaned up expired pending registrations for {new_user.email}/{new_user.username}")
+    
     # Проверяем, что никнейм и почта свободны (функция выбросит HTTPException если заняты)
     await user_exists(new_user.username, new_user.email, session)
     

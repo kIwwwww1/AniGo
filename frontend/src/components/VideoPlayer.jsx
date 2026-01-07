@@ -18,6 +18,7 @@ function VideoPlayer({ player }) {
   // Проверяем, является ли URL прямым видео URL или iframe
   // Все URL от Kodik - это iframe embed URLs, поэтому кастомный HTML5 плеер используется только для прямых видео файлов
   // Для Kodik используется стилизованный iframe контейнер (функциональные контролы невозможны из-за политики безопасности)
+  // AniBoom использует формат aniboom-mpd://, который также требует iframe или специальной обработки
   const isDirectVideo = player?.embed_url && (
     player.embed_url.endsWith('.mp4') ||
     player.embed_url.endsWith('.webm') ||
@@ -26,6 +27,21 @@ function VideoPlayer({ player }) {
     player.embed_url.endsWith('.mov') ||
     player.embed_url.startsWith('blob:')
   )
+  
+  // Проверяем, является ли это плеером AniBoom
+  const isAniboomPlayer = player?.embed_url && player.embed_url.startsWith('aniboom-mpd://')
+  
+  // Сбрасываем состояние при изменении плеера
+  useEffect(() => {
+    setIsPlaying(false)
+    setCurrentTime(0)
+    setDuration(0)
+    setShowControls(true)
+    if (hideControlsTimeout) {
+      clearTimeout(hideControlsTimeout)
+      setHideControlsTimeout(null)
+    }
+  }, [player?.id, player?.embed_url])
 
   useEffect(() => {
     const video = videoRef.current
@@ -145,6 +161,61 @@ function VideoPlayer({ player }) {
     )
   }
 
+  // Если это плеер AniBoom, используем iframe с API endpoint
+  if (isAniboomPlayer) {
+    // Парсим aniboom-mpd://{animego_id}/{episode_num}/{translation_id}
+    const match = player.embed_url.match(/aniboom-mpd:\/\/(\d+)\/(\d+)\/(\d+)/)
+    if (match) {
+      const [, animego_id, episode_num, translation_id] = match
+      const iframeUrl = `/api/anime/player/aniboom/${animego_id}/${episode_num}/${translation_id}`
+      
+      return (
+        <div 
+          className="video-player-container kodik-iframe-wrapper"
+          ref={containerRef}
+        >
+          <div className="video-player-iframe-wrapper">
+            <iframe
+              key={player.embed_url} // Добавляем key для принудительного обновления iframe при смене плеера
+              src={iframeUrl}
+              className="video-iframe"
+              allowFullScreen
+              sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
+              title="AniBoom Video Player"
+            />
+          </div>
+        </div>
+      )
+    }
+    
+    // Если не удалось распарсить URL, показываем сообщение об ошибке
+    return (
+      <div 
+        className="video-player-container kodik-iframe-wrapper"
+        ref={containerRef}
+      >
+        <div className="video-player-iframe-wrapper">
+          <div style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#000',
+            color: '#fff',
+            fontSize: '16px',
+            textAlign: 'center',
+            padding: '20px'
+          }}>
+            <div>
+              <p>Ошибка загрузки плеера AniBoom</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+  
   // Если это не прямой видео URL, используем iframe (для Kodik)
   // Применяем стили контейнера в стиле YouTube (круглые края)
   if (!isDirectVideo) {
@@ -155,6 +226,7 @@ function VideoPlayer({ player }) {
       >
         <div className="video-player-iframe-wrapper">
           <iframe
+            key={player.embed_url} // Добавляем key для принудительного обновления iframe при смене плеера
             src={player.embed_url}
             className="video-iframe"
             allowFullScreen
@@ -179,6 +251,7 @@ function VideoPlayer({ player }) {
       }}
     >
       <video
+        key={player.embed_url} // Добавляем key для принудительного обновления видео при смене плеера
         ref={videoRef}
         src={player.embed_url}
         className="custom-video-player"

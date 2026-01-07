@@ -19,8 +19,36 @@ const api = axios.create({
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.code === 'ECONNABORTED' || error.message === 'Network Error') {
-      console.error('Ошибка сети:', error)
+    // Детальное логирование для диагностики
+    console.error('API Error Details:', {
+      message: error.message,
+      code: error.code,
+      response: error.response ? {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data,
+        headers: error.response.headers
+      } : null,
+      request: error.request ? {
+        url: error.config?.url,
+        method: error.config?.method,
+        baseURL: error.config?.baseURL,
+        timeout: error.config?.timeout
+      } : null,
+      config: {
+        baseURL: error.config?.baseURL,
+        url: error.config?.url,
+        method: error.config?.method
+      }
+    })
+    
+    if (error.code === 'ECONNABORTED' || error.message === 'Network Error' || !error.response) {
+      console.error('Ошибка сети или таймаут:', {
+        code: error.code,
+        message: error.message,
+        baseURL: error.config?.baseURL,
+        url: error.config?.url
+      })
       return Promise.reject({
         ...error,
         isNetworkError: true,
@@ -31,6 +59,23 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       return Promise.reject(error)
     }
+    return Promise.reject(error)
+  }
+)
+
+// Логирование запросов для диагностики
+api.interceptors.request.use(
+  (config) => {
+    console.log('API Request:', {
+      method: config.method,
+      url: config.url,
+      baseURL: config.baseURL,
+      fullURL: `${config.baseURL}${config.url}`
+    })
+    return config
+  },
+  (error) => {
+    console.error('API Request Error:', error)
     return Promise.reject(error)
   }
 )

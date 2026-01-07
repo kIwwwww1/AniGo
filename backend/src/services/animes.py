@@ -111,10 +111,13 @@ async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession, background
     
     try:
         logger.info(f'Загрузка аниме {anime_id} с relationships')
+        from src.models.anime_players import AnimePlayerModel
+        from src.models.players import PlayerModel
+        
         anime = (await session.execute(
             select(AnimeModel)
                 .options(
-                    selectinload(AnimeModel.players),
+                    selectinload(AnimeModel.players).selectinload(AnimePlayerModel.player),  # Загружаем player для каждого AnimePlayer
                     selectinload(AnimeModel.genres),
                     selectinload(AnimeModel.comments).selectinload(CommentModel.user),  # Загружаем пользователя для комментариев
                 )

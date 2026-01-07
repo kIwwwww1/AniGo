@@ -9,13 +9,12 @@ from anime_parsers_ru import ShikimoriParserAsync
 from anime_parsers_ru.errors import ServiceError, NoResults
 # 
 from src.parsers.kodik import get_anime_by_shikimori_id
+from src.parsers.aniboom import get_anime_player_from_aniboom
 from src.models.anime import AnimeModel
 from src.models.players import PlayerModel
 from src.models.anime_players import AnimePlayerModel
 from src.models.genres import GenreModel
-from src.models.themes import ThemeModel
-# 
-# from anime_parsers_ru.parser_aniboom_async 
+from src.models.themes import ThemeModel 
 
 
 parser_shikimori = ShikimoriParserAsync()
@@ -536,6 +535,152 @@ async def background_search_and_add_anime(anime_name: str):
                             logger.warning(f"Ошибка при коммите, делаем rollback: {e}")
                             await session.rollback()
                     
+                    # Добавляем плееры AniBoom (если доступны) - для всех серий
+                    try:
+                        aniboom_players_list = await get_anime_player_from_aniboom(
+                            anime_title=anime.get('title', ''),
+                            original_title=original_title
+                        )
+                        
+                        if aniboom_players_list and isinstance(aniboom_players_list, list):
+                            # Обрабатываем каждый плеер из списка
+                            for aniboom_player_data in aniboom_players_list:
+                                base_url = aniboom_player_data.get('base_url')
+                                embed_url = aniboom_player_data.get('embed_url')
+                                translator = aniboom_player_data.get('translator', 'Unknown')
+                                quality = aniboom_player_data.get('quality', '720p')
+                                animego_id = aniboom_player_data.get('animego_id')
+                                translation_id = aniboom_player_data.get('translation_id')
+                                episode_num = aniboom_player_data.get('episode_num', 0)
+                                
+                                if not base_url or not embed_url or not animego_id or not translation_id:
+                                    continue
+                                
+                                # Проверяем, существует ли уже плеер AniBoom с таким base_url
+                                try:
+                                    existing_aniboom_player = (
+                                        await session.execute(
+                                            select(PlayerModel).where(
+                                                PlayerModel.base_url == base_url
+                                            )
+                                        )
+                                    ).scalar_one_or_none()
+                                except (DBAPIError, SQLAlchemyError) as e:
+                                    logger.warning(f"Ошибка при проверке плеера AniBoom, делаем rollback: {e}")
+                                    await session.rollback()
+                                    existing_aniboom_player = (
+                                        await session.execute(
+                                            select(PlayerModel).where(
+                                                PlayerModel.base_url == base_url
+                                            )
+                                        )
+                                    ).scalar_one_or_none()
+                                
+                                if not existing_aniboom_player:
+                                    # Создаем новый плеер AniBoom
+                                    existing_aniboom_player = PlayerModel(
+                                        base_url=base_url,
+                                        name="aniboom",
+                                        type="aniboom"
+                                    )
+                                    try:
+                                        session.add(existing_aniboom_player)
+                                        await session.flush()
+                                    except IntegrityError as e:
+                                        await session.rollback()
+                                        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+                                        if 'base_url' in error_str or 'duplicate key' in error_str.lower():
+                                            existing_aniboom_player = (
+                                                await session.execute(
+                                                    select(PlayerModel).where(
+                                                        PlayerModel.base_url == base_url
+                                                    )
+                                                )
+                                            ).scalar_one_or_none()
+                                            if not existing_aniboom_player:
+                                                logger.debug(f"Не удалось создать/найти плеер AniBoom для animego_id {animego_id}")
+                                                continue
+                                        else:
+                                            logger.debug(f"Ошибка при создании плеера AniBoom: {e}")
+                                            continue
+                                
+                                if existing_aniboom_player:
+                                    aniboom_player_id = existing_aniboom_player.id
+                                    # external_id включает episode_num для уникальности каждой серии
+                                    external_id = f"aniboom_{animego_id}_{translation_id}_{episode_num}"
+                                    
+                                    # Проверяем, существует ли уже связь аниме ↔ плеер AniBoom по external_id
+                                    try:
+                                        existing_aniboom_anime_player = (
+                                            await session.execute(
+                                                select(AnimePlayerModel).where(
+                                                    AnimePlayerModel.external_id == external_id
+                                                )
+                                            )
+                                        ).scalar_one_or_none()
+                                    except (DBAPIError, SQLAlchemyError) as e:
+                                        logger.warning(f"Ошибка при проверке связи аниме-плеер AniBoom, делаем rollback: {e}")
+                                        await session.rollback()
+                                        existing_aniboom_anime_player = (
+                                            await session.execute(
+                                                select(AnimePlayerModel).where(
+                                                    AnimePlayerModel.external_id == external_id
+                                                )
+                                            )
+                                        ).scalar_one_or_none()
+                                    
+                                    if not existing_aniboom_anime_player:
+                                        # Создаем связь аниме ↔ плеер AniBoom
+                                        aniboom_anime_player = AnimePlayerModel(
+                                            external_id=external_id,
+                                            embed_url=embed_url,
+                                            translator=translator,
+                                            quality=quality,
+                                            anime_id=anime_id,
+                                            player_id=aniboom_player_id,
+                                        )
+                                        try:
+                                            session.add(aniboom_anime_player)
+                                            await session.commit()
+                                            logger.info(f"✅ Добавлен плеер AniBoom для аниме: {anime.get('title')}, серия {episode_num}, перевод {translator}")
+                                        except IntegrityError as e:
+                                            # Обработка ошибки уникальности external_id (race condition)
+                                            await session.rollback()
+                                            error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+                                            if 'external_id' in error_str or 'duplicate key' in error_str.lower():
+                                                logger.debug(f"⚠️ Связь с external_id '{external_id}' уже существует (race condition)")
+                                                # Пробуем найти существующую связь
+                                                try:
+                                                    existing_aniboom_anime_player = (
+                                                        await session.execute(
+                                                            select(AnimePlayerModel).where(
+                                                                AnimePlayerModel.external_id == external_id
+                                                            )
+                                                        )
+                                                    ).scalar_one_or_none()
+                                                    if existing_aniboom_anime_player:
+                                                        logger.debug(f"⏭️ Найдена существующая связь AniBoom для '{anime.get('title')}', серия {episode_num}")
+                                                except Exception:
+                                                    pass
+                                            else:
+                                                logger.error(f"Ошибка IntegrityError при добавлении связи аниме-плеер AniBoom: {e}")
+                                        except (DBAPIError, SQLAlchemyError) as e:
+                                            logger.error(f"Ошибка при добавлении связи аниме-плеер AniBoom: {e}")
+                                            await session.rollback()
+                                    else:
+                                        # Связь уже существует
+                                        logger.debug(f"⏭️ Связь AniBoom уже существует для '{anime.get('title')}', серия {episode_num}")
+                                        try:
+                                            await session.commit()
+                                        except (DBAPIError, SQLAlchemyError) as e:
+                                            logger.warning(f"Ошибка при коммите, делаем rollback: {e}")
+                                            await session.rollback()
+                            
+                            logger.info(f"✅ Обработано {len(aniboom_players_list)} плееров AniBoom для аниме: {anime.get('title')}")
+                    except Exception as e:
+                        logger.debug(f"❌ Ошибка при добавлении плееров AniBoom для '{anime.get('title')}': {e}")
+                        # Не прерываем выполнение, продолжаем
+                    
                     # Дополнительная задержка после обработки (антибан)
                     await asyncio.sleep(0.5)
                     
@@ -991,6 +1136,152 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
                 except (DBAPIError, SQLAlchemyError) as e:
                     logger.warning(f"Ошибка при коммите, делаем rollback: {e}")
                     await session.rollback()
+            
+            # Добавляем плееры AniBoom (если доступны) - для всех серий
+            try:
+                aniboom_players_list = await get_anime_player_from_aniboom(
+                    anime_title=anime.get('title', ''),
+                    original_title=anime.get('original_title', '')
+                )
+                
+                if aniboom_players_list and isinstance(aniboom_players_list, list):
+                    # Обрабатываем каждый плеер из списка
+                    for aniboom_player_data in aniboom_players_list:
+                        base_url = aniboom_player_data.get('base_url')
+                        embed_url = aniboom_player_data.get('embed_url')
+                        translator = aniboom_player_data.get('translator', 'Unknown')
+                        quality = aniboom_player_data.get('quality', '720p')
+                        animego_id = aniboom_player_data.get('animego_id')
+                        translation_id = aniboom_player_data.get('translation_id')
+                        episode_num = aniboom_player_data.get('episode_num', 0)
+                        
+                        if not base_url or not embed_url or not animego_id or not translation_id:
+                            continue
+                    
+                    # Проверяем, существует ли уже плеер AniBoom с таким base_url
+                    try:
+                        existing_aniboom_player = (
+                            await session.execute(
+                                select(PlayerModel).where(
+                                    PlayerModel.base_url == base_url
+                                )
+                            )
+                        ).scalar_one_or_none()
+                    except (DBAPIError, SQLAlchemyError) as e:
+                        logger.warning(f"Ошибка при проверке плеера AniBoom, делаем rollback: {e}")
+                        await session.rollback()
+                        existing_aniboom_player = (
+                            await session.execute(
+                                select(PlayerModel).where(
+                                    PlayerModel.base_url == base_url
+                                )
+                            )
+                        ).scalar_one_or_none()
+                    
+                    if not existing_aniboom_player:
+                        # Создаем новый плеер AniBoom
+                        existing_aniboom_player = PlayerModel(
+                            base_url=base_url,
+                            name="aniboom",
+                            type="aniboom"
+                        )
+                        try:
+                            session.add(existing_aniboom_player)
+                            await session.flush()
+                        except IntegrityError as e:
+                            await session.rollback()
+                            error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+                            if 'base_url' in error_str or 'duplicate key' in error_str.lower():
+                                existing_aniboom_player = (
+                                    await session.execute(
+                                        select(PlayerModel).where(
+                                            PlayerModel.base_url == base_url
+                                        )
+                                    )
+                                ).scalar_one_or_none()
+                                if not existing_aniboom_player:
+                                    logger.debug(f"Не удалось создать/найти плеер AniBoom для animego_id {animego_id}")
+                                    # Пропускаем добавление плеера AniBoom, но продолжаем
+                            else:
+                                logger.debug(f"Ошибка при создании плеера AniBoom: {e}")
+                                # Пропускаем добавление плеера AniBoom
+                    
+                        if existing_aniboom_player:
+                            aniboom_player_id = existing_aniboom_player.id
+                            # external_id включает episode_num для уникальности каждой серии
+                            external_id = f"aniboom_{animego_id}_{translation_id}_{episode_num}"
+                            
+                            # Проверяем, существует ли уже связь аниме ↔ плеер AniBoom по external_id
+                            try:
+                                existing_aniboom_anime_player = (
+                                    await session.execute(
+                                        select(AnimePlayerModel).where(
+                                            AnimePlayerModel.external_id == external_id
+                                        )
+                                    )
+                                ).scalar_one_or_none()
+                            except (DBAPIError, SQLAlchemyError) as e:
+                                logger.warning(f"Ошибка при проверке связи аниме-плеер AniBoom, делаем rollback: {e}")
+                                await session.rollback()
+                                existing_aniboom_anime_player = (
+                                    await session.execute(
+                                        select(AnimePlayerModel).where(
+                                            AnimePlayerModel.external_id == external_id
+                                        )
+                                    )
+                                ).scalar_one_or_none()
+                            
+                            if not existing_aniboom_anime_player:
+                                # Создаем связь аниме ↔ плеер AniBoom
+                                aniboom_anime_player = AnimePlayerModel(
+                                    external_id=external_id,
+                                    embed_url=embed_url,
+                                    translator=translator,
+                                    quality=quality,
+                                    anime_id=new_anime.id,
+                                    player_id=aniboom_player_id,
+                                )
+                                try:
+                                    session.add(aniboom_anime_player)
+                                    await session.commit()
+                                    logger.info(f"✅ Добавлен плеер AniBoom для аниме: {anime.get('title')}, серия {episode_num}, перевод {translator}")
+                                except IntegrityError as e:
+                                    # Обработка ошибки уникальности external_id (race condition)
+                                    await session.rollback()
+                                    error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+                                    if 'external_id' in error_str or 'duplicate key' in error_str.lower():
+                                        logger.debug(f"⚠️ Связь с external_id '{external_id}' уже существует (race condition)")
+                                        # Пробуем найти существующую связь
+                                        try:
+                                            existing_aniboom_anime_player = (
+                                                await session.execute(
+                                                    select(AnimePlayerModel).where(
+                                                        AnimePlayerModel.external_id == external_id
+                                                    )
+                                                )
+                                            ).scalar_one_or_none()
+                                            if existing_aniboom_anime_player:
+                                                logger.debug(f"⏭️ Найдена существующая связь AniBoom для '{anime.get('title')}', серия {episode_num}")
+                                        except Exception:
+                                            pass
+                                    else:
+                                        logger.error(f"Ошибка IntegrityError при добавлении связи аниме-плеер AniBoom: {e}")
+                                except (DBAPIError, SQLAlchemyError) as e:
+                                    logger.error(f"Ошибка при добавлении связи аниме-плеер AniBoom: {e}")
+                                    await session.rollback()
+                            else:
+                                # Связь уже существует
+                                logger.debug(f"⏭️ Связь AniBoom уже существует для '{anime.get('title')}', серия {episode_num}")
+                                try:
+                                    await session.commit()
+                                except (DBAPIError, SQLAlchemyError) as e:
+                                    logger.warning(f"Ошибка при коммите, делаем rollback: {e}")
+                                    await session.rollback()
+                    
+                    logger.info(f"✅ Обработано {len(aniboom_players_list)} плееров AniBoom для аниме: {anime.get('title')}")
+            except Exception as e:
+                logger.debug(f"❌ Ошибка при добавлении плееров AniBoom для '{anime.get('title')}': {e}")
+                # Не прерываем выполнение, продолжаем
             
             # Дополнительная задержка после обработки (антибан)
             await asyncio.sleep(0.5)

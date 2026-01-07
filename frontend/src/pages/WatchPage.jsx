@@ -16,6 +16,7 @@ function WatchPage() {
   const [error, setError] = useState(null)
   const [authError, setAuthError] = useState(false)
   const [selectedPlayer, setSelectedPlayer] = useState(null)
+  const [availablePlayers, setAvailablePlayers] = useState([])
   const [commentText, setCommentText] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
@@ -44,14 +45,48 @@ function WatchPage() {
 
   useEffect(() => {
     if (anime && anime.players && anime.players.length > 0) {
-      // Используем первый доступный плеер
-      const player = anime.players[0]
-      if (player) {
-        setSelectedPlayer({
+      // Группируем плееры по источникам
+      const groupedPlayers = {}
+      anime.players.forEach(player => {
+        // Определяем источник плеера по player_name из API или по embed_url
+        let source = player.player_name || 'kodik' // Используем player_name из API
+        // Нормализуем название источника
+        if (source === 'aniboom') {
+          source = 'aniboom'
+        } else {
+          source = 'kodik'
+        }
+        
+        if (!groupedPlayers[source]) {
+          groupedPlayers[source] = []
+        }
+        groupedPlayers[source].push({
           ...player,
-          embed_url: player.embed_url
+          source: source
+        })
+      })
+      
+      // Преобразуем в массив для отображения
+      const playersList = []
+      Object.keys(groupedPlayers).forEach(source => {
+        playersList.push({
+          source: source,
+          players: groupedPlayers[source]
+        })
+      })
+      
+      setAvailablePlayers(playersList)
+      
+      // Используем первый доступный плеер
+      const firstPlayer = anime.players[0]
+      if (firstPlayer) {
+        setSelectedPlayer({
+          ...firstPlayer,
+          embed_url: firstPlayer.embed_url
         })
       }
+    } else {
+      setAvailablePlayers([])
     }
   }, [anime])
 
@@ -500,15 +535,54 @@ function WatchPage() {
           </div>
         </div>
 
-        {/* Основной контент: плеер слева, случайные аниме справа */}
+        {/* Основной контент: плеер слева, выбор плеера и случайные аниме справа */}
         <div className="watch-content-section">
           <div className="watch-main-content">
             {/* Видеоплеер */}
             <div className="video-player-container">
               {selectedPlayer ? (
-                <VideoPlayer player={selectedPlayer} />
+                <VideoPlayer key={selectedPlayer.id || selectedPlayer.embed_url} player={selectedPlayer} />
               ) : (
                 <div className="no-player">Плеер не доступен</div>
+              )}
+              
+              {/* Панель выбора плеера внутри плеера, прижата к правой стенке */}
+              {availablePlayers.length > 0 && (
+                <div className="player-selector-panel">
+                  <h4 className="player-selector-title">Выбор плеера</h4>
+                  <div className="player-selector-list">
+                    {availablePlayers.map((group, groupIndex) => (
+                      <div key={groupIndex} className="player-source-group">
+                        <div className="player-source-label">
+                          {group.source === 'kodik' ? 'Kodik' : 'AniBoom'}
+                        </div>
+                        {group.players.map((player, playerIndex) => (
+                          <button
+                            key={`${group.source}-${player.id || playerIndex}`}
+                            type="button"
+                            className={`player-selector-btn ${
+                              selectedPlayer && selectedPlayer.id === player.id ? 'active' : ''
+                            }`}
+                            onClick={() => {
+                              // Обновляем выбранный плеер
+                              setSelectedPlayer({
+                                ...player,
+                                embed_url: player.embed_url
+                              })
+                            }}
+                          >
+                            <span className="player-selector-name">
+                              {player.translator || (group.source === 'kodik' ? 'Kodik' : 'AniBoom')}
+                            </span>
+                            {player.quality && (
+                              <span className="player-selector-quality">{player.quality}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
 
