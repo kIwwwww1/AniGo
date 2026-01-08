@@ -14,6 +14,8 @@ function VideoPlayer({ player }) {
   const [showControls, setShowControls] = useState(true)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [hideControlsTimeout, setHideControlsTimeout] = useState(null)
+  const [isKodikLoading, setIsKodikLoading] = useState(true)
+  const iframeRef = useRef(null)
 
   // Проверяем, является ли URL прямым видео URL или iframe
   // Все URL от Kodik - это iframe embed URLs, поэтому кастомный HTML5 плеер используется только для прямых видео файлов
@@ -145,22 +147,63 @@ function VideoPlayer({ player }) {
     )
   }
 
+  // Отслеживание загрузки Kodik iframe
+  useEffect(() => {
+    if (isDirectVideo) {
+      setIsKodikLoading(false)
+      return
+    }
+
+    setIsKodikLoading(true)
+    
+    // Таймаут для скрытия индикатора через 2 секунды
+    // (iframe от другого домена может не сработать событие load из-за CORS)
+    const timeout = setTimeout(() => {
+      setIsKodikLoading(false)
+    }, 2000)
+
+    const iframe = iframeRef.current
+    if (iframe) {
+      const handleLoad = () => {
+        setIsKodikLoading(false)
+        clearTimeout(timeout)
+      }
+
+      iframe.addEventListener('load', handleLoad)
+
+      return () => {
+        iframe.removeEventListener('load', handleLoad)
+        clearTimeout(timeout)
+      }
+    } else {
+      return () => {
+        clearTimeout(timeout)
+      }
+    }
+  }, [isDirectVideo, player?.embed_url])
+
   // Если это не прямой видео URL, используем iframe (для Kodik)
-  // Применяем стили контейнера в стиле YouTube (круглые края)
   if (!isDirectVideo) {
     return (
       <div 
-        className="video-player-container kodik-iframe-wrapper"
+        className={`video-player-container kodik-iframe-wrapper ${isKodikLoading ? 'loading' : ''}`}
         ref={containerRef}
       >
         <div className="video-player-iframe-wrapper">
           <iframe
+            ref={iframeRef}
             src={player.embed_url}
             className="video-iframe"
             allowFullScreen
             sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
             title="Video Player"
           />
+          {isKodikLoading && (
+            <div className="kodik-loading-indicator">
+              <div className="kodik-loading-spinner"></div>
+              <div className="kodik-loading-text">Загрузка плеера...</div>
+            </div>
+          )}
         </div>
       </div>
     )

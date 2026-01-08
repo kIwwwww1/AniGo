@@ -3,6 +3,8 @@ from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
+import os
+from urllib.parse import urlparse, urlunparse
 # 
 from src.dependencies.all_dep import (SessionDep, PaginatorAnimeDep, 
                                       CookieDataDep)
@@ -139,9 +141,27 @@ async def watch_anime_by_id(anime_id: int, session: SessionDep, background_tasks
         try:
             if anime.players:
                 for player in anime.players:
+                    embed_url = player.embed_url
+
+                    # Если в БД остались старые ссылки на недоступный домен aniboom.me — переписываем на зеркало.
+                    # Управляется через env:
+                    # - ANIBOOM_BLOCKED_HOST (default: aniboom.me)
+                    # - ANIBOOM_EMBED_HOST   (default: animego.me)
+                    try:
+                        blocked_host = (os.getenv("ANIBOOM_BLOCKED_HOST") or "aniboom.me").lower()
+                        mirror_host = (os.getenv("ANIBOOM_EMBED_HOST") or "animego.me").lower()
+                        if embed_url and blocked_host in embed_url.lower():
+                            parsed = urlparse(embed_url)
+                            netloc = (parsed.netloc or "").lower()
+                            if netloc == blocked_host or netloc.endswith("." + blocked_host):
+                                embed_url = urlunparse(parsed._replace(netloc=mirror_host))
+                    except Exception:
+                        # Никогда не падаем из-за rewrite; просто отдаем исходную ссылку
+                        embed_url = player.embed_url
+
                     players.append({
                         'id': player.id,
-                        'embed_url': player.embed_url,
+                        'embed_url': embed_url,
                         'translator': player.translator,
                         'quality': player.quality
                     })

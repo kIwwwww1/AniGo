@@ -44,14 +44,25 @@ function WatchPage() {
 
   useEffect(() => {
     if (anime && anime.players && anime.players.length > 0) {
-      // Используем первый доступный плеер
-      const player = anime.players[0]
-      if (player) {
+      // Фильтруем плееры с валидными embed_url
+      const validPlayers = anime.players.filter(p => p.embed_url && p.embed_url.trim() !== '')
+      console.log('Все плееры:', anime.players)
+      console.log('Валидные плееры:', validPlayers)
+      
+      if (validPlayers.length > 0) {
+        // Используем первый валидный плеер
+        const player = validPlayers[0]
         setSelectedPlayer({
           ...player,
           embed_url: player.embed_url
         })
+      } else {
+        console.warn('Нет валидных плееров с embed_url')
+        setSelectedPlayer(null)
       }
+    } else {
+      console.warn('Плееры не найдены:', anime?.players)
+      setSelectedPlayer(null)
     }
   }, [anime])
 
@@ -503,6 +514,37 @@ function WatchPage() {
         {/* Основной контент: плеер слева, случайные аниме справа */}
         <div className="watch-content-section">
           <div className="watch-main-content">
+            {/* Переключатель плееров */}
+            {(() => {
+              // Фильтруем только валидные плееры с embed_url
+              const validPlayers = anime.players?.filter(p => p.embed_url && p.embed_url.trim() !== '') || []
+              console.log('Отображение переключателя. Валидных плееров:', validPlayers.length)
+              
+              // Показываем переключатель только если есть 2 или больше валидных плеера
+              if (validPlayers.length > 1) {
+                return (
+                  <div className="player-switcher">
+                    <span className="player-switcher-label">Плеер:</span>
+                    <div className="player-switcher-buttons">
+                      {validPlayers.map((player, index) => (
+                        <button
+                          key={player.id}
+                          className={`player-switcher-btn ${selectedPlayer?.id === player.id ? 'active' : ''}`}
+                          onClick={() => setSelectedPlayer({
+                            ...player,
+                            embed_url: player.embed_url
+                          })}
+                        >
+                          {player.player_name || `Плеер ${index + 1}`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              }
+              return null
+            })()}
+
             {/* Видеоплеер */}
             <div className="video-player-container">
               {selectedPlayer ? (
