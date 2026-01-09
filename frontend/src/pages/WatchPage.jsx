@@ -30,6 +30,8 @@ function WatchPage() {
   const [commentsHasMore, setCommentsHasMore] = useState(true)
   const [hasAnyComments, setHasAnyComments] = useState(false) // Есть ли комментарии вообще
   const [avatarErrors, setAvatarErrors] = useState({}) // Ошибки загрузки аватарок комментариев
+  const [mousePosition, setMousePosition] = useState({ x: 0.5, y: 0.5 }) // Позиция мыши для голографического эффекта
+  const [isHoveringPoster, setIsHoveringPoster] = useState(false) // Наведена ли мышь на постер
   const commentsLimit = 4 // Количество комментариев на странице
 
   useEffect(() => {
@@ -301,6 +303,19 @@ function WatchPage() {
     setOpenReportMenu(openReportMenu === commentId ? null : commentId)
   }
 
+  const handlePosterMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / rect.width
+    const y = (e.clientY - rect.top) / rect.height
+    setMousePosition({ x, y })
+    setIsHoveringPoster(true)
+  }
+
+  const handlePosterMouseLeave = () => {
+    setIsHoveringPoster(false)
+    setMousePosition({ x: 0.5, y: 0.5 })
+  }
+
   if (loading) {
     return (
       <div className="watch-page">
@@ -356,12 +371,25 @@ function WatchPage() {
       <div className="container">
         {/* Верхняя часть: постер слева, данные справа */}
         <div className="watch-header-section">
-          <div className="anime-poster-container">
-            <img
-              src={anime.poster_url || '/placeholder.jpg'}
-              alt={anime.title}
-              className="anime-poster-main"
-            />
+          <div 
+            className="anime-poster-container"
+            onMouseMove={handlePosterMouseMove}
+            onMouseLeave={handlePosterMouseLeave}
+          >
+            <div 
+              className={`holographic-poster-wrapper ${isHoveringPoster ? 'hover' : ''}`}
+              style={{
+                '--mouse-x': mousePosition.x,
+                '--mouse-y': mousePosition.y,
+              }}
+            >
+              <img
+                src={anime.poster_url || '/placeholder.jpg'}
+                alt={anime.title}
+                className="anime-poster-main"
+              />
+              <div className="holographic-overlay"></div>
+            </div>
             {anime.score && (
               <div className="anime-score-badge">
                 <span>★</span> {anime.score.toFixed(1)}

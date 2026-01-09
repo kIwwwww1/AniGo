@@ -212,7 +212,7 @@ async def get_popular_anime(paginator_data: PaginatorData, session: AsyncSession
             # Оценка аниме не ниже 7.5
             AnimeModel.score >= 7.5,
             # Комментариев минимум 6
-            comments_subquery >= 6,
+            # comments_subquery >= 6,
             # Дата последнего обновления за последние 2 недели
             AnimeModel.last_updated >= two_weeks_ago,
             AnimeModel.last_updated <= now,
