@@ -16,6 +16,9 @@ function WatchPage() {
   const [error, setError] = useState(null)
   const [authError, setAuthError] = useState(false)
   const [selectedPlayer, setSelectedPlayer] = useState(null)
+  const [selectedEpisode, setSelectedEpisode] = useState(null)
+  const [selectedDub, setSelectedDub] = useState(null)
+  const [selectedVideo, setSelectedVideo] = useState(null)
   const [commentText, setCommentText] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
@@ -35,6 +38,12 @@ function WatchPage() {
   useEffect(() => {
     // Прокручиваем страницу вверх при переходе на страницу аниме
     window.scrollTo(0, 0)
+    // Сбрасываем выбранные значения при переходе на другое аниме
+    setSelectedPlayer(null)
+    setSelectedEpisode(null)
+    setSelectedDub(null)
+    setSelectedVideo(null)
+    setAnime(null) // Сбрасываем данные аниме
     loadAnime()
     loadRandomAnime()
     checkFavoriteStatus()
@@ -43,17 +52,99 @@ function WatchPage() {
   }, [animeId])
 
   useEffect(() => {
-    if (anime && anime.players && anime.players.length > 0) {
-      // Используем первый доступный плеер
+    if (!anime) return
+    
+    console.log('Anime data:', {
+      hasEpisodes: !!anime.episodes,
+      episodesLength: anime.episodes?.length || 0,
+      hasPlayers: !!anime.players,
+      playersLength: anime.players?.length || 0,
+      episodes: anime.episodes,
+      players: anime.players
+    })
+    
+    // Сбрасываем предыдущие выборы
+    setSelectedEpisode(null)
+    setSelectedDub(null)
+    setSelectedVideo(null)
+    
+    let playerSet = false
+    
+    // Проверяем новый формат с эпизодами
+    if (anime.episodes && Array.isArray(anime.episodes) && anime.episodes.length > 0) {
+      // Выбираем первый эпизод по умолчанию
+      const firstEpisode = anime.episodes[0]
+      console.log('First episode:', firstEpisode)
+      
+      if (firstEpisode && firstEpisode.dubs && Array.isArray(firstEpisode.dubs) && firstEpisode.dubs.length > 0) {
+        setSelectedEpisode(firstEpisode)
+        
+        // Выбираем первую озвучку
+        const firstDub = firstEpisode.dubs[0]
+        console.log('First dub:', firstDub)
+        
+        if (firstDub && firstDub.videos && Array.isArray(firstDub.videos) && firstDub.videos.length > 0) {
+          setSelectedDub(firstDub)
+          
+          // Выбираем первое видео (лучшее качество или первое доступное)
+          const bestVideo = firstDub.videos.find(v => v && v.quality === '1080p') || 
+                           firstDub.videos.find(v => v && v.quality === '720p') || 
+                           firstDub.videos[0]
+          console.log('Best video:', bestVideo)
+          
+          if (bestVideo && bestVideo.url) {
+            setSelectedVideo(bestVideo)
+            
+            // Устанавливаем плеер
+            setSelectedPlayer({
+              id: bestVideo.id,
+              embed_url: bestVideo.url,
+              translator: firstDub.studio,
+              quality: bestVideo.quality
+            })
+            playerSet = true
+          } else {
+            console.warn('Best video has no URL')
+          }
+        } else {
+          console.warn('No videos in first dub')
+        }
+      } else {
+        console.warn('No dubs in first episode')
+      }
+    }
+    
+    // Fallback на старый формат, если новый формат не сработал или нет эпизодов
+    if (!playerSet && anime.players && Array.isArray(anime.players) && anime.players.length > 0) {
+      console.log('Using fallback: old players format')
       const player = anime.players[0]
-      if (player) {
+      if (player && player.embed_url) {
         setSelectedPlayer({
           ...player,
           embed_url: player.embed_url
         })
+        playerSet = true
+      } else {
+        console.warn('Player has no embed_url')
       }
     }
+    
+    if (!playerSet) {
+      console.warn('No episodes or players available')
+    }
   }, [anime])
+  
+  // Обновляем плеер при изменении выбранных параметров
+  useEffect(() => {
+    if (selectedEpisode && selectedDub && selectedVideo) {
+      setSelectedPlayer({
+        id: selectedVideo.id,
+        embed_url: selectedVideo.url,
+        translator: selectedDub.studio,
+        quality: selectedVideo.quality
+      })
+    }
+  }, [selectedEpisode, selectedDub, selectedVideo])
 
   useEffect(() => {
     // Закрываем меню рейтинга при клике вне его
@@ -503,12 +594,104 @@ function WatchPage() {
         {/* Основной контент: плеер слева, случайные аниме справа */}
         <div className="watch-content-section">
           <div className="watch-main-content">
+            {/* Селекторы для выбора серии, озвучки и плеера */}
+            {anime.episodes && anime.episodes.length > 0 && (
+              <div className="episode-selectors">
+                {/* Выбор серии */}
+                <div className="selector-group">
+                  <label className="selector-label">Серия:</label>
+                  <select 
+                    className="episode-select"
+                    value={selectedEpisode?.episode_number || ''}
+                    onChange={(e) => {
+                      const episode = anime.episodes.find(ep => ep.episode_number === parseInt(e.target.value))
+                      setSelectedEpisode(episode)
+                      if (episode && episode.dubs && episode.dubs.length > 0) {
+                        setSelectedDub(episode.dubs[0])
+                        if (episode.dubs[0].videos && episode.dubs[0].videos.length > 0) {
+                          const bestVideo = episode.dubs[0].videos.find(v => v.quality === '1080p') || 
+                                           episode.dubs[0].videos.find(v => v.quality === '720p') || 
+                                           episode.dubs[0].videos[0]
+                          setSelectedVideo(bestVideo)
+                        }
+                      }
+                    }}
+                  >
+                    {anime.episodes.map((ep) => (
+                      <option key={ep.episode_number} value={ep.episode_number}>
+                        {ep.episode_number}. {ep.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Выбор озвучки */}
+                {selectedEpisode && selectedEpisode.dubs && selectedEpisode.dubs.length > 0 && (
+                  <div className="selector-group">
+                    <label className="selector-label">Озвучка:</label>
+                    <select 
+                      className="dub-select"
+                      value={selectedDub?.studio || ''}
+                      onChange={(e) => {
+                        const dub = selectedEpisode.dubs.find(d => d.studio === e.target.value)
+                        setSelectedDub(dub)
+                        if (dub && dub.videos && dub.videos.length > 0) {
+                          const bestVideo = dub.videos.find(v => v.quality === '1080p') || 
+                                           dub.videos.find(v => v.quality === '720p') || 
+                                           dub.videos[0]
+                          setSelectedVideo(bestVideo)
+                        }
+                      }}
+                    >
+                      {selectedEpisode.dubs.map((dub, idx) => (
+                        <option key={idx} value={dub.studio}>
+                          {dub.studio}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Выбор качества/плеера */}
+                {selectedDub && selectedDub.videos && selectedDub.videos.length > 0 && (
+                  <div className="selector-group">
+                    <label className="selector-label">Качество:</label>
+                    <select 
+                      className="quality-select"
+                      value={selectedVideo?.id || ''}
+                      onChange={(e) => {
+                        const video = selectedDub.videos.find(v => v.id === parseInt(e.target.value))
+                        setSelectedVideo(video)
+                      }}
+                    >
+                      {selectedDub.videos.map((video) => (
+                        <option key={video.id} value={video.id}>
+                          {video.quality} ({video.player})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Видеоплеер */}
             <div className="video-player-container">
               {selectedPlayer ? (
                 <VideoPlayer player={selectedPlayer} />
               ) : (
-                <div className="no-player">Плеер не доступен</div>
+                <div className="no-player">
+                  {anime.episodes && anime.episodes.length === 0 && anime.players && anime.players.length === 0 ? (
+                    <div>
+                      <p>Эпизоды загружаются...</p>
+                      <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+                        Пожалуйста, подождите несколько секунд и обновите страницу
+                      </p>
+                    </div>
+                  ) : (
+                    'Плеер не доступен'
+                  )}
+                </div>
               )}
             </div>
 

@@ -56,16 +56,29 @@ async def get_anime_by_name(anime_name: str, session: SessionDep, background_tas
                 continue
         
         # Запускаем фоновую задачу для поиска и добавления новых аниме
-        background_tasks.add_task(background_search_and_add_anime, anime_name)
-        logger.info(f"🔄 Запущена фоновая задача для поиска новых аниме: '{anime_name}'")
+        # Проверяем, не выполняется ли уже поиск для этого названия
+        from src.parsers.new_parser import _active_searches
+        normalized_name = anime_name.lower().strip()
+        
+        if normalized_name not in _active_searches:
+            background_tasks.add_task(background_search_and_add_anime, anime_name)
+            logger.info(f"🔄 Запущена фоновая задача для поиска новых аниме: '{anime_name}'")
+        else:
+            logger.info(f"⏭️ Поиск для '{anime_name}' уже выполняется, пропускаем повторный запуск")
         
         return {'message': result}
     
     except HTTPException:
         # Если не нашли в БД, все равно запускаем фоновую задачу
         # и возвращаем пустой список (пользователь получит результаты при следующем запросе)
-        background_tasks.add_task(background_search_and_add_anime, anime_name)
-        logger.info(f"⚠️ Аниме '{anime_name}' не найдено в БД, запущена фоновая задача для поиска")
+        from src.parsers.new_parser import _active_searches
+        normalized_name = anime_name.lower().strip()
+        
+        if normalized_name not in _active_searches:
+            background_tasks.add_task(background_search_and_add_anime, anime_name)
+            logger.info(f"⚠️ Аниме '{anime_name}' не найдено в БД, запущена фоновая задача для поиска")
+        else:
+            logger.info(f"⏭️ Поиск для '{anime_name}' уже выполняется, пропускаем повторный запуск")
         return {'message': []}
 
 
@@ -134,7 +147,95 @@ async def watch_anime_by_id(anime_id: int, session: SessionDep, background_tasks
         except Exception as e:
             logger.error(f'Ошибка при конвертации жанров: {e}', exc_info=True)
         
-        # Конвертируем players
+        # Конвертируем episodes с группировкой по номеру эпизода
+        episodes = []
+        try:
+            if anime.episodes:
+                # Группируем плееры по эпизодам
+                from collections import defaultdict
+                episodes_dict = {}
+                
+                # Сначала собираем все эпизоды
+                for episode in sorted(anime.episodes, key=lambda x: x.episode_number):
+                    episodes_dict[episode.episode_number] = {
+                        'episode_number': episode.episode_number,
+                        'title': episode.title,
+                        'dubs': defaultdict(lambda: {
+                            'studio': '',
+                            'videos': []
+                        })
+                    }
+                
+                # Затем добавляем плееры к соответствующим эпизодам
+                if anime.players:
+                    for player_link in anime.players:
+                        # Проверяем, что плеер действительно принадлежит этому аниме
+                        if player_link.anime_id != anime.id:
+                            logger.warning(f"⚠️ Плеер {player_link.id} не принадлежит аниме {anime.id}, пропускаем")
+                            continue
+                        
+                        # Извлекаем номер эпизода из external_id (формат: "shikimori_id_player_name_episode_number_studio_quality")
+                        episode_number = None
+                        try:
+                            if not player_link.external_id:
+                                continue
+                            
+                            parts = player_link.external_id.split('_')
+                            # Формат: shikimori_id_player_name_episode_number_studio_quality
+                            # Минимум должно быть 5 частей: shikimori_id, player_name, episode_number, studio, quality
+                            if len(parts) >= 5:
+                                # Номер эпизода - это третий элемент (индекс 2)
+                                try:
+                                    episode_number = int(parts[2])
+                                except (ValueError, IndexError):
+                                    # Если не удалось, пробуем найти первое число после shikimori_id
+                                    for i in range(1, len(parts)):
+                                        try:
+                                            num = int(parts[i])
+                                            # Проверяем, что это разумный номер эпизода (от 1 до 1000)
+                                            if 1 <= num <= 1000:
+                                                episode_number = num
+                                                break
+                                        except ValueError:
+                                            continue
+                        except (ValueError, IndexError, AttributeError) as e:
+                            logger.debug(f"Не удалось извлечь номер эпизода из external_id '{player_link.external_id}': {e}")
+                            continue
+                        
+                        if episode_number and episode_number in episodes_dict:
+                            studio = player_link.translator or "Неизвестно"
+                            dub_key = studio
+                            
+                            episodes_dict[episode_number]['dubs'][dub_key]['studio'] = studio
+                            episodes_dict[episode_number]['dubs'][dub_key]['videos'].append({
+                                'id': player_link.id,
+                                'url': player_link.embed_url,
+                                'quality': player_link.quality,
+                                'player': player_link.player.name if player_link.player else 'unknown'
+                            })
+                
+                # Преобразуем в список и сортируем по номеру эпизода
+                for ep_num in sorted(episodes_dict.keys()):
+                    ep_data = episodes_dict[ep_num]
+                    # Преобразуем defaultdict в обычный dict и затем в список
+                    dubs_list = []
+                    for dub_key, dub_data in ep_data['dubs'].items():
+                        # Добавляем только если есть видео
+                        if dub_data['videos']:
+                            dubs_list.append({
+                                'studio': dub_data['studio'],
+                                'videos': dub_data['videos']
+                            })
+                    # Добавляем эпизод только если есть хотя бы одна озвучка с видео
+                    if len(dubs_list) > 0:
+                        ep_data['dubs'] = dubs_list
+                        episodes.append(ep_data)
+            
+            logger.info(f'Конвертировано эпизодов: {len(episodes)}')
+        except Exception as e:
+            logger.error(f'Ошибка при конвертации эпизодов: {e}', exc_info=True)
+        
+        # Конвертируем players (для обратной совместимости)
         players = []
         try:
             if anime.players:
@@ -205,7 +306,8 @@ async def watch_anime_by_id(anime_id: int, session: SessionDep, background_tasks
                 'studio': anime.studio,
                 'status': anime.status,
                 'genres': genres,
-                'players': players,
+                'players': players,  # Для обратной совместимости
+                'episodes': episodes,  # Новая структура с эпизодами, озвучками и видео
                 'comments': comments
             }
             logger.info(f'Успешно создан словарь для аниме {anime_id}')

@@ -410,6 +410,59 @@
   gap: 2rem;
 }
 
+.episode-selectors {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(26, 26, 26, 0.3) 0%, rgba(20, 20, 20, 0.3) 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.selector-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 150px;
+}
+
+.selector-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #b3b3b3);
+  font-weight: 500;
+}
+
+.episode-select,
+.dub-select,
+.quality-select {
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: var(--text-primary, #ffffff);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+.episode-select:hover,
+.dub-select:hover,
+.quality-select:hover {
+  border-color: var(--user-accent-color, var(--accent, #e50914));
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.episode-select:focus,
+.dub-select:focus,
+.quality-select:focus {
+  border-color: var(--user-accent-color, var(--accent, #e50914));
+  box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.2);
+}
+
 .video-player-container {
   width: 100%;
   background-color: var(--bg-card);
