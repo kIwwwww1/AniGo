@@ -7,6 +7,8 @@ from sqlalchemy import select, func, and_, or_
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError, IntegrityError
 from anime_parsers_ru import ShikimoriParserAsync
 from anime_parsers_ru.errors import ServiceError, NoResults
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
 # 
 from src.parsers.kodik import get_anime_by_shikimori_id
 from src.models.anime import AnimeModel
@@ -22,6 +24,42 @@ parser_shikimori = ShikimoriParserAsync()
 
 base_get_url = 'https://shikimori.one/animes/'
 new_base_get_url = 'https://shikimori.one/animes/z'
+
+class RateLimitError(Exception):
+    pass
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=30),
+    retry=retry_if_exception_type(RateLimitError)
+)
+
+
+async def safe_shikimori_search(title: str):
+    try:
+        return await parser_shikimori.search(title=title)
+    except ServiceError as e:
+        if "429" in str(e) or "too many requests" in str(e).lower():
+            logger.warning(f"⚠️ Получен 429 при поиске '{title}', повторная попытка...")
+            raise RateLimitError("Shikimori rate limit hit")
+        raise
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=30),
+    retry=retry_if_exception_type(RateLimitError)
+)
+
+
+async def safe_shikimori_anime_info(url: str):
+    try:
+        return await parser_shikimori.anime_info(shikimori_link=url)
+    except ServiceError as e:
+        if "429" in str(e) or "too many requests" in str(e).lower():
+            logger.warning(f"⚠️ Получен 429 при запросе {url}, повторная попытка...")
+            raise RateLimitError("Shikimori rate limit hit")
+        raise
 
 
 async def get_or_create_genre(session: AsyncSession, genre_name: str):
@@ -140,7 +178,7 @@ async def background_search_and_add_anime(anime_name: str):
                 await asyncio.sleep(2.0)
                 
                 # Ищем на shikimori по названию (может вернуть много результатов)
-                shikimori_results = await parser_shikimori.search(title=anime_name)
+                shikimori_results = await safe_shikimori_search(anime_name)
                 
                 if shikimori_results:
                     logger.info(f"📋 Найдено {len(shikimori_results)} аниме на shikimori для '{anime_name}'")
@@ -174,7 +212,7 @@ async def background_search_and_add_anime(anime_name: str):
                     # Получаем полную информацию об аниме из Shikimori
                     anime = None
                     try:
-                        anime = await parser_shikimori.anime_info(shikimori_link=f"{base_get_url}{shikimori_id}")
+                        anime = await safe_shikimori_anime_info(f"{base_get_url}{shikimori_id}")
                         if anime:
                             logger.info(f"📥 Получено аниме из shikimori: {anime.get('title', 'Без названия')}")
                     except ServiceError as e:
@@ -592,7 +630,7 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
         await asyncio.sleep(2.0)
         
         # Ищем на shikimori по названию (может вернуть много результатов)
-        shikimori_results = await parser_shikimori.search(title=anime_name)
+        shikimori_results = await safe_shikimori_search(anime_name)
         
         if shikimori_results:
             logger.info(f"📋 Найдено {len(shikimori_results)} аниме на shikimori для '{anime_name}'")
@@ -635,7 +673,7 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
             # Получаем полную информацию об аниме из Shikimori
             anime = None
             try:
-                anime = await parser_shikimori.anime_info(shikimori_link=f"{base_get_url}{shikimori_id}")
+                anime = await safe_shikimori_anime_info(f"{base_get_url}{shikimori_id}")
                 if anime:
                     logger.info(f"📥 Получено аниме из shikimori: {anime.get('title', 'Без названия')}")
             except ServiceError as e:
