@@ -6,6 +6,8 @@ from anime_parsers_ru import KodikParserAsync
 from anime_parsers_ru.errors import ServiceError, NoResults
 # 
 from src.models.anime import AnimeModel
+# 
+# from anime_parsers_ru.parser_aniboom_async
 
 parser_kodik = KodikParserAsync()
 

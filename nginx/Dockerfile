@@ -15,3 +15,5 @@ EXPOSE 80 443
 # Команда запуска
 CMD ["nginx", "-g", "daemon off;"]
 
+
+
