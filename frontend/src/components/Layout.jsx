@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { userAPI, animeAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
 import CrownIcon from './CrownIcon'
+import ScrollProgress from './ScrollProgress'
 import './Layout.css'
 
 function Layout({ children }) {
@@ -393,6 +394,7 @@ function Layout({ children }) {
 
   return (
     <div className="layout">
+      <ScrollProgress />
       <header className={`header ${scrolled ? 'scrolled' : ''}`}>
         <div className="container">
           <div className="header-left">
