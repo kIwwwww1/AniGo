@@ -159,6 +159,24 @@ function HomePage() {
         <section className="hero">
           <h2 className="hero-title">Добро пожаловать в Yumivo</h2>
           <p className="hero-subtitle">Yumivo — аниме, которое хочется смотреть</p>
+          {/* <p className="hero-recommendation">Чтобы избежать показа рекламы во время просмотра, мы рекомендуем установить расширение uBlock Origin Lite из официального магазина расширений Google Chrome</p> */}
+          <p className="hero-recommendation">
+  Чтобы избежать показа рекламы во время просмотра, мы рекомендуем установить расширение{" "}
+  <a
+    href="https://chromewebstore.google.com/detail/ublock-origin-lite/ddkjiahejlhfcafbddmgiahcphecmpfh?hl=ru"
+    target="_blank"
+    rel="noopener noreferrer"
+    style={{
+      color: '#666',         // стандартный цвет ссылок в Chrome
+      textDecoration: 'underline', // подчёркивание
+      fontWeight: 'normal'
+    }}
+  >
+    uBlock Origin Lite
+  </a>{" "}
+  из официального магазина расширений Google Chrome
+</p>
+          <p className="hero-disclaimer">это не является рекламой, и мы никого не обязываем его устанавливать</p>
         </section>
 
         {/* Карусель популярных аниме */}
