@@ -6,8 +6,6 @@
   border-radius: 12px;
   overflow: hidden;
   animation: playerFadeInUp 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  opacity: 0;
-  transform: translateY(30px);
 }
 
 @keyframes playerFadeInUp {
@@ -41,7 +39,6 @@
   overflow: hidden;
   background-color: #000;
   animation: iframeFadeIn 0.8s ease-out 0.3s forwards;
-  opacity: 0;
 }
 
 @keyframes iframeFadeIn {

@@ -549,7 +549,7 @@ function WatchPage() {
               )}
             </div>
             
-            {anime.description && (
+            {anime.description && anime.description !== 'Нет описания' && (
               <div className="anime-description-section">
                 <h3 className="section-title">Обзор</h3>
                 <div className={`description-wrapper ${isDescriptionExpanded ? 'expanded' : ''}`}>
