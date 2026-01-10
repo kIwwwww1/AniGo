@@ -24,6 +24,16 @@
               0 0 80px var(--user-accent-color-shadow, rgba(229, 9, 20, 0.2));
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  animation: headerFadeIn 0.8s ease-out forwards;
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+@keyframes headerFadeIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .anime-poster-container {
@@ -442,6 +452,30 @@
   gap: 2rem;
 }
 
+/* Обёртка контейнера плеера с анимацией */
+.watch-main-content > .video-player-container {
+  animation: playerContainerAppear 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+  transform: translateY(40px) scale(0.94);
+}
+
+@keyframes playerContainerAppear {
+  0% {
+    opacity: 0;
+    transform: translateY(40px) scale(0.94);
+    filter: blur(8px);
+  }
+  60% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
 .video-player-container {
   width: 100%;
   background-color: var(--bg-card);
@@ -450,6 +484,12 @@
   aspect-ratio: 16 / 9;
   height: auto;
   position: relative;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  transition: box-shadow 0.3s ease;
+}
+
+.video-player-container:hover {
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
 }
 
 .no-player {
@@ -471,6 +511,16 @@
   background-color: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
+  animation: fadeInUp 0.8s ease-out 0.3s forwards;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .player-recommendation-text {
@@ -507,10 +557,14 @@
   gap: 0.75rem;
   margin-top: 1rem;
   margin-bottom: 2rem;
+  animation: fadeInUp 0.8s ease-out 0.5s forwards;
+  opacity: 0;
+  transform: translateY(20px);
 }
 
 .rating-button-wrapper {
   position: relative;
+  z-index: 1001;
 }
 
 .rate-button {
@@ -524,6 +578,18 @@
   cursor: pointer;
   transition: all 0.3s ease;
   font-family: inherit;
+  animation: buttonPulse 2s ease-in-out 1.3s;
+}
+
+@keyframes buttonPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 var(--user-accent-color-shadow, rgba(229, 9, 20, 0.4));
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px 5px var(--user-accent-color-shadow, rgba(229, 9, 20, 0.3));
+  }
 }
 
 .rate-button:hover:not(:disabled) {
@@ -540,28 +606,29 @@
 
 .rating-menu {
   position: absolute;
-  top: calc(100% + 0.5rem);
+  bottom: calc(100% + 0.5rem);
   right: 0;
   background-color: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 1.5rem;
+  padding: 1rem;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  z-index: 100;
-  min-width: 400px;
+  z-index: 1002;
+  min-width: 320px;
+  max-width: 350px;
 }
 
 .rating-slider-container {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .rating-slider-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
 .rating-slider-label {
@@ -571,7 +638,7 @@
 }
 
 .rating-slider-value {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   color: var(--user-accent-color, var(--accent));
   font-weight: 700;
   display: flex;
@@ -582,7 +649,7 @@
 }
 
 .rating-slider-value .rating-star {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   line-height: 1;
   color: inherit;
   animation: pulse 2s ease-in-out infinite;
@@ -714,16 +781,16 @@
 
 .rating-submit-button {
   width: 100%;
-  padding: 0.75rem 1.5rem;
+  padding: 0.625rem 1.25rem;
   background-color: var(--user-accent-color, var(--accent));
   color: white;
   border: none;
   border-radius: 12px;
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  margin-top: 0.5rem;
+  margin-top: 0.25rem;
 }
 
 .rating-submit-button:hover:not(:disabled) {
@@ -754,6 +821,7 @@
   cursor: pointer;
   transition: all 0.3s ease;
   padding: 0;
+  animation: buttonPulse 2s ease-in-out 1.5s;
 }
 
 .favorite-button:hover {
@@ -785,6 +853,11 @@
 .comments-section {
   max-width: 800px;
   padding: 1.5rem 0;
+  animation: fadeInUp 0.8s ease-out 0.7s forwards;
+  opacity: 0;
+  transform: translateY(20px);
+  position: relative;
+  z-index: 1;
 }
 
 .comment-form {
@@ -797,6 +870,7 @@
 
 .comment-input-wrapper {
   position: relative;
+  z-index: 1;
 }
 
 .comment-input {
@@ -1145,6 +1219,16 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  animation: fadeInRight 0.8s ease-out 0.4s forwards;
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+@keyframes fadeInRight {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .sidebar-title {
@@ -1207,6 +1291,16 @@
 }
 
 @media (max-width: 768px) {
+  /* Упрощаем анимации на мобильных для лучшей производительности */
+  .watch-header-section,
+  .watch-main-content > .video-player-container,
+  .player-recommendation,
+  .player-actions,
+  .comments-section,
+  .watch-sidebar-content {
+    animation-duration: 0.5s;
+  }
+  
   .watch-header-section {
     grid-template-columns: 1fr;
     gap: 1.5rem;
@@ -1253,8 +1347,9 @@
   }
 
   .rating-menu {
-    min-width: 300px;
-    padding: 1rem;
+    min-width: 280px;
+    max-width: 320px;
+    padding: 0.875rem;
   }
 
   .rating-slider-header {
@@ -1273,5 +1368,24 @@
 
   .rating-slider-mark {
     font-size: 0.7rem;
+  }
+}
+
+/* Отключаем сложные анимации для пользователей с prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .watch-header-section,
+  .watch-main-content > .video-player-container,
+  .player-recommendation,
+  .player-actions,
+  .comments-section,
+  .watch-sidebar-content {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  
+  .rate-button,
+  .favorite-button {
+    animation: none;
   }
 }
