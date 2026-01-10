@@ -630,6 +630,31 @@
   color: var(--text-secondary);
 }
 
+.footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.footer-links a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.3s ease;
+  font-size: 0.9rem;
+}
+
+.footer-links a:hover {
+  color: var(--text-primary);
+}
+
+.footer-separator {
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
 .container {
   max-width: 1400px;
   margin: 0 auto;

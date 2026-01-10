@@ -11,6 +11,8 @@ import PopularAnimePage from './pages/PopularAnimePage'
 import AllAnimePage from './pages/AllAnimePage'
 import VerifyEmailPage from './pages/VerifyEmailPage'
 import AdminPanel from './pages/AdminPanel'
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
+import TermsOfUsePage from './pages/TermsOfUsePage'
 import Layout from './components/Layout'
 import ScrollToTop from './components/ScrollToTop'
 import PageTransition from './components/PageTransition'
@@ -221,6 +223,8 @@ function App() {
             <Route path="/anime/all/popular" element={<PopularAnimePage />} />
             <Route path="/anime/all/anime" element={<AllAnimePage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/documents/privacy-policy" element={<PrivacyPolicyPage />} />
+            <Route path="/documents/terms-of-use" element={<TermsOfUsePage />} />
           </Routes>
         </Layout>
       </PageTransition>

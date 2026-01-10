@@ -130,7 +130,6 @@ terms_of_use_text = (
 
 @documents_router.get('/privacy-policy')
 async def get_privacy_policy():
-    print(privacy_policy_text)
     return privacy_policy_text
 
 

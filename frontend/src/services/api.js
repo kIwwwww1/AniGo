@@ -327,5 +327,19 @@ export const adminAPI = {
   },
 }
 
+export const documentsAPI = {
+  // Получить политику конфиденциальности
+  getPrivacyPolicy: async () => {
+    const response = await api.get('/documents/privacy-policy')
+    return response.data
+  },
+
+  // Получить условия использования
+  getTermsOfUse: async () => {
+    const response = await api.get('/documents/terms-of-use')
+    return response.data
+  },
+}
+
 export default api
 

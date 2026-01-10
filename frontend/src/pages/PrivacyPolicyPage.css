@@ -1,0 +1,48 @@
+.document-page {
+  min-height: calc(100vh - 200px);
+  padding: 2rem 0;
+}
+
+.document-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.document-container h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 2rem;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.document-content {
+  background: linear-gradient(135deg, rgba(26, 26, 26, 0.3) 0%, rgba(20, 20, 20, 0.3) 100%);
+  border-radius: 16px;
+  padding: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  line-height: 1.8;
+  color: var(--text-secondary);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 
+              0 0 40px var(--user-accent-color-shadow, rgba(229, 9, 20, 0.4)),
+              0 0 80px var(--user-accent-color-shadow, rgba(229, 9, 20, 0.2));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.document-content p {
+  margin: 0.75rem 0;
+  white-space: pre-wrap;
+}
+
+.document-content .loading,
+.document-content .error {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
+.document-content .error {
+  color: var(--error-color, #ff4444);
+}

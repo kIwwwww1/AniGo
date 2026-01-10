@@ -682,6 +682,11 @@ function Layout({ children }) {
       <footer className="footer">
         <div className="container">
           <p>&copy; 2024 Yumivo. Все права защищены.</p>
+          <div className="footer-links">
+            <Link to="/documents/privacy-policy">Политика конфиденциальности</Link>
+            <span className="footer-separator">|</span>
+            <Link to="/documents/terms-of-use">Условия использования</Link>
+          </div>
         </div>
       </footer>
 
