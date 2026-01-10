@@ -43,6 +43,36 @@ pip install -r requirements.txt
 
 4. Настройте базу данных (PostgreSQL) и создайте файл `.env` с настройками подключения.
 
+   Минимальные переменные окружения для `.env`:
+   ```env
+   # База данных
+   DB_HOST=localhost
+   DB_PORT=5432
+   POSTGRES_USER=user
+   POSTGRES_PASSWORD=pass
+   POSTGRES_DB=anigo
+   
+   # SMTP настройки (для отправки писем подтверждения регистрации)
+   # Быстрая настройка Gmail (рекомендуется для начала):
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=ваш-email@gmail.com
+   SMTP_PASSWORD=ваш-пароль-приложения  # См. инструкцию ниже!
+   SMTP_FROM_EMAIL=ваш-email@gmail.com
+   FRONTEND_URL=http://localhost:3000
+   
+   # Или для reg.ru:
+   # SMTP_HOST=mail.hosting.reg.ru
+   # SMTP_PORT=587
+   # SMTP_USER=noreply@ваш-домен.ru
+   # SMTP_PASSWORD=ваш-пароль
+   # SMTP_FROM_EMAIL=noreply@ваш-домен.ru
+   ```
+   
+   **📧 Подробная инструкция по настройке SMTP (Gmail, reg.ru, Yandex):** см. [SMTP_SETUP.md](SMTP_SETUP.md)
+   
+   **Важно для Gmail:** Нужен пароль приложения, а не обычный пароль! Создайте его здесь: https://myaccount.google.com/apppasswords
+
 5. Запустите сервер:
 ```bash
 python -m uvicorn src.main:app --reload --host 0.0.0.0 --port 8000

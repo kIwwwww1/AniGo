@@ -644,10 +644,25 @@
   text-decoration: none;
   transition: color 0.3s ease;
   font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
 }
 
 .footer-links a:hover {
   color: var(--text-primary);
+}
+
+.footer-telegram-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+.footer-telegram-link svg {
+  transition: transform 0.3s ease;
+}
+
+.footer-telegram-link:hover svg {
+  transform: scale(1.1);
 }
 
 .footer-separator {
