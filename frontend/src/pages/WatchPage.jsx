@@ -20,6 +20,7 @@ function WatchPage() {
   const [submittingComment, setSubmittingComment] = useState(false)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const [userRating, setUserRating] = useState(null)
+  const [tempRating, setTempRating] = useState(5) // Временное значение для слайдера
   const [submittingRating, setSubmittingRating] = useState(false)
   const [isRatingMenuOpen, setIsRatingMenuOpen] = useState(false)
   const [isFavorite, setIsFavorite] = useState(false)
@@ -37,12 +38,66 @@ function WatchPage() {
   useEffect(() => {
     // Прокручиваем страницу вверх при переходе на страницу аниме
     window.scrollTo(0, 0)
+    
+    // Сбрасываем все состояния при смене аниме
+    setUserRating(null)
+    setTempRating(5)
+    setIsRatingMenuOpen(false)
+    setIsFavorite(false)
+    setComments([])
+    setCommentsPage(0)
+    setCommentsHasMore(true)
+    setHasAnyComments(false)
+    
     loadAnime()
     loadRandomAnime()
     checkFavoriteStatus()
     checkUserRating()
     loadComments(0) // Загружаем первую страницу комментариев
+    loadAvatarBorderColor() // Загружаем цвет обводки аватарки
   }, [animeId])
+
+  // Загружаем цвет обводки аватарки и устанавливаем в CSS переменную
+  const loadAvatarBorderColor = async () => {
+    try {
+      const response = await userAPI.getCurrentUser()
+      if (response && response.message && response.message.username) {
+        const username = response.message.username
+        const savedColor = localStorage.getItem(`user_${username}_avatar_border_color`)
+        const availableColors = ['#ffffff', '#000000', '#808080', '#c4c4af', '#0066ff', '#00cc00', '#ff0000', '#ff69b4', '#ffd700', '#9932cc']
+        
+        if (savedColor && availableColors.includes(savedColor)) {
+          // Устанавливаем CSS переменную
+          document.documentElement.style.setProperty('--user-accent-color', savedColor)
+          
+          // Создаем rgba версию для hover эффектов
+          const hex = savedColor.replace('#', '')
+          const r = parseInt(hex.slice(0, 2), 16)
+          const g = parseInt(hex.slice(2, 4), 16)
+          const b = parseInt(hex.slice(4, 6), 16)
+          const rgba = `rgba(${r}, ${g}, ${b}, 0.1)`
+          document.documentElement.style.setProperty('--user-accent-color-rgba', rgba)
+          
+          // Создаем тень для box-shadow
+          const shadowRgba = `rgba(${r}, ${g}, ${b}, 0.4)`
+          document.documentElement.style.setProperty('--user-accent-color-shadow', shadowRgba)
+        }
+      }
+    } catch (err) {
+      // Пользователь не авторизован, игнорируем
+    }
+  }
+
+  // Слушаем изменения цвета обводки
+  useEffect(() => {
+    const handleAvatarBorderColorUpdate = () => {
+      loadAvatarBorderColor()
+    }
+    window.addEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
+    return () => {
+      window.removeEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
+    }
+  }, [])
 
   useEffect(() => {
     if (anime && anime.players && anime.players.length > 0) {
@@ -561,7 +616,13 @@ function WatchPage() {
               <div className="rating-button-wrapper">
                 <button
                   type="button"
-                  onClick={() => setIsRatingMenuOpen(!isRatingMenuOpen)}
+                  onClick={() => {
+                    // Инициализируем временное значение при открытии меню
+                    if (!isRatingMenuOpen) {
+                      setTempRating(userRating || 5)
+                    }
+                    setIsRatingMenuOpen(!isRatingMenuOpen)
+                  }}
                   className="rate-button"
                   disabled={submittingRating}
                 >
@@ -569,24 +630,46 @@ function WatchPage() {
                 </button>
                 {isRatingMenuOpen && (
                   <div className="rating-menu">
-                    <div className="rating-stars-menu">
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((rating) => (
-                        <button
-                          key={rating}
-                          type="button"
-                          onClick={() => handleSubmitRating(rating)}
-                          disabled={submittingRating}
-                          className={`rating-star-btn-menu ${userRating === rating ? 'selected' : ''}`}
-                          title={`Оценить на ${rating}`}
-                        >
+                    <div className="rating-slider-container">
+                      <div className="rating-slider-header">
+                        <span className="rating-slider-label">Выберите оценку:</span>
+                        <span className="rating-slider-value">
                           <span className="rating-star">★</span>
-                          <span className="rating-number">{rating}</span>
-                        </button>
-                      ))}
+                          {tempRating} / 10
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        step="1"
+                        value={tempRating}
+                        onChange={(e) => setTempRating(parseInt(e.target.value))}
+                        className="rating-slider"
+                        disabled={submittingRating}
+                        style={{
+                          background: `linear-gradient(to right, var(--user-accent-color, var(--accent)) 0%, var(--user-accent-color, var(--accent)) ${(tempRating - 1) * 11.11}%, var(--bg-secondary) ${(tempRating - 1) * 11.11}%, var(--bg-secondary) 100%)`
+                        }}
+                      />
+                      <div className="rating-slider-marks">
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                          <span 
+                            key={num} 
+                            className={`rating-slider-mark ${tempRating === num ? 'active' : ''}`}
+                          >
+                            {num}
+                          </span>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSubmitRating(tempRating)}
+                        disabled={submittingRating}
+                        className="rating-submit-button"
+                      >
+                        {submittingRating ? 'Отправка...' : 'Подтвердить'}
+                      </button>
                     </div>
-                    {submittingRating && (
-                      <p className="rating-submitting">Отправка...</p>
-                    )}
                   </div>
                 )}
               </div>
