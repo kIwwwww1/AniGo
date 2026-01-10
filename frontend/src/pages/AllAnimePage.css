@@ -72,9 +72,16 @@
 
 .section-title {
   font-size: 2rem;
-  font-weight: 700;
-  color: var(--text-primary, #ffffff);
+  font-weight: 900;
+  font-family: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--user-gradient-text, linear-gradient(135deg, #e50914 0%, #ff6b6b 50%, #ffd700 100%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+  text-shadow: 0 0 30px var(--user-accent-color-shadow, rgba(229, 9, 20, 0.3));
   margin: 0;
+  cursor: default;
 }
 
 .all-anime-grid {
