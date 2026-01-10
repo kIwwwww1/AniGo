@@ -463,6 +463,42 @@
   border-radius: 12px;
 }
 
+/* Рекомендация по uBlock Origin */
+.player-recommendation {
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+}
+
+.player-recommendation-text {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0 0 0.5rem 0;
+}
+
+.player-recommendation-link {
+  color: #666;
+  text-decoration: underline;
+  font-weight: normal;
+  transition: color 0.3s ease;
+}
+
+.player-recommendation-link:hover {
+  color: var(--text-primary);
+}
+
+.player-disclaimer {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  margin: 0;
+  line-height: 1.5;
+}
+
 /* Кнопки действий под плеером справа */
 .player-actions {
   display: flex;
@@ -1056,5 +1092,18 @@
 
   .detail-label {
     min-width: auto;
+  }
+
+  .player-recommendation {
+    padding: 0.875rem;
+    margin-top: 1rem;
+  }
+
+  .player-recommendation-text {
+    font-size: 0.85rem;
+  }
+
+  .player-disclaimer {
+    font-size: 0.75rem;
   }
 }

@@ -539,6 +539,23 @@ function WatchPage() {
               )}
             </div>
 
+            {/* Рекомендация по uBlock Origin */}
+            <div className="player-recommendation">
+              <p className="player-recommendation-text">
+                Чтобы избежать показа рекламы во время просмотра, мы рекомендуем установить расширение{" "}
+                <a
+                  href="https://chromewebstore.google.com/detail/ublock-origin-lite/ddkjiahejlhfcafbddmgiahcphecmpfh?hl=ru"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="player-recommendation-link"
+                >
+                  uBlock Origin Lite
+                </a>{" "}
+                из официального магазина расширений Google Chrome
+              </p>
+              <p className="player-disclaimer">это не является рекламой, и мы никого не обязываем его устанавливать</p>
+            </div>
+
             {/* Кнопки действий: Оценить и Избранное */}
             <div className="player-actions">
               <div className="rating-button-wrapper">
