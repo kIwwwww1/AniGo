@@ -388,13 +388,12 @@ function WatchPage() {
                 alt={anime.title}
                 className="anime-poster-main"
               />
-              <div className="holographic-overlay"></div>
+              {anime.score && (
+                <div className="anime-score-badge">
+                  <span>★</span> {anime.score.toFixed(1)}
+                </div>
+              )}
             </div>
-            {anime.score && (
-              <div className="anime-score-badge">
-                <span>★</span> {anime.score.toFixed(1)}
-              </div>
-            )}
           </div>
           
           <div className="anime-info-section">

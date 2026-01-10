@@ -12,6 +12,7 @@ from src.api.crud_database import database_router
 from src.api.crud_users import user_router
 from src.api.crud_anime import anime_router
 from src.api.crud_admin import admin_router
+from src.api.legal_documents import documents_router
 
 
 app = FastAPI()
@@ -51,6 +52,7 @@ app.include_router(database_router)
 app.include_router(user_router)
 app.include_router(anime_router)
 app.include_router(admin_router)
+app.include_router(documents_router)
 
 # Эндпоинт для отдачи аватарок пользователей
 @app.get("/avatars/{filename:path}")
