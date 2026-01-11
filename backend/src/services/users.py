@@ -722,8 +722,14 @@ async def add_new_user_photo(user_id: int, s3_url: str, session: AsyncSession):
 
 
 async def get_user_most_favorited(limit=6, offset=0, session: AsyncSession = None):
+    from sqlalchemy.orm import selectinload
+    from src.models.best_user_anime import BestUserAnimeModel
+    
     stmt = (
         select(UserModel)
+        .options(
+            selectinload(UserModel.best_anime).selectinload(BestUserAnimeModel.anime)
+        )
         .outerjoin(FavoriteModel, FavoriteModel.user_id == UserModel.id)
         .group_by(UserModel.id)
         .order_by(desc(func.count(FavoriteModel.id)))
@@ -735,11 +741,35 @@ async def get_user_most_favorited(limit=6, offset=0, session: AsyncSession = Non
     six_users = []
 
     for user in resp:
+        # Формируем список топ-3 аниме с полными данными
+        best_anime_list = []
+        if user.best_anime:
+            # Сортируем по place (1, 2, 3)
+            sorted_best_anime = sorted(user.best_anime, key=lambda x: x.place)
+            for best_anime in sorted_best_anime:
+                if best_anime.anime:
+                    anime_dict = {
+                        'id': best_anime.anime.id,
+                        'title': best_anime.anime.title,
+                        'title_original': best_anime.anime.title_original,
+                        'poster_url': best_anime.anime.poster_url,
+                        'description': best_anime.anime.description,
+                        'year': best_anime.anime.year,
+                        'type': best_anime.anime.type,
+                        'episodes_count': best_anime.anime.episodes_count,
+                        'rating': best_anime.anime.rating,
+                        'score': best_anime.anime.score,
+                        'studio': best_anime.anime.studio,
+                        'status': best_anime.anime.status,
+                        'place': best_anime.place
+                    }
+                    best_anime_list.append(anime_dict)
+        
         _user = {
             'username': user.username,
             'amount': len(user.favorites),
-            'favorite': user.best_anime,
+            'favorite': best_anime_list,
             'avatar_url': user.avatar_url,
-    }   
+        }   
         six_users.append(_user)
     return six_users
