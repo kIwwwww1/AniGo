@@ -16,7 +16,10 @@ from src.services.users import (add_user, create_user_comment,
                                 set_best_anime, get_user_best_anime, remove_best_anime,
                                 add_new_user_photo, get_user_most_favorited,
                                 get_user_profile_settings, get_or_create_user_profile_settings,
-                                update_user_profile_settings)
+                                update_user_profile_settings, get_user_by_token)
+from src.services.redis_cache import (get_redis_client, get_user_profile_cache_key, 
+                                      clear_user_profile_cache)
+import json
 from src.schemas.user import (CreateNewUser, CreateUserComment, 
                               CreateUserRating, LoginUser, 
                               CreateUserFavorite, UserName, ChangeUserPassword, 
@@ -182,6 +185,21 @@ async def get_user_favorites_list(user: UserExistsDep, session: SessionDep):
 async def user_profile(username: str, session: SessionDep):
     '''получение данных пользователя по username'''
     
+    # Проверяем кэш Redis
+    redis = await get_redis_client()
+    cache_key = get_user_profile_cache_key(username)
+    
+    if redis:
+        try:
+            cached_data = await redis.get(cache_key)
+            if cached_data is not None:
+                logger.debug(f"🎯 Cache HIT: user profile for {username}")
+                return json.loads(cached_data)
+        except Exception as e:
+            logger.warning(f"Redis cache check error for {username}: {e}")
+    
+    # Кэш промах - загружаем данные из БД
+    logger.debug(f"💨 Cache MISS: user profile for {username}")
     user = await get_user_by_username(username, session)
     
     # Подсчитываем статистику
@@ -240,7 +258,7 @@ async def user_profile(username: str, session: SessionDep):
             'is_premium_profile': user.id < 100  # Для пользователей с ID < 100 премиум по умолчанию
         }
     
-    return {
+    response_data = {
         'message': {
             'id': user.id,
             'username': user.username,
@@ -260,13 +278,37 @@ async def user_profile(username: str, session: SessionDep):
             }
         }
     }
+    
+    # Сохраняем в кэш на 1 час (3600 секунд)
+    if redis:
+        try:
+            serialized_data = json.dumps(response_data, default=str)
+            await redis.setex(cache_key, 3600, serialized_data)  # TTL = 1 час
+            logger.debug(f"💾 Cached user profile for {username} (TTL: 3600s)")
+        except Exception as e:
+            logger.warning(f"Failed to cache user profile for {username}: {e}")
+    
+    return response_data
 
 
 @user_router.patch('/change/name')
 async def user_change_name(new_username: UserName, 
                            request: Request, session: SessionDep):
+    # Получаем текущего пользователя для очистки кэша старого имени
+    user = await get_user_by_token(request, session)
+    old_username = user.username if user else None
+    
     resp = await change_username(new_username.username, request, 
                                  session)
+    
+    # Очищаем кэш профиля для старого и нового имени пользователя
+    if old_username:
+        await clear_user_profile_cache(old_username, user.id if user else None)
+        logger.info(f"Cleared profile cache for old username: {old_username}")
+    
+    await clear_user_profile_cache(new_username.username, user.id if user else None)
+    logger.info(f"Cleared profile cache for new username: {new_username.username}")
+    
     return {'message': resp}
 
 @user_router.patch('/change/password')
@@ -444,6 +486,10 @@ async def create_user_avatar(photo: UploadFile, user: UserExistsDep, session: Se
     final_avatar_url = updated_user.avatar_url if updated_user and updated_user.avatar_url else photo_url
     logger.info(f"Финальный avatar_url для ответа: {final_avatar_url}")
     
+    # Очищаем кэш профиля пользователя после загрузки аватара
+    await clear_user_profile_cache(user.username, user.id)
+    logger.info(f"Cleared profile cache for user: {user.username} after avatar upload")
+    
     return {'message': 'Аватар успешно загружен', 'avatar_url': final_avatar_url}
 
 
@@ -537,6 +583,10 @@ async def update_profile_settings(
         gradient_direction=settings_data.gradient_direction,
         is_premium_profile=settings_data.is_premium_profile
     )
+    
+    # Очищаем кэш профиля пользователя после обновления настроек
+    await clear_user_profile_cache(user.username, user.id)
+    logger.info(f"Cleared profile cache for user: {user.username} after settings update")
     
     return {
         'message': {

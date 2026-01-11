@@ -176,3 +176,50 @@ async def get_cache_info() -> dict:
             logger.error(f"Failed to get cache info: {e}")
             return {"connected": False, "error": str(e)}
     return {"connected": False, "error": "Redis client not initialized"}
+
+
+async def clear_user_profile_cache(username: str, user_id: int = None):
+    """
+    Очистить кэш профиля пользователя
+    
+    Args:
+        username: Имя пользователя
+        user_id: ID пользователя (опционально, для дополнительной очистки)
+    """
+    redis = await get_redis_client()
+    if redis:
+        try:
+            # Очищаем основной кэш профиля по username (точный ключ)
+            cache_key = get_user_profile_cache_key(username)
+            deleted = await redis.delete(cache_key)
+            if deleted:
+                logger.info(f"Cleared profile cache for user: {username}")
+            
+            # Также очищаем кэш по паттерну (на случай других ключей)
+            pattern_username = f"user_profile:*{username}*"
+            keys_username = []
+            async for key in redis.scan_iter(match=pattern_username):
+                if key != cache_key:  # Уже удалили основной ключ
+                    keys_username.append(key)
+            
+            if keys_username:
+                await redis.delete(*keys_username)
+                logger.info(f"Cleared {len(keys_username)} additional cache keys for user: {username}")
+            
+            # Также очищаем кэш настроек профиля
+            settings_pattern = f"user_profile_settings:*{username}*"
+            keys_settings = []
+            async for key in redis.scan_iter(match=settings_pattern):
+                keys_settings.append(key)
+            
+            if keys_settings:
+                await redis.delete(*keys_settings)
+                logger.info(f"Cleared {len(keys_settings)} settings cache keys for user: {username}")
+                
+        except Exception as e:
+            logger.error(f"Failed to clear user profile cache for {username}: {e}")
+
+
+def get_user_profile_cache_key(username: str) -> str:
+    """Создает ключ кэша для профиля пользователя"""
+    return f"user_profile:username:{username}"
