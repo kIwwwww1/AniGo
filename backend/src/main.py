@@ -16,6 +16,8 @@ from src.api.crud_anime import anime_router
 from src.api.crud_admin import admin_router
 from src.api.legal_documents import documents_router
 from src.services.redis_cache import get_redis_client, close_redis_client, get_cache_info
+from src.db.database import engine
+from src.models import Base
 
 load_dotenv()
 
@@ -25,6 +27,14 @@ async def lifespan(app: FastAPI):
     """Управление жизненным циклом приложения"""
     # Startup
     logger.info("🚀 Starting application...")
+    
+    # Создаем таблицы, если они не существуют (включая user_profile_settings)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+            logger.info("✅ Database tables checked/created")
+    except Exception as e:
+        logger.error(f"❌ Database initialization error: {e}")
     
     # Инициализируем Redis
     try:

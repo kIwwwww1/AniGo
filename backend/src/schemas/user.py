@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Literal
+from datetime import datetime
 
 AccountTypes = Literal['base', 'premium', 'admin', 'owner']
 
@@ -113,3 +114,28 @@ class CreateBestUserAnime(BaseModel):
                 return int(v)
             raise ValueError('place должен быть целым числом, не дробным')
         return v
+
+
+# Схемы для настроек профиля
+class UserProfileSettingsBase(BaseModel):
+    username_color: str | None = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$', description='Hex цвет имени пользователя')
+    avatar_border_color: str | None = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$', description='Hex цвет обводки аватарки')
+    theme_color_1: str | None = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$', description='Hex цвет первой темы')
+    theme_color_2: str | None = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$', description='Hex цвет второй темы')
+    gradient_direction: str | None = Field(None, max_length=20, description='Направление градиента')
+    is_premium_profile: bool | None = Field(None, description='Премиум оформление профиля')
+
+
+class UserProfileSettingsUpdate(UserProfileSettingsBase):
+    """Схема для обновления настроек профиля (все поля опциональны)"""
+    pass
+
+
+class UserProfileSettingsResponse(UserProfileSettingsBase):
+    """Схема для ответа с настройками профиля"""
+    user_id: int
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True

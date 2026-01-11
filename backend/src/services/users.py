@@ -1,5 +1,6 @@
 from fastapi import HTTPException, status, Response, Request
 from sqlalchemy import select, delete, func, desc
+from datetime import datetime
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone
@@ -11,6 +12,7 @@ from src.models.ratings import RatingModel
 from src.models.comments import CommentModel
 from src.models.favorites import FavoriteModel
 from src.models.best_user_anime import BestUserAnimeModel
+from src.models.user_profile_settings import UserProfileSettingsModel
 from src.schemas.user import (CreateNewUser, CreateUserComment, 
                               CreateUserRating, CreateUserFavorite,
                               ChangeUserPassword, CreateBestUserAnime)
@@ -765,11 +767,88 @@ async def get_user_most_favorited(limit=6, offset=0, session: AsyncSession = Non
                     }
                     best_anime_list.append(anime_dict)
         
+        # Получаем настройки профиля пользователя
+        profile_settings = await get_user_profile_settings(user.id, session)
+        
+        settings_data = None
+        if profile_settings:
+            settings_data = {
+                'username_color': profile_settings.username_color,
+                'avatar_border_color': profile_settings.avatar_border_color,
+                'theme_color_1': profile_settings.theme_color_1,
+                'theme_color_2': profile_settings.theme_color_2,
+                'gradient_direction': profile_settings.gradient_direction,
+                'is_premium_profile': profile_settings.is_premium_profile
+            }
+        else:
+            # Дефолтные настройки
+            settings_data = {
+                'username_color': None,
+                'avatar_border_color': None,
+                'theme_color_1': None,
+                'theme_color_2': None,
+                'gradient_direction': None,
+                'is_premium_profile': user.id < 100  # Для пользователей с ID < 100 премиум по умолчанию
+            }
+        
         _user = {
+            'id': user.id,
             'username': user.username,
             'amount': len(user.favorites),
             'favorite': best_anime_list,
             'avatar_url': user.avatar_url,
+            'profile_settings': settings_data
         }   
         six_users.append(_user)
     return six_users
+
+
+# Функции для работы с настройками профиля
+async def get_user_profile_settings(user_id: int, session: AsyncSession) -> UserProfileSettingsModel | None:
+    """Получить настройки профиля пользователя"""
+    result = await session.execute(
+        select(UserProfileSettingsModel).filter_by(user_id=user_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_or_create_user_profile_settings(user_id: int, session: AsyncSession) -> UserProfileSettingsModel:
+    """Получить или создать настройки профиля пользователя"""
+    settings = await get_user_profile_settings(user_id, session)
+    if not settings:
+        settings = UserProfileSettingsModel(user_id=user_id)
+        session.add(settings)
+        await session.commit()
+        await session.refresh(settings)
+    return settings
+
+
+async def update_user_profile_settings(
+    user_id: int, 
+    session: AsyncSession,
+    username_color: str | None = None,
+    avatar_border_color: str | None = None,
+    theme_color_1: str | None = None,
+    theme_color_2: str | None = None,
+    gradient_direction: str | None = None,
+    is_premium_profile: bool | None = None
+) -> UserProfileSettingsModel:
+    """Обновить настройки профиля пользователя"""
+    settings = await get_or_create_user_profile_settings(user_id, session)
+    
+    if username_color is not None:
+        settings.username_color = username_color
+    if avatar_border_color is not None:
+        settings.avatar_border_color = avatar_border_color
+    if theme_color_1 is not None:
+        settings.theme_color_1 = theme_color_1
+    if theme_color_2 is not None:
+        settings.theme_color_2 = theme_color_2
+    if gradient_direction is not None:
+        settings.gradient_direction = gradient_direction
+    if is_premium_profile is not None:
+        settings.is_premium_profile = is_premium_profile
+    
+    await session.commit()
+    await session.refresh(settings)
+    return settings

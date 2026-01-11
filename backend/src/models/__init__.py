@@ -16,3 +16,4 @@ from .comments import CommentModel
 from .watch_history import WatchHistoryModel
 from .episode_mapping import EpisodeMappingModel
 from .best_user_anime import BestUserAnimeModel
+from .user_profile_settings import UserProfileSettingsModel

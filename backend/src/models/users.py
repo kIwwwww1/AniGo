@@ -29,3 +29,4 @@ class UserModel(Base):
     comments: Mapped[list['CommentModel']] = relationship(back_populates="user", lazy='selectin')
     watch_history: Mapped[list['WatchHistoryModel']] = relationship(back_populates="user", lazy='selectin')
     best_anime: Mapped[list['BestUserAnimeModel']] = relationship(back_populates='user', lazy='selectin')
+    profile_settings: Mapped['UserProfileSettingsModel | None'] = relationship(back_populates='user', lazy='selectin', cascade='all, delete-orphan', uselist=False)
