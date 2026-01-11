@@ -9,7 +9,7 @@ from src.services.users import (add_user, create_user_comment,
                                 get_user_by_username, verify_email, change_username, change_password,
                                 set_best_anime, get_user_best_anime, remove_best_anime,
                                 add_new_user_photo)
-from src.services.admin import (admin_block_user, admin_unblock_user, admin_get_all_users, admin_create_test_users, admin_delete_test_data)
+from src.services.admin import (admin_block_user, admin_unblock_user, admin_get_all_users, admin_create_test_users, admin_delete_test_data, admin_clear_cache)
 from src.schemas.user import (CreateNewUser, CreateUserComment, 
                               CreateUserRating, LoginUser, 
                               CreateUserFavorite, UserName, ChangeUserPassword, CreateBestUserAnime)
@@ -118,4 +118,22 @@ async def delete_test_data(is_admin: IsAdminDep, session: SessionDep = ...):
         }
     }
 
+
+@admin_router.delete('/clear-cache')
+async def clear_cache(is_admin: IsAdminDep):
+    '''Очистить весь Redis кэш
+    
+    Удаляет все данные из кэша Redis. Доступно только для админов и владельцев.
+    
+    Примечание: Для очистки кэша фронтенда (localStorage) необходимо
+    дополнительно вызвать функцию clearAllCache() на клиенте.
+    
+    Returns:
+        Результат очистки кэша
+    '''
+    result = await admin_clear_cache()
+    return {
+        'message': result['message'],
+        'success': result['success']
+    }
 

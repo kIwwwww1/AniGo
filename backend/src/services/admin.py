@@ -16,6 +16,7 @@ from src.models.favorites import FavoriteModel
 from src.models.best_user_anime import BestUserAnimeModel
 from src.models.watch_history import WatchHistoryModel
 from src.auth.auth import hashed_password
+from src.services.redis_cache import clear_all_cache, get_redis_client
 
 async def admin_get_all_users(limit: int, offset: int, session: AsyncSession):
     '''Получить всех пользователей с пагинацией'''
@@ -447,4 +448,31 @@ async def admin_delete_test_data(session: AsyncSession) -> dict:
         'deleted_best_anime': best_anime_count,
         'deleted_watch_history': watch_history_count
     }
+
+
+async def admin_clear_cache() -> dict:
+    """Очистить весь Redis кэш
+    
+    Returns:
+        Результат очистки кэша
+    """
+    try:
+        redis = await get_redis_client()
+        if redis is None:
+            return {
+                'success': False,
+                'message': 'Redis недоступен, кэш не очищен'
+            }
+        
+        await clear_all_cache()
+        return {
+            'success': True,
+            'message': 'Кэш Redis успешно очищен'
+        }
+    except Exception as e:
+        logger.error(f"Failed to clear cache: {e}")
+        return {
+            'success': False,
+            'message': f'Ошибка при очистке кэша: {str(e)}'
+        }
 

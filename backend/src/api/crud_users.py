@@ -236,27 +236,9 @@ async def user_profile(username: str, session: SessionDep):
     best_anime_list = await get_user_best_anime(user.id, session)
     
     # Получаем настройки профиля
+    from src.services.users import format_profile_settings_data
     profile_settings = await get_user_profile_settings(user.id, session)
-    settings_data = None
-    if profile_settings:
-        settings_data = {
-            'username_color': profile_settings.username_color,
-            'avatar_border_color': profile_settings.avatar_border_color,
-            'theme_color_1': profile_settings.theme_color_1,
-            'theme_color_2': profile_settings.theme_color_2,
-            'gradient_direction': profile_settings.gradient_direction,
-            'is_premium_profile': profile_settings.is_premium_profile
-        }
-    else:
-        # Дефолтные настройки
-        settings_data = {
-            'username_color': None,
-            'avatar_border_color': None,
-            'theme_color_1': None,
-            'theme_color_2': None,
-            'gradient_direction': None,
-            'is_premium_profile': user.id < 100  # Для пользователей с ID < 100 премиум по умолчанию
-        }
+    settings_data = format_profile_settings_data(profile_settings, user.id)
     
     response_data = {
         'message': {
@@ -523,35 +505,16 @@ async def create_user_avatar(photo: UploadFile, user: UserExistsDep, session: Se
 @user_router.get('/profile-settings')
 async def get_profile_settings(user: UserExistsDep, session: SessionDep):
     """Получить настройки профиля текущего пользователя"""
+    from src.services.users import format_profile_settings_data
     settings = await get_user_profile_settings(user.id, session)
-    
-    if not settings:
-        # Возвращаем дефолтные значения
-        return {
-            'message': {
-                'user_id': user.id,
-                'username_color': None,
-                'avatar_border_color': None,
-                'theme_color_1': None,
-                'theme_color_2': None,
-                'gradient_direction': None,
-                'is_premium_profile': user.id < 100,  # Для пользователей с ID < 100 премиум по умолчанию
-                'created_at': None,
-                'updated_at': None
-            }
-        }
+    settings_data = format_profile_settings_data(settings, user.id)
     
     return {
         'message': {
-            'user_id': settings.user_id,
-            'username_color': settings.username_color,
-            'avatar_border_color': settings.avatar_border_color,
-            'theme_color_1': settings.theme_color_1,
-            'theme_color_2': settings.theme_color_2,
-            'gradient_direction': settings.gradient_direction,
-            'is_premium_profile': settings.is_premium_profile,
-            'created_at': settings.created_at.isoformat() if settings.created_at else None,
-            'updated_at': settings.updated_at.isoformat() if settings.updated_at else None
+            'user_id': user.id,
+            **settings_data,
+            'created_at': settings.created_at.isoformat() if settings and settings.created_at else None,
+            'updated_at': settings.updated_at.isoformat() if settings and settings.updated_at else None
         }
     }
 
@@ -559,36 +522,17 @@ async def get_profile_settings(user: UserExistsDep, session: SessionDep):
 @user_router.get('/profile-settings/{username:str}')
 async def get_user_profile_settings_by_username(username: str, session: SessionDep):
     """Получить настройки профиля пользователя по username"""
+    from src.services.users import format_profile_settings_data
     user = await get_user_by_username(username, session)
     settings = await get_user_profile_settings(user.id, session)
-    
-    if not settings:
-        # Возвращаем дефолтные значения
-        return {
-            'message': {
-                'user_id': user.id,
-                'username_color': None,
-                'avatar_border_color': None,
-                'theme_color_1': None,
-                'theme_color_2': None,
-                'gradient_direction': None,
-                'is_premium_profile': user.id < 100,  # Для пользователей с ID < 100 премиум по умолчанию
-                'created_at': None,
-                'updated_at': None
-            }
-        }
+    settings_data = format_profile_settings_data(settings, user.id)
     
     return {
         'message': {
-            'user_id': settings.user_id,
-            'username_color': settings.username_color,
-            'avatar_border_color': settings.avatar_border_color,
-            'theme_color_1': settings.theme_color_1,
-            'theme_color_2': settings.theme_color_2,
-            'gradient_direction': settings.gradient_direction,
-            'is_premium_profile': settings.is_premium_profile,
-            'created_at': settings.created_at.isoformat() if settings.created_at else None,
-            'updated_at': settings.updated_at.isoformat() if settings.updated_at else None
+            'user_id': user.id,
+            **settings_data,
+            'created_at': settings.created_at.isoformat() if settings and settings.created_at else None,
+            'updated_at': settings.updated_at.isoformat() if settings and settings.updated_at else None
         }
     }
 

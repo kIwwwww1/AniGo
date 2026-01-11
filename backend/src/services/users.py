@@ -727,6 +727,10 @@ async def get_user_most_favorited(limit=6, offset=0, session: AsyncSession = Non
     from sqlalchemy.orm import selectinload
     from src.models.best_user_anime import BestUserAnimeModel
     
+    # Обновляем бейдж только при первой загрузке (offset=0)
+    if offset == 0:
+        await update_collector_badge(session)
+    
     stmt = (
         select(UserModel)
         .options(
@@ -769,27 +773,7 @@ async def get_user_most_favorited(limit=6, offset=0, session: AsyncSession = Non
         
         # Получаем настройки профиля пользователя
         profile_settings = await get_user_profile_settings(user.id, session)
-        
-        settings_data = None
-        if profile_settings:
-            settings_data = {
-                'username_color': profile_settings.username_color,
-                'avatar_border_color': profile_settings.avatar_border_color,
-                'theme_color_1': profile_settings.theme_color_1,
-                'theme_color_2': profile_settings.theme_color_2,
-                'gradient_direction': profile_settings.gradient_direction,
-                'is_premium_profile': profile_settings.is_premium_profile
-            }
-        else:
-            # Дефолтные настройки
-            settings_data = {
-                'username_color': None,
-                'avatar_border_color': None,
-                'theme_color_1': None,
-                'theme_color_2': None,
-                'gradient_direction': None,
-                'is_premium_profile': user.id < 100  # Для пользователей с ID < 100 премиум по умолчанию
-            }
+        settings_data = format_profile_settings_data(profile_settings, user.id)
         
         _user = {
             'id': user.id,
@@ -852,3 +836,86 @@ async def update_user_profile_settings(
     await session.commit()
     await session.refresh(settings)
     return settings
+
+
+def format_profile_settings_data(profile_settings: UserProfileSettingsModel | None, user_id: int = None) -> dict:
+    """Форматировать данные настроек профиля для API ответа"""
+    if profile_settings:
+        # Проверяем, есть ли активный бейдж
+        has_collector_badge = False
+        if profile_settings.collector_badge_expires_at:
+            has_collector_badge = profile_settings.collector_badge_expires_at > datetime.now(timezone.utc)
+        
+        return {
+            'username_color': profile_settings.username_color,
+            'avatar_border_color': profile_settings.avatar_border_color,
+            'theme_color_1': profile_settings.theme_color_1,
+            'theme_color_2': profile_settings.theme_color_2,
+            'gradient_direction': profile_settings.gradient_direction,
+            'is_premium_profile': profile_settings.is_premium_profile,
+            'has_collector_badge': has_collector_badge,
+            'collector_badge_expires_at': profile_settings.collector_badge_expires_at.isoformat() if profile_settings.collector_badge_expires_at else None
+        }
+    else:
+        # Дефолтные настройки
+        is_premium = user_id < 100 if user_id else False
+        return {
+            'username_color': None,
+            'avatar_border_color': None,
+            'theme_color_1': None,
+            'theme_color_2': None,
+            'gradient_direction': None,
+            'is_premium_profile': is_premium,
+            'has_collector_badge': False,
+            'collector_badge_expires_at': None
+        }
+
+
+async def update_collector_badge(session: AsyncSession):
+    """Обновить бейдж 'Коллекционер #1' для топ-1 пользователя"""
+    from datetime import timedelta
+    
+    # Получаем топ-1 пользователя
+    stmt = (
+        select(UserModel)
+        .outerjoin(FavoriteModel, FavoriteModel.user_id == UserModel.id)
+        .group_by(UserModel.id)
+        .order_by(desc(func.count(FavoriteModel.id)))
+        .limit(1)
+    )
+    
+    result = await session.execute(stmt)
+    top_user = result.scalar_one_or_none()
+    
+    if not top_user:
+        return None
+    
+    # Получаем текущего владельца бейджа (если есть)
+    current_badge_owner = await session.execute(
+        select(UserProfileSettingsModel)
+        .filter(UserProfileSettingsModel.collector_badge_expires_at.isnot(None))
+        .filter(UserProfileSettingsModel.collector_badge_expires_at > datetime.now(timezone.utc))
+    )
+    current_badge_owner_settings = current_badge_owner.scalar_one_or_none()
+    
+    # Если топ-1 изменился или бейдж истек, обновляем
+    should_update = False
+    if current_badge_owner_settings:
+        if current_badge_owner_settings.user_id != top_user.id:
+            # Топ-1 изменился - забираем бейдж у старого владельца
+            current_badge_owner_settings.collector_badge_expires_at = None
+            should_update = True
+    else:
+        # Бейджа нет или истек - даем новому топ-1
+        should_update = True
+    
+    if should_update:
+        # Даем бейдж новому топ-1 пользователю на 1 неделю
+        top_user_settings = await get_or_create_user_profile_settings(top_user.id, session)
+        expires_at = datetime.now(timezone.utc) + timedelta(weeks=1)
+        top_user_settings.collector_badge_expires_at = expires_at
+        await session.commit()
+        await session.refresh(top_user_settings)
+        return top_user.id
+    
+    return None
