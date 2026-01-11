@@ -21,6 +21,10 @@ function HomePage() {
   const [highestScoreError, setHighestScoreError] = useState(null)
   const [highestScoreHasMore, setHighestScoreHasMore] = useState(true)
   
+  // Состояние для смены фонового изображения
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const backgroundImages = ['/screensaver_1.png', '/screensaver_2.png']
+  
   const limit = 12
   const limitHighestScore = 18 // Для блока "Высшая оценка" загружаем 18 элементов (3 страницы)
   const itemsPerPage = 6
@@ -31,6 +35,15 @@ function HomePage() {
     loadAnime(0)
     loadHighestScoreAnime(0)
   }, [])
+
+  // Эффект для смены фонового изображения каждые 10 секунд
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prevIndex) => (prevIndex + 1) % backgroundImages.length)
+    }, 30000) // 10 секунд
+
+    return () => clearInterval(interval)
+  }, [backgroundImages.length])
 
   const loadAnimeCount = async () => {
     try {
@@ -155,11 +168,21 @@ function HomePage() {
 
   return (
     <div className="home-page">
-      <div className="container">
-        <section className="hero">
+      <section className="hero-banner">
+        {backgroundImages.map((image, index) => (
+          <div
+            key={image}
+            className={`hero-banner-bg ${index === currentImageIndex ? 'active' : 'inactive'}`}
+            style={{ backgroundImage: `url(${image})` }}
+          />
+        ))}
+        <div className="hero-overlay">
           <h2 className="hero-title">Добро пожаловать в Yumivo</h2>
           <p className="hero-subtitle">Yumivo — аниме, которое хочется смотреть</p>
-        </section>
+        </div>
+      </section>
+
+      <div className="container">
 
         {/* Карусель популярных аниме */}
         <PopularAnimeCarousel />
