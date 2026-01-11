@@ -11,6 +11,7 @@ from src.models.users import UserModel
 from src.schemas.anime import PaginatorData
 from src.models.ratings import RatingModel
 from src.models.comments import CommentModel
+from src.services.redis_cache import redis_cached
 
 
 async def update_anime_data_from_shikimori(anime_id: int, shikimori_id: int):
@@ -181,6 +182,7 @@ async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession, background
         raise HTTPException(status_code=500, detail=f'Ошибка при загрузке аниме: {str(e)}')
 
 
+@redis_cached(prefix="popular", ttl=60)  # 1 минута
 async def get_popular_anime(paginator_data: PaginatorData, session: AsyncSession):
     '''Получить популярное аниме (все аниме из базы, отсортированные по популярности)'''
 
@@ -230,6 +232,7 @@ async def get_popular_anime(paginator_data: PaginatorData, session: AsyncSession
     return animes if animes else []
 
 
+@redis_cached(prefix="anime_paginated", ttl=300)  # 5 минут
 async def pagination_get_anime(paginator_data: PaginatorData, session: AsyncSession):
     '''Получить конкретное количество аниме (Пагинация, без фильтров)'''
     
@@ -290,6 +293,7 @@ async def get_random_anime(limit: int = 3, session: AsyncSession = None):
     return animes if animes else []
 
 
+@redis_cached(prefix="anime_count", ttl=600)  # 10 минут
 async def get_anime_total_count(session: AsyncSession):
     '''Получить общее количество аниме в базе'''
     count = (await session.execute(
@@ -331,6 +335,7 @@ async def sort_anime_by_rating(score: int | float, limit: int,
     return sorted_animes if sorted_animes else []
 
 
+@redis_cached(prefix="anime_by_score", ttl=300)  # 5 минут
 async def get_anime_sorted_by_score(limit: int, offset: int, 
                                      order: str = 'asc', session: AsyncSession = None):
     '''Получить все аниме отсортированные по оценке (score)

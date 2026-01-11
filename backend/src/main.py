@@ -13,9 +13,35 @@ from src.api.crud_users import user_router
 from src.api.crud_anime import anime_router
 from src.api.crud_admin import admin_router
 from src.api.legal_documents import documents_router
+from src.services.redis_cache import get_redis_client, close_redis_client, get_cache_info
 
 
 app = FastAPI()
+
+# Startup и Shutdown события для Redis
+@app.on_event("startup")
+async def startup_event():
+    """Инициализация при запуске приложения"""
+    logger.info("🚀 Starting application...")
+    
+    # Инициализируем Redis
+    try:
+        redis = await get_redis_client()
+        if redis:
+            cache_info = await get_cache_info()
+            logger.info(f"📊 Redis stats: {cache_info}")
+        else:
+            logger.warning("⚠️ Redis not available, will work without cache")
+    except Exception as e:
+        logger.error(f"❌ Redis startup error: {e}")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Очистка при остановке приложения"""
+    logger.info("🛑 Shutting down application...")
+    await close_redis_client()
+    logger.info("✅ Shutdown complete")
 
 # Настройка CORS для работы с фронтендом
 # Получаем разрешенные домены из переменных окружения или используем дефолтные

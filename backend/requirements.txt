@@ -66,3 +66,5 @@ urllib3==2.6.2
 uvicorn==0.40.0
 wrapt==2.0.1
 yarl==1.22.0
+redis==5.0.1
+hiredis==2.3.2
