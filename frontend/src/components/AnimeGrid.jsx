@@ -111,7 +111,6 @@ function AnimeGrid({
         <div className="section-header">
         {title && (
           <div className="section-title-wrapper">
-            <h2 className="section-title">{title}</h2>
             {sortCriteria && (
               <div className="sort-info-tooltip">
                 <span className="tooltip-icon">?</span>
@@ -120,6 +119,7 @@ function AnimeGrid({
                 </div>
               </div>
             )}
+            <h2 className="section-title">{title}</h2>
           </div>
         )}
         </div>
@@ -135,7 +135,6 @@ function AnimeGrid({
       <div className="section-header">
         {title && (
           <div className="section-title-wrapper">
-            <h2 className="section-title">{title}</h2>
             {sortCriteria && (
               <div className="sort-info-tooltip">
                 <span className="tooltip-icon">?</span>
@@ -144,6 +143,7 @@ function AnimeGrid({
                 </div>
               </div>
             )}
+            <h2 className="section-title">{title}</h2>
             {showExpandButton && (
               <button 
                 className="section-expand-btn"
