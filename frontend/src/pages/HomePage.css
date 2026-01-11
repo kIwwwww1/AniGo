@@ -18,19 +18,26 @@
   justify-content: center;
   overflow: hidden;
   border-radius: 16px;
+  cursor: pointer;
+  box-shadow: 
+    0 10px 30px rgba(0, 0, 0, 0.3),
+    0 1px 8px rgba(0, 0, 0, 0.2);
 }
 
 .hero-banner-bg {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: -5%;
+  left: -5%;
+  right: -5%;
+  bottom: -5%;
+  width: 110%;
+  height: 110%;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   transition: opacity 1.5s ease-in-out;
   z-index: 0;
+  will-change: transform;
 }
 
 .hero-banner-bg.active {
@@ -64,6 +71,7 @@
   text-align: center;
   padding: 2rem;
   margin-top: 10vh;
+  will-change: transform;
 }
 
 .hero-title {

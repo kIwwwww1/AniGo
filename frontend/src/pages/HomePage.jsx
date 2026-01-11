@@ -25,6 +25,10 @@ function HomePage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const backgroundImages = ['/screensaver_1.png', '/screensaver_2.png']
   
+  // Состояние для 3D эффекта параллакса
+  const [parallaxStyle, setParallaxStyle] = useState({})
+  const [textParallaxStyle, setTextParallaxStyle] = useState({})
+  
   const limit = 12
   const limitHighestScore = 18 // Для блока "Высшая оценка" загружаем 18 элементов (3 страницы)
   const itemsPerPage = 6
@@ -160,6 +164,50 @@ function HomePage() {
     }
   }
 
+  // Функция для обработки движения мыши и создания эффекта параллакса
+  const handleMouseMove = (e) => {
+    const banner = e.currentTarget
+    const rect = banner.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    const centerX = rect.width / 2
+    const centerY = rect.height / 2
+    
+    // Вычисляем смещение в процентах от центра (-1 до 1)
+    const percentX = (x - centerX) / centerX
+    const percentY = (y - centerY) / centerY
+    
+    // Смещение фона (больше движение)
+    const moveX = percentX * 30 // Максимум 30px
+    const moveY = percentY * 30
+    
+    // Смещение текста (меньше и в противоположную сторону для глубины)
+    const textMoveX = percentX * -15 // Максимум 15px в обратную сторону
+    const textMoveY = percentY * -15
+    
+    setParallaxStyle({
+      transform: `translate(${moveX}px, ${moveY}px) scale(1.1)`,
+      transition: 'transform 0.1s ease-out'
+    })
+    
+    setTextParallaxStyle({
+      transform: `translate(${textMoveX}px, ${textMoveY}px)`,
+      transition: 'transform 0.1s ease-out'
+    })
+  }
+
+  const handleMouseLeave = () => {
+    setParallaxStyle({
+      transform: 'translate(0px, 0px) scale(1.1)',
+      transition: 'transform 0.5s ease-out'
+    })
+    
+    setTextParallaxStyle({
+      transform: 'translate(0px, 0px)',
+      transition: 'transform 0.5s ease-out'
+    })
+  }
+
   // Используем totalCount для правильного вычисления страниц
   const effectiveTotal = totalCount > 0 ? totalCount : animeList.length
   const totalPages = Math.ceil(effectiveTotal / itemsPerPage)
@@ -168,15 +216,22 @@ function HomePage() {
 
   return (
     <div className="home-page">
-      <section className="hero-banner">
+      <section 
+        className="hero-banner"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+      >
         {backgroundImages.map((image, index) => (
           <div
             key={image}
             className={`hero-banner-bg ${index === currentImageIndex ? 'active' : 'inactive'}`}
-            style={{ backgroundImage: `url(${image})` }}
+            style={{ 
+              backgroundImage: `url(${image})`,
+              ...(index === currentImageIndex ? parallaxStyle : {})
+            }}
           />
         ))}
-        <div className="hero-overlay">
+        <div className="hero-overlay" style={textParallaxStyle}>
           <h2 className="hero-title">Добро пожаловать в Yumivo</h2>
           <p className="hero-subtitle">Yumivo — аниме, которое хочется смотреть</p>
         </div>
