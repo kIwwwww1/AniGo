@@ -2,11 +2,13 @@ import asyncio
 import uvicorn
 from loguru import logger
 from typing import Callable
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pathlib import Path
 import os
+from dotenv import load_dotenv
 # 
 from src.api.crud_database import database_router
 from src.api.crud_users import user_router
@@ -15,13 +17,13 @@ from src.api.crud_admin import admin_router
 from src.api.legal_documents import documents_router
 from src.services.redis_cache import get_redis_client, close_redis_client, get_cache_info
 
+load_dotenv()
 
-app = FastAPI()
 
-# Startup и Shutdown события для Redis
-@app.on_event("startup")
-async def startup_event():
-    """Инициализация при запуске приложения"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Управление жизненным циклом приложения"""
+    # Startup
     logger.info("🚀 Starting application...")
     
     # Инициализируем Redis
@@ -34,23 +36,26 @@ async def startup_event():
             logger.warning("⚠️ Redis not available, will work without cache")
     except Exception as e:
         logger.error(f"❌ Redis startup error: {e}")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Очистка при остановке приложения"""
+    
+    yield  # Приложение работает
+    
+    # Shutdown
     logger.info("🛑 Shutting down application...")
     await close_redis_client()
     logger.info("✅ Shutdown complete")
 
+
+app = FastAPI(
+    lifespan=lifespan,
+    # docs_url=None,
+    # redoc_url=None,
+    title="Yumivo APP",
+    version='0.1',
+    # openapi_url=None
+)
+
 # Настройка CORS для работы с фронтендом
 # Получаем разрешенные домены из переменных окружения или используем дефолтные
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# Разрешенные домены из переменных окружения (через запятую)
 allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
 if allowed_origins_env:
     allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",")]
