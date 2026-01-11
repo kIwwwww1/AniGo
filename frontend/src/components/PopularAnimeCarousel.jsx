@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { animeAPI } from '../services/api'
 import AnimeGrid from './AnimeGrid'
 import './PopularAnimeCarousel.css'
 
-function PopularAnimeCarousel() {
+const PopularAnimeCarousel = memo(function PopularAnimeCarousel() {
   const navigate = useNavigate()
   const [animeList, setAnimeList] = useState([])
   const [loading, setLoading] = useState(true)
@@ -44,7 +44,7 @@ function PopularAnimeCarousel() {
     }
   }
 
-  const loadAnime = async (offset) => {
+  const loadAnime = useCallback(async (offset) => {
     try {
       setLoading(true)
       setHasError(false)
@@ -95,19 +95,19 @@ function PopularAnimeCarousel() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [itemsPerPage])
 
-  const handleExpand = () => {
+  const handleExpand = useCallback(() => {
     // Переходим на страницу со всеми популярными аниме
     navigate('/anime/all/popular')
-  }
+  }, [navigate])
 
-  const handlePageChange = (page, offset) => {
+  const handlePageChange = useCallback((page, offset) => {
     // Загружаем данные для страницы, если их еще нет
     if (offset >= animeList.length && hasMore) {
       loadAnime(offset)
     }
-  }
+  }, [animeList.length, hasMore, loadAnime])
 
   // Определяем, нужно ли показывать серые плашки-заполнители
   // Показываем skeleton если: загрузка идет или аниме нет
@@ -160,6 +160,6 @@ function PopularAnimeCarousel() {
       sortCriteria="Аниме отсортированы по популярности на основе количества просмотров и запросов за последние 2 недели"
     />
   )
-}
+})
 
 export default PopularAnimeCarousel

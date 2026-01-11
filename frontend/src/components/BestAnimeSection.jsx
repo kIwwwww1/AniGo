@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { Link } from 'react-router-dom'
 import { userAPI } from '../services/api'
+import LazyImage from './LazyImage'
 import './BestAnimeSection.css'
+import './LazyImage.css'
 
-function BestAnimeCard({ anime, place, size, isOwner, onSelect, onRemove, avatarBorderColor }) {
+const BestAnimeCard = memo(function BestAnimeCard({ anime, place, size, isOwner, onSelect, onRemove, avatarBorderColor }) {
   const posterUrl = anime?.poster_url || '/placeholder.jpg'
   const title = anime?.title || 'Выбрать аниме'
   const score = anime?.score ? parseFloat(anime.score) : null
@@ -43,7 +45,11 @@ function BestAnimeCard({ anime, place, size, isOwner, onSelect, onRemove, avatar
           )}
           <Link to={`/watch/${anime.id}`} className="best-anime-card-link">
             <div className="best-anime-card-poster">
-              <img src={posterUrl} alt={title} loading="lazy" />
+              <LazyImage 
+                src={posterUrl} 
+                alt={title} 
+                className="lazy-image"
+              />
               {score && (
                 <div className={`best-anime-card-score ${scoreClass}`}>
                   {score === 10 ? <span className="star-icon">🌟</span> : <span>★</span>}
@@ -64,9 +70,9 @@ function BestAnimeCard({ anime, place, size, isOwner, onSelect, onRemove, avatar
       ) : null}
     </div>
   )
-}
+})
 
-function BestAnimeSection({ bestAnime, favorites, isOwner, onUpdate, avatarBorderColor }) {
+const BestAnimeSection = memo(function BestAnimeSection({ bestAnime, favorites, isOwner, onUpdate, avatarBorderColor }) {
   const [showModal, setShowModal] = useState(false)
   const [selectedPlace, setSelectedPlace] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -209,7 +215,7 @@ function BestAnimeSection({ bestAnime, favorites, isOwner, onUpdate, avatarBorde
       )}
     </div>
   )
-}
+})
 
 export default BestAnimeSection
 

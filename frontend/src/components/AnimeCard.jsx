@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom'
+import { memo } from 'react'
+import LazyImage from './LazyImage'
 import './AnimeCard.css'
+import './LazyImage.css'
 
-function AnimeCard({ anime }) {
+const AnimeCard = memo(function AnimeCard({ anime }) {
   const posterUrl = anime.poster_url || '/placeholder.jpg'
   const title = anime.title || 'Без названия'
   const score = anime.score ? parseFloat(anime.score) : null
@@ -26,7 +29,11 @@ function AnimeCard({ anime }) {
     <div className="anime-card-wrapper">
       <Link to={`/watch/${anime.id}`} className="anime-card">
         <div className="anime-card-poster">
-          <img src={posterUrl} alt={title} loading="lazy" />
+          <LazyImage 
+            src={posterUrl} 
+            alt={title} 
+            className="lazy-image"
+          />
           {score && (
             <div className={`anime-card-score ${scoreClass}`}>
               {score === 10 ? <span className="star-icon">🌟</span> : <span>★</span>}
@@ -44,7 +51,7 @@ function AnimeCard({ anime }) {
       </Link>
     </div>
   )
-}
+})
 
 export default AnimeCard
 

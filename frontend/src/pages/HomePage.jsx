@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { animeAPI } from '../services/api'
 import PopularAnimeCarousel from '../components/PopularAnimeCarousel'
@@ -23,7 +23,7 @@ function HomePage() {
   
   // Состояние для смены фонового изображения
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const backgroundImages = ['/screensaver_1.png', '/screensaver_2.png']
+  const backgroundImages = useMemo(() => ['/screensaver_1.png', '/screensaver_2.png'], [])
   
   // Состояние для 3D эффекта параллакса
   const [parallaxStyle, setParallaxStyle] = useState({})
@@ -34,22 +34,7 @@ function HomePage() {
   const itemsPerPage = 6
   const maxPagesToShow = 3
 
-  useEffect(() => {
-    loadAnimeCount()
-    loadAnime(0)
-    loadHighestScoreAnime(0)
-  }, [])
-
-  // Эффект для смены фонового изображения каждые 10 секунд
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentImageIndex((prevIndex) => (prevIndex + 1) % backgroundImages.length)
-    }, 30000) // 10 секунд
-
-    return () => clearInterval(interval)
-  }, [backgroundImages.length])
-
-  const loadAnimeCount = async () => {
+  const loadAnimeCount = useCallback(async () => {
     try {
       const response = await animeAPI.getAnimeCount()
       const count = response.message || 0
@@ -58,9 +43,9 @@ function HomePage() {
       console.error('Ошибка загрузки количества аниме:', err)
       setTotalCount(0)
     }
-  }
+  }, [])
 
-  const loadAnime = async (loadOffset) => {
+  const loadAnime = useCallback(async (loadOffset) => {
     try {
       setLoading(true)
       const response = await animeAPI.getAnimePaginated(limit, loadOffset)
@@ -98,22 +83,9 @@ function HomePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [limit])
 
-  const handleExpand = () => {
-    // Переходим на страницу со всеми аниме
-    navigate('/anime/all/anime')
-  }
-
-  const handlePageChange = (page, offset) => {
-    // Загружаем данные для страницы, если их еще нет
-    if (offset >= animeList.length && hasMore) {
-      const loadOffset = Math.floor(animeList.length / limit) * limit
-      loadAnime(loadOffset)
-    }
-  }
-
-  const loadHighestScoreAnime = async (loadOffset) => {
+  const loadHighestScoreAnime = useCallback(async (loadOffset) => {
     try {
       setHighestScoreLoading(true)
       const response = await animeAPI.getHighestScoreAnime(limitHighestScore, loadOffset, 'desc')
@@ -149,23 +121,36 @@ function HomePage() {
     } finally {
       setHighestScoreLoading(false)
     }
-  }
+  }, [limitHighestScore])
 
-  const handleHighestScoreExpand = () => {
+  const handleExpand = useCallback(() => {
     // Переходим на страницу со всеми аниме
     navigate('/anime/all/anime')
-  }
+  }, [navigate])
 
-  const handleHighestScorePageChange = (page, offset) => {
+  const handlePageChange = useCallback((page, offset) => {
+    // Загружаем данные для страницы, если их еще нет
+    if (offset >= animeList.length && hasMore) {
+      const loadOffset = Math.floor(animeList.length / limit) * limit
+      loadAnime(loadOffset)
+    }
+  }, [animeList.length, hasMore, limit, loadAnime])
+
+  const handleHighestScoreExpand = useCallback(() => {
+    // Переходим на страницу со всеми аниме
+    navigate('/anime/all/anime')
+  }, [navigate])
+
+  const handleHighestScorePageChange = useCallback((page, offset) => {
     // Загружаем данные для страницы, если их еще нет
     if (offset >= highestScoreAnime.length && highestScoreHasMore) {
       const loadOffset = Math.floor(highestScoreAnime.length / limitHighestScore) * limitHighestScore
       loadHighestScoreAnime(loadOffset)
     }
-  }
+  }, [highestScoreAnime.length, highestScoreHasMore, limitHighestScore, loadHighestScoreAnime])
 
   // Функция для обработки движения мыши и создания эффекта параллакса
-  const handleMouseMove = (e) => {
+  const handleMouseMove = useCallback((e) => {
     const banner = e.currentTarget
     const rect = banner.getBoundingClientRect()
     const x = e.clientX - rect.left
@@ -194,9 +179,9 @@ function HomePage() {
       transform: `translate(${textMoveX}px, ${textMoveY}px)`,
       transition: 'transform 0.1s ease-out'
     })
-  }
+  }, [])
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useCallback(() => {
     setParallaxStyle({
       transform: 'translate(0px, 0px) scale(1.1)',
       transition: 'transform 0.5s ease-out'
@@ -206,13 +191,43 @@ function HomePage() {
       transform: 'translate(0px, 0px)',
       transition: 'transform 0.5s ease-out'
     })
-  }
+  }, [])
+
+  useEffect(() => {
+    loadAnimeCount()
+    loadAnime(0)
+    loadHighestScoreAnime(0)
+  }, [loadAnimeCount, loadAnime, loadHighestScoreAnime])
+
+  // Эффект для смены фонового изображения каждые 10 секунд
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prevIndex) => (prevIndex + 1) % backgroundImages.length)
+    }, 30000) // 30 секунд
+
+    return () => clearInterval(interval)
+  }, [backgroundImages.length])
 
   // Используем totalCount для правильного вычисления страниц
-  const effectiveTotal = totalCount > 0 ? totalCount : animeList.length
-  const totalPages = Math.ceil(effectiveTotal / itemsPerPage)
-  const displayPages = showAll ? totalPages : Math.min(maxPagesToShow, totalPages)
-  const hasMorePages = totalCount > 0 && totalPages > maxPagesToShow && !showAll
+  const effectiveTotal = useMemo(() => 
+    totalCount > 0 ? totalCount : animeList.length, 
+    [totalCount, animeList.length]
+  )
+  
+  const totalPages = useMemo(() => 
+    Math.ceil(effectiveTotal / itemsPerPage), 
+    [effectiveTotal, itemsPerPage]
+  )
+  
+  const displayPages = useMemo(() => 
+    showAll ? totalPages : Math.min(maxPagesToShow, totalPages), 
+    [showAll, totalPages, maxPagesToShow]
+  )
+  
+  const hasMorePages = useMemo(() => 
+    totalCount > 0 && totalPages > maxPagesToShow && !showAll, 
+    [totalCount, totalPages, maxPagesToShow, showAll]
+  )
 
   return (
     <div className="home-page">

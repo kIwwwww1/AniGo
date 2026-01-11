@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { animeAPI, userAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
@@ -34,6 +34,9 @@ function WatchPage() {
   const [mousePosition, setMousePosition] = useState({ x: 0.5, y: 0.5 }) // Позиция мыши для голографического эффекта
   const [isHoveringPoster, setIsHoveringPoster] = useState(false) // Наведена ли мышь на постер
   const commentsLimit = 4 // Количество комментариев на странице
+  
+  // useRef для debounce автоматического подтверждения рейтинга
+  const ratingTimeoutRef = useRef(null)
 
   useEffect(() => {
     // Прокручиваем страницу вверх при переходе на страницу аниме
@@ -98,6 +101,28 @@ function WatchPage() {
       window.removeEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
     }
   }, [])
+
+  // Автоматическое подтверждение рейтинга после остановки движения слайдера
+  useEffect(() => {
+    if (isRatingMenuOpen && tempRating !== userRating) {
+      // Очищаем предыдущий таймер
+      if (ratingTimeoutRef.current) {
+        clearTimeout(ratingTimeoutRef.current)
+      }
+      
+      // Устанавливаем новый таймер на 1 секунду
+      ratingTimeoutRef.current = setTimeout(() => {
+        handleSubmitRating(tempRating)
+      }, 1000)
+    }
+    
+    // Cleanup при размонтировании
+    return () => {
+      if (ratingTimeoutRef.current) {
+        clearTimeout(ratingTimeoutRef.current)
+      }
+    }
+  }, [tempRating, isRatingMenuOpen])
 
   useEffect(() => {
     if (anime && anime.players && anime.players.length > 0) {
@@ -614,30 +639,26 @@ function WatchPage() {
             {/* Кнопки действий: Оценить и Избранное */}
             <div className="player-actions">
               <div className="rating-button-wrapper">
-                <button
-                  type="button"
-                  onClick={() => {
-                    // Инициализируем временное значение при открытии меню
-                    if (!isRatingMenuOpen) {
+                {!isRatingMenuOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Инициализируем временное значение при открытии меню
                       setTempRating(userRating || 5)
-                    }
-                    setIsRatingMenuOpen(!isRatingMenuOpen)
-                  }}
-                  className="rate-button"
-                  disabled={submittingRating}
-                >
-                  {userRating ? `Оценка: ${userRating}` : 'Оценить'}
-                </button>
-                {isRatingMenuOpen && (
+                      setIsRatingMenuOpen(true)
+                    }}
+                    className="rate-button"
+                    disabled={submittingRating}
+                  >
+                    {userRating ? `Оценка: ${userRating}` : 'Оценить'}
+                  </button>
+                ) : (
                   <div className="rating-menu">
                     <div className="rating-slider-container">
-                      <div className="rating-slider-header">
-                        <span className="rating-slider-label">Выберите оценку:</span>
-                        <span className="rating-slider-value">
-                          <span className="rating-star">★</span>
-                          {tempRating} / 10
-                        </span>
-                      </div>
+                      <span className="rating-slider-value">
+                        <span className="rating-star">★</span>
+                        {tempRating}
+                      </span>
                       <input
                         type="range"
                         min="1"
@@ -651,24 +672,6 @@ function WatchPage() {
                           background: `linear-gradient(to right, var(--user-accent-color, var(--accent)) 0%, var(--user-accent-color, var(--accent)) ${(tempRating - 1) * 11.11}%, var(--bg-secondary) ${(tempRating - 1) * 11.11}%, var(--bg-secondary) 100%)`
                         }}
                       />
-                      <div className="rating-slider-marks">
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                          <span 
-                            key={num} 
-                            className={`rating-slider-mark ${tempRating === num ? 'active' : ''}`}
-                          >
-                            {num}
-                          </span>
-                        ))}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleSubmitRating(tempRating)}
-                        disabled={submittingRating}
-                        className="rating-submit-button"
-                      >
-                        {submittingRating ? 'Отправка...' : 'Подтвердить'}
-                      </button>
                     </div>
                   </div>
                 )}

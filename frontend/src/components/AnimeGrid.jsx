@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, memo } from 'react'
 import { Link } from 'react-router-dom'
+import LazyImage from './LazyImage'
 import './AnimeCardGrid.css'
+import './LazyImage.css'
 
-function AnimeGrid({ 
+const AnimeGrid = memo(function AnimeGrid({ 
   title, 
   animeList = [], 
   itemsPerPage = 6, 
@@ -245,10 +247,10 @@ function AnimeGrid({
                         className="anime-card-grid-card"
                       >
                         <div className="anime-card-poster">
-                          <img 
+                          <LazyImage 
                             src={anime.poster_url || '/placeholder.jpg'} 
                             alt={anime.title}
-                            loading="lazy"
+                            className="lazy-image"
                           />
                           {score && (
                             <div className={`anime-card-score ${scoreClass}`}>
@@ -289,7 +291,7 @@ function AnimeGrid({
       )}
     </section>
   )
-}
+})
 
 export default AnimeGrid
 

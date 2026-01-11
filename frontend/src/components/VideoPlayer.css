@@ -74,8 +74,6 @@
   background-color: #000;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3), 
               0 8px 24px rgba(0, 0, 0, 0.2);
-  transition: box-shadow 0.3s ease, transform 0.3s ease;
-  animation: playerGlow 2s ease-in-out 0.5s;
 }
 
 @keyframes playerGlow {
@@ -89,12 +87,6 @@
                 0 0 40px rgba(229, 9, 20, 0.3),
                 0 0 80px rgba(229, 9, 20, 0.15);
   }
-}
-
-.kodik-iframe-wrapper:hover {
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4), 
-              0 16px 48px rgba(0, 0, 0, 0.3);
-  transform: translateY(-2px);
 }
 
 .custom-video-player {

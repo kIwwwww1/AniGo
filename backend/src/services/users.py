@@ -1,5 +1,6 @@
 from fastapi import HTTPException, status, Response, Request
-from sqlalchemy import select, delete, func
+from sqlalchemy import select, delete, func, desc
+from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone
 from loguru import logger
@@ -718,3 +719,27 @@ async def add_new_user_photo(user_id: int, s3_url: str, session: AsyncSession):
     
     logger.info(f"Аватар успешно обновлен для пользователя {user_id}")
     return 'Аватар успешно изменен'
+
+
+async def get_user_most_favorited(limit=6, offset=0, session: AsyncSession = None):
+    stmt = (
+        select(UserModel)
+        .outerjoin(FavoriteModel, FavoriteModel.user_id == UserModel.id)
+        .group_by(UserModel.id)
+        .order_by(desc(func.count(FavoriteModel.id)))
+        .limit(limit)
+        .offset(offset))
+    
+    resp = (await session.execute(stmt)).scalars().all()
+
+    six_users = []
+
+    for user in resp:
+        _user = {
+            'username': user.username,
+            'amount': len(user.favorites),
+            'favorite': user.best_anime,
+            'avatar_url': user.avatar_url,
+    }   
+        six_users.append(_user)
+    return six_users

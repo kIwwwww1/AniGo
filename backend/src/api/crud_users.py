@@ -7,16 +7,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 # 
 from src.models.users import UserModel
-from src.dependencies.all_dep import SessionDep, UserExistsDep
+from src.dependencies.all_dep import (SessionDep, UserExistsDep, 
+                                      PaginatorAnimeDep as UserPaginatorDep)
 from src.services.users import (add_user, create_user_comment, 
                                 create_rating, get_user_by_id, login_user,
                                 toggle_favorite, check_favorite, check_rating, get_user_favorites,
                                 get_user_by_username, verify_email, change_username, change_password,
                                 set_best_anime, get_user_best_anime, remove_best_anime,
-                                add_new_user_photo)
+                                add_new_user_photo, get_user_most_favorited)
 from src.schemas.user import (CreateNewUser, CreateUserComment, 
                               CreateUserRating, LoginUser, 
-                              CreateUserFavorite, UserName, ChangeUserPassword, CreateBestUserAnime)
+                              CreateUserFavorite, UserName, ChangeUserPassword, 
+                              CreateBestUserAnime)
 from src.auth.auth import get_token, delete_token
 from src.db.database import engine, new_session
 from src.services.database import restart_database
@@ -324,6 +326,14 @@ async def user_settings(username: str, session: SessionDep):
     }
 
 
+@user_router.get('/most-favorited')
+async def most_favorited(pagin_data: UserPaginatorDep, session: SessionDep):
+    resp = await get_user_most_favorited(
+        limit=pagin_data.limit, offset=pagin_data.offset, session=session)
+    return {'message': resp}
+
+
+
 @user_router.patch('/avatar')
 async def create_user_avatar(photo: UploadFile, user: UserExistsDep, session: SessionDep):
     '''Загрузить аватар пользователя с валидацией размера файла и размеров изображения'''
@@ -408,5 +418,6 @@ async def create_user_avatar(photo: UploadFile, user: UserExistsDep, session: Se
     logger.info(f"Финальный avatar_url для ответа: {final_avatar_url}")
     
     return {'message': 'Аватар успешно загружен', 'avatar_url': final_avatar_url}
+
 
 
