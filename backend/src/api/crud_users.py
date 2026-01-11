@@ -397,8 +397,35 @@ async def user_settings(username: str, session: SessionDep):
 
 @user_router.get('/most-favorited')
 async def most_favorited(pagin_data: UserPaginatorDep, session: SessionDep):
+    '''Получение топ коллекционеров с кэшированием в Redis на 1 неделю'''
+    
+    # Проверяем кэш Redis
+    redis = await get_redis_client()
+    cache_key = f"most_favorited_users:limit:{pagin_data.limit}:offset:{pagin_data.offset}"
+    
+    if redis:
+        try:
+            cached_data = await redis.get(cache_key)
+            if cached_data is not None:
+                logger.debug(f"🎯 Cache HIT: most favorited users (limit: {pagin_data.limit}, offset: {pagin_data.offset})")
+                return {'message': json.loads(cached_data)}
+        except Exception as e:
+            logger.warning(f"Redis cache check error for most favorited users: {e}")
+    
+    # Кэш промах - загружаем данные из БД
+    logger.debug(f"💨 Cache MISS: most favorited users (limit: {pagin_data.limit}, offset: {pagin_data.offset})")
     resp = await get_user_most_favorited(
         limit=pagin_data.limit, offset=pagin_data.offset, session=session)
+    
+    # Сохраняем в кэш на 1 неделю (604800 секунд)
+    if redis:
+        try:
+            serialized_data = json.dumps(resp, default=str)
+            await redis.setex(cache_key, 604800, serialized_data)  # TTL = 1 неделя
+            logger.debug(f"💾 Cached most favorited users (TTL: 604800s, limit: {pagin_data.limit}, offset: {pagin_data.offset})")
+        except Exception as e:
+            logger.warning(f"Failed to cache most favorited users: {e}")
+    
     return {'message': resp}
 
 
