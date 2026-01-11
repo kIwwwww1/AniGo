@@ -408,3 +408,5 @@ async def create_user_avatar(photo: UploadFile, user: UserExistsDep, session: Se
     logger.info(f"Финальный avatar_url для ответа: {final_avatar_url}")
     
     return {'message': 'Аватар успешно загружен', 'avatar_url': final_avatar_url}
+
+
