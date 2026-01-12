@@ -1234,11 +1234,6 @@ function UserProfilePage() {
                   />
                 )
               } else {
-                console.log('Showing fallback avatar (cat sticker). Reason:', {
-                  avatarUrl,
-                  avatarError,
-                  userAvatarUrl: user.avatar_url
-                })
                 return (
                   <div 
                     className={`profile-avatar profile-avatar-fallback ${isPremiumProfile ? 'premium-avatar' : ''}`}

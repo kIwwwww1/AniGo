@@ -677,6 +677,30 @@ function Layout({ children }) {
                         <span>Настройки</span>
                       </button>
                       <button 
+                        className="dropdown-item"
+                        onClick={() => {
+                          setShowUserDropdown(false)
+                          window.open('https://t.me/Yumivo_ru', '_blank', 'noopener,noreferrer')
+                        }}
+                      >
+                        <svg 
+                          width="18" 
+                          height="18" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          strokeWidth="1.5" 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round"
+                        >
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                          <polyline points="14 2 14 8 20 8"></polyline>
+                          <path d="M16.5 10.5l-1.5 1.5-3-3 1.5-1.5a1.5 1.5 0 0 1 2.12 0l1 1"></path>
+                          <path d="M12 18h4"></path>
+                        </svg>
+                        <span>Поддержка</span>
+                      </button>
+                      <button 
                         className="dropdown-item logout-item" 
                         onClick={handleLogout}
                       >
