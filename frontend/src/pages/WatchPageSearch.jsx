@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { animeAPI, userAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
@@ -19,12 +19,18 @@ function WatchPageSearch() {
   const [commentText, setCommentText] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
   const [avatarErrors, setAvatarErrors] = useState({}) // Ошибки загрузки аватарок комментариев
+  const [lastCommentTime, setLastCommentTime] = useState(null) // Время последнего комментария
+  const [commentCooldown, setCommentCooldown] = useState(0) // Осталось секунд до следующего комментария
+  const COMMENT_COOLDOWN_SECONDS = 60 // Время между комментариями в секундах
+  const cooldownIntervalRef = useRef(null)
 
   useEffect(() => {
     if (animeName) {
       // Прокручиваем страницу вверх при переходе на страницу аниме
       window.scrollTo(0, 0)
       setRetryAttempted(false) // Сбрасываем флаг при изменении animeName
+      setLastCommentTime(null) // Сбрасываем время последнего комментария
+      setCommentCooldown(0) // Сбрасываем кулдаун
       loadAnime()
       loadRandomAnime()
     }
@@ -42,6 +48,31 @@ function WatchPageSearch() {
       }
     }
   }, [anime])
+
+  // Обратный отсчет для кулдауна комментариев
+  useEffect(() => {
+    if (commentCooldown > 0) {
+      cooldownIntervalRef.current = setInterval(() => {
+        setCommentCooldown((prev) => {
+          if (prev <= 1) {
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    } else {
+      if (cooldownIntervalRef.current) {
+        clearInterval(cooldownIntervalRef.current)
+        cooldownIntervalRef.current = null
+      }
+    }
+
+    return () => {
+      if (cooldownIntervalRef.current) {
+        clearInterval(cooldownIntervalRef.current)
+      }
+    }
+  }, [commentCooldown])
 
   const loadAnime = async () => {
     try {
@@ -212,17 +243,32 @@ function WatchPageSearch() {
 
   const handleSubmitComment = async (e) => {
     e.preventDefault()
-    if (!commentText.trim() || !anime) return
+    if (!commentText.trim() || !anime || commentCooldown > 0) return
 
     try {
       setSubmittingComment(true)
       await userAPI.createComment(anime.id, commentText)
       setCommentText('')
+      // Сохраняем время отправки комментария
+      setLastCommentTime(Date.now())
+      setCommentCooldown(COMMENT_COOLDOWN_SECONDS)
+      // Инвалидируем кэш аниме после создания комментария
+      const { invalidateAnimeRelatedCache } = await import('../utils/cache')
+      invalidateAnimeRelatedCache()
       // Перезагружаем аниме, чтобы получить обновленные комментарии
       await loadAnime()
     } catch (err) {
       console.error('Ошибка при отправке комментария:', err)
-      alert('Ошибка при отправке комментария')
+      if (err.response?.status === 429) {
+        // Ошибка защиты от спама
+        const errorMessage = err.response?.data?.detail || 'Вы отправляете комментарии слишком часто. Подождите немного.'
+        alert(errorMessage)
+        // Устанавливаем кулдаун из ответа сервера, если возможно
+        setLastCommentTime(Date.now())
+        setCommentCooldown(COMMENT_COOLDOWN_SECONDS)
+      } else {
+        alert('Ошибка при отправке комментария')
+      }
     } finally {
       setSubmittingComment(false)
     }
@@ -417,10 +463,15 @@ function WatchPageSearch() {
                 </div>
                 <button
                   type="submit"
-                  disabled={submittingComment || !commentText.trim()}
+                  disabled={submittingComment || !commentText.trim() || commentCooldown > 0}
                   className="comment-submit-btn"
+                  title={commentCooldown > 0 ? `Подождите ${commentCooldown} секунд перед отправкой следующего комментария` : ''}
                 >
-                  {submittingComment ? 'Отправка...' : 'Отправить'}
+                  {submittingComment 
+                    ? 'Отправка...' 
+                    : commentCooldown > 0 
+                    ? `Подождите ${commentCooldown}с`
+                    : 'Отправить'}
                 </button>
               </form>
 

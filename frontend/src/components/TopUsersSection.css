@@ -1,0 +1,971 @@
+.top-users-section {
+  margin-bottom: 0.5rem;
+  padding: 2rem 0;
+  width: 100%;
+}
+
+/* Стили для tooltip с информацией о разделе */
+.top-users-section .sort-info-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+  margin-right: 0.75rem;
+}
+
+.top-users-section .tooltip-icon {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1.5px solid var(--user-accent-color, var(--accent, #e50914));
+  opacity: 0.6;
+  color: var(--user-accent-color, var(--accent, #e50914));
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+  cursor: help;
+  line-height: 1;
+  user-select: none;
+}
+
+.top-users-section .tooltip-icon:hover {
+  background: transparent;
+  border-color: var(--user-accent-color, var(--accent, #e50914));
+  opacity: 1;
+  color: var(--user-accent-color, var(--accent, #e50914));
+  transform: scale(1.1);
+}
+
+.top-users-section .tooltip-content {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(26, 26, 26, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  font-size: 0.95rem;
+  color: var(--text-primary, #ffffff);
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: all 0.3s ease;
+  z-index: 1000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  max-width: 450px;
+  min-width: 320px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.top-users-section .sort-info-tooltip:hover .tooltip-content {
+  opacity: 1;
+  visibility: visible;
+}
+
+.top-users-section .tooltip-content::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-bottom-color: rgba(26, 26, 26, 0.95);
+  filter: drop-shadow(0 -2px 2px rgba(0, 0, 0, 0.2));
+}
+
+/* Карусель для топ пользователей */
+.top-users-carousel-wrapper {
+  overflow-x: hidden;
+  overflow-y: visible;
+  position: relative;
+  margin-bottom: 1.5rem;
+  padding-top: 8px;
+  margin-top: -8px;
+}
+
+.top-users-carousel-container {
+  display: flex;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+  overflow: visible;
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+.top-users-carousel-page {
+  display: flex;
+  gap: 1.25rem;
+  flex: 0 0 100%;
+  min-width: 0;
+  overflow: visible;
+  transform: translateZ(0);
+  will-change: transform;
+  box-sizing: border-box;
+  align-items: stretch;
+  padding: 0 0.625rem;
+}
+
+/* Кнопки навигации карусели */
+.carousel-controls {
+  display: flex !important;
+  gap: 0.5rem;
+  visibility: visible !important;
+  opacity: 1 !important;
+  margin-left: auto;
+  margin-right: 2.5rem;
+  flex-shrink: 0;
+}
+
+.carousel-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  visibility: visible !important;
+  opacity: 1 !important;
+  flex-shrink: 0;
+}
+
+.carousel-btn svg {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.carousel-btn:hover:not(:disabled) {
+  background-color: var(--user-accent-color, var(--accent));
+  border-color: var(--user-accent-color, var(--accent));
+  color: white;
+  transform: scale(1.05);
+}
+
+.carousel-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Индикаторы карусели */
+.carousel-indicators {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: var(--border);
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s;
+  padding: 0;
+}
+
+.indicator:hover {
+  background-color: var(--text-secondary);
+  transform: scale(1.2);
+}
+
+.indicator.active {
+  background-color: var(--user-accent-color, var(--accent));
+  width: 24px;
+  border-radius: 6px;
+}
+
+/* Старые стили для обратной совместимости (используются в карточках) */
+.top-users-grid {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  padding: 0 0.625rem;
+}
+
+.top-users-section .user-card {
+  flex: 0 0 calc(33.333% - 0.833rem);
+  min-width: 0;
+  background-color: #2a2a2a;
+  background-image: none;
+  border-radius: 12px;
+  padding: 1rem;
+  transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s, background 0.3s, background-color 0.3s, background-image 0.3s, min-height 0.3s ease;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  min-height: 180px;
+  border: 1px solid transparent;
+  height: auto;
+  align-self: stretch;
+}
+
+/* Темный фон для всех тем (если градиент не установлен через inline стили) */
+/* Используем :not([style*="background"]) чтобы не переопределять inline стили с градиентом */
+:not([data-theme="dark"]) .top-users-section .user-card:not([style*="background"]):not([style*="backgroundImage"]),
+[data-theme="light"] .top-users-section .user-card:not([style*="background"]):not([style*="backgroundImage"]),
+body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):not([style*="backgroundImage"]) {
+  background-color: #2a2a2a;
+}
+
+[data-theme="dark"] .top-users-section .user-card:not([style*="background"]):not([style*="backgroundImage"]) {
+  background-color: #2a2a2a;
+}
+
+/* Стили для карточек с градиентом - гарантируем, что градиент виден */
+.top-users-section .user-card.has-gradient {
+  background-color: transparent !important;
+  background-image: var(--user-theme-gradient, none) !important;
+  background: var(--user-theme-gradient, none) !important;
+}
+
+.user-card:hover {
+  transform: translateY(-4px);
+  z-index: 10;
+}
+
+.user-card:not(.premium-card):hover {
+  box-shadow: 0 8px 48px var(--user-glow-rgba, rgba(229, 9, 20, 0.4)), 0 0 0 1px var(--user-glow-color, #e50914) !important;
+}
+
+.user-card .user-avatar-wrapper {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  width: 100px;
+  height: 100px;
+  min-width: 100px;
+  min-height: 100px;
+  border-radius: 50%;
+  overflow: visible;
+  background: #4a4a4a;
+  z-index: 2;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 8px 24px var(--user-glow-rgba, rgba(229, 9, 20, 0.3)), 0 0 20px var(--user-glow-rgba-light, rgba(229, 9, 20, 0.2));
+}
+
+[data-theme="dark"] .user-card .user-avatar-wrapper {
+  background: #1a1a1a;
+}
+
+.top-users-section .user-card .user-avatar-wrapper .user-avatar {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+  border-radius: 50% !important;
+  position: relative;
+}
+
+.top-users-section .user-card .user-avatar-wrapper .user-avatar-initials {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 2.5rem;
+  text-transform: uppercase;
+  border-radius: 50%;
+  position: relative;
+}
+
+.user-rank {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--user-accent-color, #e50914) 0%, var(--user-accent-color-dark, #b00710) 100%);
+  color: white;
+  font-weight: 700;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+  border: 3px solid #2a2a2a;
+}
+
+[data-theme="dark"] .user-rank {
+  border-color: #2a2a2a;
+}
+
+/* Tooltip для кубка первого места */
+.trophy-tooltip {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  display: inline-block;
+  cursor: help;
+  z-index: 100;
+}
+
+.trophy-tooltip .user-rank.first-place {
+  position: relative;
+  top: 0;
+  right: 0;
+}
+
+.trophy-tooltip-content {
+  position: fixed !important;
+  background: rgba(26, 26, 26, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 12px !important;
+  padding: 1rem 1.25rem !important;
+  font-size: 0.95rem !important;
+  color: #ffffff !important;
+  white-space: normal !important;
+  pointer-events: auto !important;
+  z-index: 99999 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  width: max-content !important;
+  max-width: 400px !important;
+  text-align: center !important;
+  line-height: 1.6 !important;
+  word-wrap: break-word !important;
+  margin: 0 !important;
+  display: block !important;
+}
+
+.trophy-tooltip-divider {
+  width: 100%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0.75rem 0;
+}
+
+.trophy-tooltip-secondary-text {
+  opacity: 0.7;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 0.5rem;
+}
+
+.trophy-tooltip-gold-text {
+  background: linear-gradient(135deg, #ffc800 0%, #fff200 25%, #ffd700 50%, #fff200 75%, #ffc800 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: trophy-gold-text-shimmer 3s ease-in-out infinite;
+  color: transparent;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.6), 0 0 12px rgba(255, 215, 0, 0.4);
+  filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.5));
+}
+
+@keyframes trophy-gold-text-shimmer {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+
+
+/* Стили для первого места - золотой кубок с горящим огнем */
+.user-rank.first-place {
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 25%, #ffd700 50%, #ffed4e 75%, #ffd700 100%);
+  background-size: 200% 200%;
+  animation: gold-fire-glow 2s ease-in-out infinite, gold-fire-shimmer 3s ease-in-out infinite;
+  box-shadow: 0 4px 16px rgba(255, 215, 0, 0.6), 0 0 20px rgba(255, 215, 0, 0.4), 0 0 30px rgba(255, 215, 0, 0.3);
+  border: 3px solid #2a2a2a;
+  width: 44px;
+  height: 44px;
+  transform-origin: center;
+  color: #fff;
+}
+
+.user-rank.first-place .trophy-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  animation: trophy-sparkle 2s ease-in-out infinite;
+}
+
+.trophy-tooltip:hover .user-rank.first-place {
+  animation: gold-fire-glow 1s ease-in-out infinite, gold-fire-shimmer 2s ease-in-out infinite, gold-cup-bounce 0.5s ease-in-out;
+  box-shadow: 0 6px 20px rgba(255, 215, 0, 0.8), 0 0 30px rgba(255, 215, 0, 0.6), 0 0 40px rgba(255, 215, 0, 0.4);
+}
+
+/* Анимация горящего огня - пульсирующее свечение */
+@keyframes gold-fire-glow {
+  0%, 100% {
+    box-shadow: 0 4px 16px rgba(255, 215, 0, 0.6), 0 0 20px rgba(255, 215, 0, 0.4), 0 0 30px rgba(255, 215, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 6px 24px rgba(255, 215, 0, 0.8), 0 0 30px rgba(255, 215, 0, 0.6), 0 0 40px rgba(255, 215, 0, 0.5);
+  }
+}
+
+/* Анимация мерцания золота */
+@keyframes gold-fire-shimmer {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Анимация подпрыгивания кубка при hover */
+@keyframes gold-cup-bounce {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.05);
+  }
+}
+
+/* Анимация мерцания для SVG кубка */
+@keyframes trophy-sparkle {
+  0%, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)) drop-shadow(0 0 8px rgba(255, 215, 0, 0.5));
+  }
+  50% {
+    opacity: 0.95;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)) drop-shadow(0 0 12px rgba(255, 215, 0, 0.8));
+  }
+}
+
+.trophy-tooltip:hover .user-rank.first-place .trophy-icon {
+  animation: trophy-sparkle 1s ease-in-out infinite;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)) drop-shadow(0 0 16px rgba(255, 215, 0, 1));
+  transform: scale(1.1);
+}
+
+.top-users-section .user-card .user-info {
+  position: absolute !important;
+  top: 3.5rem !important;
+  left: 146px !important;
+  right: 1rem !important;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.user-name {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: #ffffff;
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  transition: color 0.3s, transform 0.3s;
+  font-family: 'Nunito', 'Quicksand', 'Comfortaa', 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  letter-spacing: -0.01em;
+  margin: 0;
+  line-height: 1.3;
+  text-align: left;
+}
+
+[data-theme="dark"] .user-name {
+  color: #ffffff;
+}
+
+.user-card:hover .user-name {
+  color: var(--user-glow-color, var(--user-accent-color, #e50914));
+  transform: translateX(2px);
+}
+
+.user-card:hover .user-avatar-wrapper {
+  box-shadow: 0 10px 30px var(--user-glow-rgba, rgba(229, 9, 20, 0.4)), 0 0 25px var(--user-glow-rgba-light, rgba(229, 9, 20, 0.3)) !important;
+}
+
+/* Премиум стили для карточки пользователя */
+.user-card.premium-card {
+  border: 2px solid transparent;
+  background: linear-gradient(135deg, #2a2a2a 0%, #2a2a2a 100%) padding-box,
+              linear-gradient(135deg, #ffc800 0%, #fff200 25%, #ffd700 50%, #fff200 75%, #ffc800 100%) border-box;
+  background-size: 100% 100%, 200% 200%;
+  animation: gold-border-shimmer 3s ease-in-out infinite;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(255, 215, 0, 0.3), 0 0 20px rgba(255, 215, 0, 0.2) !important;
+}
+
+/* Переопределяем фон для карточек с градиентом (не премиум) */
+.user-card.has-gradient:not(.premium-card) {
+  background: var(--user-theme-gradient) !important;
+  background-color: transparent !important;
+  background-image: var(--user-theme-gradient) !important;
+}
+
+.user-card.premium-card:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(255, 215, 0, 0.4), 0 0 30px rgba(255, 215, 0, 0.3) !important;
+}
+
+/* Премиум стили для аватарки */
+.user-avatar-wrapper.premium-avatar-wrapper {
+  border: 2px solid transparent !important;
+  background: 
+    linear-gradient(#4a4a4a, #4a4a4a) padding-box,
+    linear-gradient(135deg, #ffc800 0%, #fff200 25%, #ffd700 50%, #fff200 75%, #ffc800 100%) border-box;
+  background-size: 100% 100%, 200% 200%;
+  animation: gold-border-shimmer 3s ease-in-out infinite;
+  box-shadow: 0 8px 24px rgba(255, 215, 0, 0.4), 0 0 20px rgba(255, 215, 0, 0.3) !important;
+  position: relative;
+}
+
+[data-theme="dark"] .user-avatar-wrapper.premium-avatar-wrapper {
+  background: 
+    linear-gradient(#1a1a1a, #1a1a1a) padding-box,
+    linear-gradient(135deg, #ffc800 0%, #fff200 25%, #ffd700 50%, #fff200 75%, #ffc800 100%) border-box;
+}
+
+.user-card:hover .user-avatar-wrapper.premium-avatar-wrapper {
+  box-shadow: 0 10px 30px rgba(255, 215, 0, 0.5), 0 0 25px rgba(255, 215, 0, 0.4) !important;
+}
+
+/* Анимация золотого свечения */
+@keyframes gold-border-shimmer {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.user-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: auto;
+}
+
+.favorites-count {
+  font-size: 0.85rem;
+  color: var(--user-glow-color, var(--user-accent-color, #e50914));
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+[data-theme="dark"] .favorites-count {
+  color: var(--user-glow-color, var(--user-accent-color, #e50914));
+}
+
+.favorites-heart-icon {
+  width: 16px;
+  height: 16px;
+  fill: var(--user-glow-color, var(--user-accent-color, #e50914));
+  stroke: var(--user-glow-color, var(--user-accent-color, #e50914));
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+/* Премиум стили для имени пользователя */
+.user-name.premium-user-name {
+  background: linear-gradient(135deg, #ffc800 0%, #fff200 25%, #ffd700 50%, #fff200 75%, #ffc800 100%) !important;
+  background-size: 200% 200% !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  animation: gold-shimmer 3s ease-in-out infinite;
+  color: transparent !important;
+}
+
+@keyframes gold-shimmer {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Стили для короны премиум пользователей */
+.crown-icon-top-users {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+  animation: crown-glow-top-users 2s ease-in-out infinite;
+}
+
+.crown-icon-top-users img {
+  filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
+  animation: crown-svg-glow-top-users 2s ease-in-out infinite;
+}
+
+@keyframes crown-glow-top-users {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes crown-svg-glow-top-users {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
+  }
+  50% {
+    filter: drop-shadow(0 0 12px rgba(255, 215, 0, 1));
+  }
+}
+
+/* Премиум стили для счетчика избранного */
+.favorites-count.premium-favorites {
+  color: #ffd700 !important;
+}
+
+.favorites-heart-icon.premium-heart-icon {
+  fill: #ffd700 !important;
+  stroke: #ffd700 !important;
+}
+
+/* Топ-3 аниме пользователя */
+.user-best-anime {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  width: auto;
+  justify-content: flex-end;
+  z-index: 1;
+}
+
+.user-best-anime-card {
+  position: relative;
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.user-best-anime-card:hover {
+  transform: translateY(-4px);
+}
+
+.user-best-anime-place {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.75rem;
+  z-index: 2;
+}
+
+.user-best-anime-poster {
+  position: relative;
+  width: 100%;
+  padding-top: 142.86%; /* 7:10 aspect ratio */
+  overflow: hidden;
+  background: var(--bg-secondary, #2a2a2a);
+  border-radius: 12px;
+}
+
+.user-best-anime-poster img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.user-best-anime-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-secondary, #2a2a2a);
+  color: var(--text-secondary, #999);
+  font-size: 1.5rem;
+  border-radius: 12px;
+}
+
+.user-best-anime-score {
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.5rem;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.7rem;
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  z-index: 2;
+}
+
+.user-best-anime-score.score-perfect {
+  background: rgba(255, 215, 0, 0.9);
+  color: #000;
+}
+
+.user-best-anime-score.score-high {
+  background: rgba(76, 175, 80, 0.9);
+}
+
+.user-best-anime-score.score-medium {
+  background: rgba(255, 152, 0, 0.9);
+}
+
+.user-best-anime-score.score-low {
+  background: rgba(244, 67, 54, 0.9);
+}
+
+/* Skeleton loading */
+.user-card.skeleton {
+  pointer-events: none;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-avatar {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #e0e0e0 25%, #d0d0d0 50%, #e0e0e0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  z-index: 2;
+}
+
+[data-theme="dark"] .skeleton-avatar {
+  background: linear-gradient(90deg, #3a3a3a 25%, #4a4a4a 50%, #3a3a3a 75%);
+  background-size: 200% 100%;
+}
+
+.skeleton-text {
+  height: 1rem;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #e0e0e0 25%, #d0d0d0 50%, #e0e0e0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+[data-theme="dark"] .skeleton-text {
+  background: linear-gradient(90deg, #3a3a3a 25%, #4a4a4a 50%, #3a3a3a 75%);
+  background-size: 200% 100%;
+}
+
+.skeleton-username {
+  width: 80%;
+  height: 0.95rem;
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-favorites {
+  width: 60%;
+  height: 0.85rem;
+}
+
+.skeleton-best-anime-card {
+  flex: 1;
+  padding-top: 142.86%; /* 7:10 aspect ratio */
+  border-radius: 12px;
+  background: linear-gradient(90deg, #e0e0e0 25%, #d0d0d0 50%, #e0e0e0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  position: relative;
+}
+
+[data-theme="dark"] .skeleton-best-anime-card {
+  background: linear-gradient(90deg, #3a3a3a 25%, #4a4a4a 50%, #3a3a3a 75%);
+  background-size: 200% 100%;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Responsive styles */
+@media (max-width: 1200px) {
+  .carousel-controls {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
+    justify-content: flex-end;
+    padding-right: 1rem;
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .user-card {
+    flex: 0 0 calc(100% - 0.833rem);
+    padding: 0.75rem;
+    min-height: 160px;
+  }
+  
+  .user-best-anime {
+    top: 0.75rem;
+    right: 0.75rem;
+  }
+  
+  .user-best-anime-card {
+    width: 100px;
+    min-width: 100px;
+    max-width: 100px;
+  }
+  
+  .top-users-section .user-card .user-info {
+    right: 110px !important;
+  }
+  
+  .user-avatar-wrapper {
+    width: 80px;
+    height: 80px;
+    top: 0.75rem;
+    left: 0.75rem;
+  }
+  
+  .skeleton-avatar {
+    width: 80px;
+    height: 80px;
+    top: 0.75rem;
+    left: 0.75rem;
+  }
+  
+  .user-avatar-initials {
+    font-size: 2rem;
+  }
+  
+  .top-users-section .user-card .user-info {
+    position: absolute !important;
+    top: 1rem !important;
+    left: 122px !important;
+    right: 0.75rem !important;
+    align-items: flex-start;
+  }
+  
+  .user-name {
+    font-size: 1.5rem;
+    line-height: 1.3;
+  }
+  
+  .favorites-count {
+    font-size: 0.75rem;
+  }
+  
+  .user-rank {
+    width: 36px;
+    height: 36px;
+    font-size: 0.875rem;
+    top: -8px;
+    right: -8px;
+  }
+  
+  .user-rank.first-place {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .user-rank.first-place .trophy-icon {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .user-best-anime {
+    gap: 0.375rem;
+    padding-top: 0.375rem;
+  }
+  
+  .user-best-anime-place {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.4rem;
+    top: 0.375rem;
+    left: 0.375rem;
+  }
+  
+  .user-best-anime-score {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.4rem;
+    bottom: 0.375rem;
+    right: 0.375rem;
+  }
+  
+  .user-card {
+    min-height: 340px;
+  }
+  
+  .trophy-tooltip-content {
+    max-width: calc(100vw - 2rem);
+    font-size: 0.85rem;
+    padding: 0.875rem 1rem;
+  }
+  
+}

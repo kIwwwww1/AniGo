@@ -10,6 +10,9 @@ console.log('VITE_API_TARGET env:', process.env.VITE_API_TARGET)
 
 export default defineConfig({
   plugins: [react()],
+  optimizeDeps: {
+    include: ['hls.js']
+  },
   server: {
     host: '0.0.0.0',
     port: 3000,

@@ -34,9 +34,13 @@ function WatchPage() {
   const [mousePosition, setMousePosition] = useState({ x: 0.5, y: 0.5 }) // Позиция мыши для голографического эффекта
   const [isHoveringPoster, setIsHoveringPoster] = useState(false) // Наведена ли мышь на постер
   const commentsLimit = 4 // Количество комментариев на странице
+  const [lastCommentTime, setLastCommentTime] = useState(null) // Время последнего комментария
+  const [commentCooldown, setCommentCooldown] = useState(0) // Осталось секунд до следующего комментария
+  const COMMENT_COOLDOWN_SECONDS = 60 // Время между комментариями в секундах
   
   // useRef для debounce автоматического подтверждения рейтинга
   const ratingTimeoutRef = useRef(null)
+  const cooldownIntervalRef = useRef(null)
 
   useEffect(() => {
     // Прокручиваем страницу вверх при переходе на страницу аниме
@@ -51,6 +55,9 @@ function WatchPage() {
     setCommentsPage(0)
     setCommentsHasMore(true)
     setHasAnyComments(false)
+    setSelectedPlayer(null) // Сбрасываем плеер при смене аниме
+    setLastCommentTime(null) // Сбрасываем время последнего комментария
+    setCommentCooldown(0) // Сбрасываем кулдаун
     
     loadAnime()
     loadRandomAnime()
@@ -65,25 +72,30 @@ function WatchPage() {
     try {
       const response = await userAPI.getCurrentUser()
       if (response && response.message && response.message.username) {
-        const username = response.message.username
-        const savedColor = localStorage.getItem(`user_${username}_avatar_border_color`)
-        const availableColors = ['#ffffff', '#000000', '#808080', '#c4c4af', '#0066ff', '#00cc00', '#ff0000', '#ff69b4', '#ffd700', '#9932cc']
-        
-        if (savedColor && availableColors.includes(savedColor)) {
-          // Устанавливаем CSS переменную
-          document.documentElement.style.setProperty('--user-accent-color', savedColor)
+        // Загружаем настройки профиля из API
+        const settingsResponse = await userAPI.getProfileSettings()
+        if (settingsResponse.message && settingsResponse.message.avatar_border_color) {
+          const savedColor = settingsResponse.message.avatar_border_color
+          const availableColors = ['#ffffff', '#000000', '#808080', '#c4c4af', '#0066ff', '#00cc00', '#ff0000', '#ff69b4', '#ffd700', '#9932cc']
           
-          // Создаем rgba версию для hover эффектов
-          const hex = savedColor.replace('#', '')
-          const r = parseInt(hex.slice(0, 2), 16)
-          const g = parseInt(hex.slice(2, 4), 16)
-          const b = parseInt(hex.slice(4, 6), 16)
-          const rgba = `rgba(${r}, ${g}, ${b}, 0.1)`
-          document.documentElement.style.setProperty('--user-accent-color-rgba', rgba)
-          
-          // Создаем тень для box-shadow
-          const shadowRgba = `rgba(${r}, ${g}, ${b}, 0.4)`
-          document.documentElement.style.setProperty('--user-accent-color-shadow', shadowRgba)
+          if (availableColors.includes(savedColor)) {
+            // Сохраняем цвет в localStorage для быстрой загрузки при следующем открытии
+            localStorage.setItem('user-avatar-border-color', savedColor)
+            // Устанавливаем CSS переменную
+            document.documentElement.style.setProperty('--user-accent-color', savedColor)
+            
+            // Создаем rgba версию для hover эффектов
+            const hex = savedColor.replace('#', '')
+            const r = parseInt(hex.slice(0, 2), 16)
+            const g = parseInt(hex.slice(2, 4), 16)
+            const b = parseInt(hex.slice(4, 6), 16)
+            const rgba = `rgba(${r}, ${g}, ${b}, 0.1)`
+            document.documentElement.style.setProperty('--user-accent-color-rgba', rgba)
+            
+            // Создаем тень для box-shadow
+            const shadowRgba = `rgba(${r}, ${g}, ${b}, 0.4)`
+            document.documentElement.style.setProperty('--user-accent-color-shadow', shadowRgba)
+          }
         }
       }
     } catch (err) {
@@ -124,16 +136,53 @@ function WatchPage() {
     }
   }, [tempRating, isRatingMenuOpen])
 
+  // Обратный отсчет для кулдауна комментариев
   useEffect(() => {
-    if (anime && anime.players && anime.players.length > 0) {
-      // Используем первый доступный плеер
-      const player = anime.players[0]
-      if (player) {
+    if (commentCooldown > 0) {
+      cooldownIntervalRef.current = setInterval(() => {
+        setCommentCooldown((prev) => {
+          if (prev <= 1) {
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    } else {
+      if (cooldownIntervalRef.current) {
+        clearInterval(cooldownIntervalRef.current)
+        cooldownIntervalRef.current = null
+      }
+    }
+
+    return () => {
+      if (cooldownIntervalRef.current) {
+        clearInterval(cooldownIntervalRef.current)
+      }
+    }
+  }, [commentCooldown])
+
+  useEffect(() => {
+    if (anime && anime.players && Array.isArray(anime.players) && anime.players.length > 0) {
+      // Используем первый доступный плеер с embed_url
+      const player = anime.players.find(p => p && p.embed_url) || anime.players[0]
+      if (player && player.embed_url) {
+        console.log('Setting selectedPlayer:', player)
         setSelectedPlayer({
           ...player,
           embed_url: player.embed_url
         })
+      } else {
+        // Если у плеера нет embed_url, сбрасываем selectedPlayer
+        console.log('No player with embed_url found, resetting selectedPlayer')
+        setSelectedPlayer(null)
       }
+    } else if (anime) {
+      // Если аниме загружено, но нет плееров, сбрасываем selectedPlayer
+      console.log('Anime loaded but no players available, resetting selectedPlayer')
+      setSelectedPlayer(null)
+    } else {
+      // Если аниме не загружено, сбрасываем selectedPlayer
+      setSelectedPlayer(null)
     }
   }, [anime])
 
@@ -308,17 +357,32 @@ function WatchPage() {
 
   const handleSubmitComment = async (e) => {
     e.preventDefault()
-    if (!commentText.trim()) return
+    if (!commentText.trim() || commentCooldown > 0) return
 
     try {
       setSubmittingComment(true)
       await userAPI.createComment(parseInt(animeId), commentText)
       setCommentText('')
+      // Сохраняем время отправки комментария
+      setLastCommentTime(Date.now())
+      setCommentCooldown(COMMENT_COOLDOWN_SECONDS)
+      // Инвалидируем кэш аниме после создания комментария
+      const { invalidateAnimeRelatedCache } = await import('../utils/cache')
+      invalidateAnimeRelatedCache()
       // Обновляем только комментарии без перезагрузки всей страницы
       await updateComments()
     } catch (err) {
       console.error('Ошибка при отправке комментария:', err)
-      alert('Ошибка при отправке комментария')
+      if (err.response?.status === 429) {
+        // Ошибка защиты от спама
+        const errorMessage = err.response?.data?.detail || 'Вы отправляете комментарии слишком часто. Подождите немного.'
+        alert(errorMessage)
+        // Устанавливаем кулдаун из ответа сервера, если возможно
+        setLastCommentTime(Date.now())
+        setCommentCooldown(COMMENT_COOLDOWN_SECONDS)
+      } else {
+        alert('Ошибка при отправке комментария')
+      }
     } finally {
       setSubmittingComment(false)
     }
@@ -332,6 +396,9 @@ function WatchPage() {
       await userAPI.createRating(parseInt(animeId), rating)
       setUserRating(rating)
       setIsRatingMenuOpen(false)
+      // Инвалидируем кэш аниме после создания рейтинга
+      const { invalidateAnimeRelatedCache } = await import('../utils/cache')
+      invalidateAnimeRelatedCache()
       // Обновляем только рейтинг без перезагрузки всей страницы
       await updateRating()
     } catch (err) {
@@ -346,6 +413,13 @@ function WatchPage() {
     try {
       const response = await userAPI.toggleFavorite(parseInt(animeId))
       console.log('Toggle favorite response:', response)
+      
+      // Инвалидируем кэш пользователя после изменения избранного
+      const { invalidateUserRelatedCache } = await import('../utils/cache')
+      const currentUserResponse = await userAPI.getCurrentUser()
+      if (currentUserResponse?.message?.username) {
+        invalidateUserRelatedCache(currentUserResponse.message.username)
+      }
       
       // Обновляем состояние на основе ответа
       if (response && 'is_favorite' in response) {
@@ -636,106 +710,103 @@ function WatchPage() {
               <p className="player-disclaimer">это не является рекламой, и мы никого не обязываем его устанавливать</p>
             </div>
 
-            {/* Кнопки действий: Оценить и Избранное */}
-            <div className="player-actions">
-              <div className="rating-button-wrapper">
-                {!isRatingMenuOpen ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // Инициализируем временное значение при открытии меню
-                      setTempRating(userRating || 5)
-                      setIsRatingMenuOpen(true)
-                    }}
-                    className="rate-button"
-                    disabled={submittingRating}
-                  >
-                    {userRating ? `Оценка: ${userRating}` : 'Оценить'}
-                  </button>
-                ) : (
-                  <div className="rating-menu">
-                    <div className="rating-slider-container">
-                      <span className="rating-slider-value">
-                        <span className="rating-star">★</span>
-                        {tempRating}
-                      </span>
-                      <input
-                        type="range"
-                        min="1"
-                        max="10"
-                        step="1"
-                        value={tempRating}
-                        onChange={(e) => setTempRating(parseInt(e.target.value))}
-                        className="rating-slider"
-                        disabled={submittingRating}
-                        style={{
-                          background: `linear-gradient(to right, var(--user-accent-color, var(--accent)) 0%, var(--user-accent-color, var(--accent)) ${(tempRating - 1) * 11.11}%, var(--bg-secondary) ${(tempRating - 1) * 11.11}%, var(--bg-secondary) 100%)`
-                        }}
-                      />
+            {/* Комментарии и кнопки действий: на одной высоте */}
+            <div className="comments-rating-wrapper">
+              <div className="comments-input-section">
+                {/* Форма для нового комментария */}
+                <form onSubmit={handleSubmitComment} className="comment-form">
+                  <div className="comment-input-wrapper">
+                    <textarea
+                      value={commentText}
+                      onChange={(e) => {
+                        if (e.target.value.length <= 100) {
+                          setCommentText(e.target.value)
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        // Отправка при нажатии Enter/Return без Shift
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          if (commentText.trim() && !submittingComment) {
+                            handleSubmitComment(e)
+                          }
+                        }
+                      }}
+                      placeholder="Оставьте пару слов..."
+                      className="comment-input"
+                      rows="1"
+                      maxLength={100}
+                    />
+                    <div className="comment-char-count">
+                      {commentText.length}/100
                     </div>
                   </div>
-                )}
+                </form>
               </div>
-              <button
-                type="button"
-                onClick={handleToggleFavorite}
-                className={`favorite-button ${isFavorite ? 'active' : ''}`}
-                aria-label={isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'}
-              >
-                <svg 
-                  width="24" 
-                  height="24" 
-                  viewBox="0 0 24 24" 
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="favorite-heart-icon"
+
+              {/* Кнопки действий: Оценить и Избранное */}
+              <div className="player-actions">
+                <div className="rating-button-wrapper">
+                  {!isRatingMenuOpen ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Инициализируем временное значение при открытии меню
+                        setTempRating(userRating || 5)
+                        setIsRatingMenuOpen(true)
+                      }}
+                      className="rate-button"
+                      disabled={submittingRating}
+                    >
+                      {userRating ? `Оценка: ${userRating}` : 'Оценить'}
+                    </button>
+                  ) : (
+                    <div className="rating-menu">
+                      <div className="rating-slider-container">
+                        <span className="rating-slider-value">
+                          <span className="rating-star">★</span>
+                          {tempRating}
+                        </span>
+                        <input
+                          type="range"
+                          min="1"
+                          max="10"
+                          step="1"
+                          value={tempRating}
+                          onChange={(e) => setTempRating(parseInt(e.target.value))}
+                          className="rating-slider"
+                          disabled={submittingRating}
+                          style={{
+                            background: `linear-gradient(to right, var(--user-accent-color, var(--accent)) 0%, var(--user-accent-color, var(--accent)) ${(tempRating - 1) * 11.11}%, var(--bg-secondary) ${(tempRating - 1) * 11.11}%, var(--bg-secondary) 100%)`
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleFavorite}
+                  className={`favorite-button ${isFavorite ? 'active' : ''}`}
+                  aria-label={isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'}
                 >
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                </svg>
-              </button>
+                  <svg 
+                    width="24" 
+                    height="24" 
+                    viewBox="0 0 24 24" 
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="favorite-heart-icon"
+                  >
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                  </svg>
+                </button>
+              </div>
             </div>
 
             {/* Комментарии */}
             <div className="comments-section">
-              <h3 className="section-title">Комментарии</h3>
-              
-              {/* Форма для нового комментария */}
-              <form onSubmit={handleSubmitComment} className="comment-form">
-                <div className="comment-input-wrapper">
-                  <textarea
-                    value={commentText}
-                    onChange={(e) => {
-                      if (e.target.value.length <= 100) {
-                        setCommentText(e.target.value)
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      // Отправка при нажатии Enter/Return без Shift
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        if (commentText.trim() && !submittingComment) {
-                          handleSubmitComment(e)
-                        }
-                      }
-                    }}
-                    placeholder="Оставьте пару слов..."
-                    className="comment-input"
-                    rows="3"
-                    maxLength={100}
-                  />
-                  <div className="comment-char-count">
-                    {commentText.length}/100
-                  </div>
-                </div>
-                <button
-                  type="submit"
-                  disabled={submittingComment || !commentText.trim()}
-                  className="comment-submit-btn"
-                >
-                  {submittingComment ? 'Отправка...' : 'Отправить'}
-                </button>
-              </form>
 
               {/* Список комментариев */}
               <div className="comments-list">

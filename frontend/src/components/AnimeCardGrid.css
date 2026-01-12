@@ -255,7 +255,7 @@
   will-change: transform;
   transform: translateZ(0);
   backface-visibility: hidden;
-  perspective: 1000px;
+  /* Убрали perspective для улучшения производительности */
 }
 
 .anime-card-grid-page {
@@ -265,7 +265,7 @@
   min-width: 0;
   overflow: visible;
   transform: translateZ(0);
-  will-change: transform;
+  /* Убрали will-change со страниц - он только на контейнере */
   box-sizing: border-box;
   align-items: stretch;
   padding: 0 0.625rem;

@@ -21,13 +21,23 @@ function AdminPanel() {
   }, [])
 
   useEffect(() => {
-    // Загружаем цвет обводки аватара текущего пользователя
-    if (currentUser && currentUser.username) {
-      const savedColor = localStorage.getItem(`user_${currentUser.username}_avatar_border_color`)
-      if (savedColor) {
-        setAvatarBorderColor(savedColor)
+    // Загружаем цвет обводки аватара текущего пользователя из API
+    const loadAvatarBorderColor = async () => {
+      if (currentUser && currentUser.username) {
+        try {
+          const response = await userAPI.getProfileSettings()
+          if (response.message && response.message.avatar_border_color) {
+            const savedColor = response.message.avatar_border_color
+            setAvatarBorderColor(savedColor)
+            // Сохраняем цвет в localStorage для быстрой загрузки при следующем открытии
+            localStorage.setItem('user-avatar-border-color', savedColor)
+          }
+        } catch (err) {
+          // Игнорируем ошибки
+        }
       }
     }
+    loadAvatarBorderColor()
   }, [currentUser])
 
   const checkAdminAccess = async () => {

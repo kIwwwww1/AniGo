@@ -1,8 +1,10 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { animeAPI } from '../services/api'
 import PopularAnimeCarousel from '../components/PopularAnimeCarousel'
+import TopUsersSection from '../components/TopUsersSection'
 import AnimeGrid from '../components/AnimeGrid'
+import { getFromCache, setToCache, removeFromCache } from '../utils/cache'
 import '../components/AnimeCardGrid.css'
 import './HomePage.css'
 
@@ -26,13 +28,23 @@ function HomePage() {
   const backgroundImages = useMemo(() => ['/screensaver_1.png', '/screensaver_2.png'], [])
   
   // Состояние для 3D эффекта параллакса
-  const [parallaxStyle, setParallaxStyle] = useState({})
-  const [textParallaxStyle, setTextParallaxStyle] = useState({})
+  const [parallaxStyle, setParallaxStyle] = useState({
+    transform: 'translate(0px, 0px) scale(1.1)',
+    transition: 'transform 0.5s ease-out'
+  })
+  const [textParallaxStyle, setTextParallaxStyle] = useState({
+    transform: 'translate(0px, 0px)',
+    transition: 'transform 0.5s ease-out'
+  })
   
   const limit = 12
   const limitHighestScore = 18 // Для блока "Высшая оценка" загружаем 18 элементов (3 страницы)
   const itemsPerPage = 6
   const maxPagesToShow = 3
+  const cacheLimit = 18 // Кэшируем 3 страницы по 6 элементов = 18 элементов
+  const CACHE_TTL = 60 // Время жизни кэша: 1 минута (60 секунд)
+  const CACHE_KEY_CATALOG = 'anime_catalog'
+  const CACHE_KEY_HIGHEST_SCORE = 'anime_highest_score'
 
   const loadAnimeCount = useCallback(async () => {
     try {
@@ -48,20 +60,43 @@ function HomePage() {
   const loadAnime = useCallback(async (loadOffset) => {
     try {
       setLoading(true)
-      const response = await animeAPI.getAnimePaginated(limit, loadOffset)
+      
+      // Для первой загрузки проверяем кэш
+      if (loadOffset === 0) {
+        const cachedData = getFromCache(CACHE_KEY_CATALOG)
+        if (cachedData && Array.isArray(cachedData)) {
+          setAnimeList(cachedData)
+          setHasMore(cachedData.length >= cacheLimit)
+          setError(null)
+          setLoading(false)
+          return
+        }
+      }
+      
+      // Если кэша нет или не первая загрузка, загружаем данные
+      // Для первой загрузки загружаем cacheLimit элементов (3 страницы)
+      const loadLimit = loadOffset === 0 ? cacheLimit : limit
+      console.log('📡 Загрузка данных каталога аниме с сервера...')
+      const response = await animeAPI.getAnimePaginated(loadLimit, loadOffset)
       
       // Обрабатываем ответ - может быть массив или объект с message
       const animeData = Array.isArray(response.message) 
         ? response.message 
         : (response.message || [])
       
+      console.log(`✅ Получено ${animeData.length} аниме из каталога`)
+      
       if (animeData.length > 0) {
         if (loadOffset === 0) {
           setAnimeList(animeData)
+          // Сохраняем в кэш только первые 3 страницы (18 элементов)
+          const dataToCache = animeData.slice(0, cacheLimit)
+          setToCache(CACHE_KEY_CATALOG, dataToCache, CACHE_TTL)
+          console.log('💾 Данные каталога сохранены в кэш')
         } else {
           setAnimeList(prev => [...prev, ...animeData])
         }
-        setHasMore(animeData.length === limit)
+        setHasMore(animeData.length === loadLimit)
       } else {
         setHasMore(false)
         if (loadOffset === 0) {
@@ -83,11 +118,26 @@ function HomePage() {
     } finally {
       setLoading(false)
     }
-  }, [limit])
+  }, [limit, cacheLimit, CACHE_TTL])
 
   const loadHighestScoreAnime = useCallback(async (loadOffset) => {
     try {
       setHighestScoreLoading(true)
+      
+      // Для первой загрузки проверяем кэш
+      if (loadOffset === 0) {
+        const cachedData = getFromCache(CACHE_KEY_HIGHEST_SCORE)
+        if (cachedData && Array.isArray(cachedData)) {
+          setHighestScoreAnime(cachedData)
+          setHighestScoreHasMore(cachedData.length >= cacheLimit)
+          setHighestScoreError(null)
+          setHighestScoreLoading(false)
+          return
+        }
+      }
+      
+      // Если кэша нет или не первая загрузка, загружаем данные
+      console.log('📡 Загрузка данных "Высшая оценка" с сервера...')
       const response = await animeAPI.getHighestScoreAnime(limitHighestScore, loadOffset, 'desc')
       
       // Обрабатываем ответ - может быть массив или объект с message
@@ -95,9 +145,15 @@ function HomePage() {
         ? response.message 
         : (response.message || [])
       
+      console.log(`✅ Получено ${animeData.length} аниме с высшей оценкой`)
+      
       if (animeData.length > 0) {
         if (loadOffset === 0) {
           setHighestScoreAnime(animeData)
+          // Сохраняем в кэш только первые 3 страницы (18 элементов)
+          const dataToCache = animeData.slice(0, cacheLimit)
+          setToCache(CACHE_KEY_HIGHEST_SCORE, dataToCache, CACHE_TTL)
+          console.log('💾 Данные "Высшая оценка" сохранены в кэш')
         } else {
           setHighestScoreAnime(prev => [...prev, ...animeData])
         }
@@ -121,7 +177,7 @@ function HomePage() {
     } finally {
       setHighestScoreLoading(false)
     }
-  }, [limitHighestScore])
+  }, [limitHighestScore, cacheLimit, CACHE_TTL])
 
   const handleExpand = useCallback(() => {
     // Переходим на страницу со всеми аниме
@@ -193,11 +249,44 @@ function HomePage() {
     })
   }, [])
 
+  // Сохраняем ссылки на функции для использования в интервале
+  const loadAnimeRef = useRef(loadAnime)
+  const loadHighestScoreAnimeRef = useRef(loadHighestScoreAnime)
+
+  useEffect(() => {
+    loadAnimeRef.current = loadAnime
+    loadHighestScoreAnimeRef.current = loadHighestScoreAnime
+  }, [loadAnime, loadHighestScoreAnime])
+
   useEffect(() => {
     loadAnimeCount()
     loadAnime(0)
     loadHighestScoreAnime(0)
   }, [loadAnimeCount, loadAnime, loadHighestScoreAnime])
+
+  // Эффект для автоматического обновления данных каждую минуту
+  useEffect(() => {
+    console.log('🔄 Интервал обновления запущен, будет срабатывать каждую минуту')
+    
+    const interval = setInterval(() => {
+      console.log('⏰ Интервал сработал: принудительное обновление данных')
+      
+      // Принудительно удаляем кэш и обновляем данные для каталога аниме
+      removeFromCache(CACHE_KEY_CATALOG)
+      console.log('🗑️ Кэш каталога удален, загружаем новые данные...')
+      loadAnimeRef.current(0)
+      
+      // Принудительно удаляем кэш и обновляем данные для блока "Высшая оценка"
+      removeFromCache(CACHE_KEY_HIGHEST_SCORE)
+      console.log('🗑️ Кэш высшей оценки удален, загружаем новые данные...')
+      loadHighestScoreAnimeRef.current(0)
+    }, CACHE_TTL * 1000) // Обновляем каждую минуту (60 секунд)
+
+    return () => {
+      console.log('🛑 Интервал обновления остановлен')
+      clearInterval(interval)
+    }
+  }, [CACHE_TTL])
 
   // Эффект для смены фонового изображения каждые 10 секунд
   useEffect(() => {
@@ -256,6 +345,9 @@ function HomePage() {
 
         {/* Карусель популярных аниме */}
         <PopularAnimeCarousel />
+
+        {/* Топ коллекционеров */}
+        <TopUsersSection />
 
         {/* Каталог аниме */}
         {error && <div className="error-message">{error}</div>}

@@ -2,19 +2,55 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files first for better caching
-COPY package*.json ./
+# Настройка npm для увеличения таймаутов и retry
+RUN npm config set fetch-timeout 300000 && \
+    npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000
 
-# Install dependencies
-# Docker will cache this layer if package.json hasn't changed
-# Using simple npm install without extra flags for better compatibility
-RUN npm install
+# Copy package files first for better caching
+# Важно: копируем package-lock.json если он существует для более надёжной установки
+COPY package.json ./
+COPY package-lock.json* ./
+
+# Установка зависимостей при сборке образа
+# Пытаемся установить с основного registry, если не получается - используем альтернативный
+RUN echo "📦 Установка зависимостей npm..." && \
+    if npm install --fetch-timeout=300000 --fetch-retries=5; then \
+        echo "✅ Зависимости установлены с основного registry"; \
+    else \
+        echo "⚠️  Проблема с основным registry, пробуем альтернативный..."; \
+        npm config set registry https://registry.npmmirror.com && \
+        npm install --fetch-timeout=300000 --fetch-retries=5 && \
+        npm config set registry https://registry.npmjs.org && \
+        echo "✅ Зависимости установлены через альтернативный registry"; \
+    fi && \
+    # Сохраняем хеш package.json для проверки изменений
+    if [ -d "node_modules" ] && [ -f "package.json" ]; then \
+        mkdir -p node_modules && \
+        (md5sum package.json 2>/dev/null | cut -d' ' -f1 || md5 -q package.json 2>/dev/null || echo "unknown") > node_modules/.package-hash && \
+        echo "✅ Хеш package.json сохранён"; \
+    fi && \
+    # Проверяем, что все зависимости установлены
+    if [ ! -d "node_modules" ] || [ ! -f "node_modules/hls.js/package.json" ]; then \
+        echo "❌ КРИТИЧЕСКАЯ ОШИБКА: Зависимости не установлены!"; \
+        echo "Проверяем наличие основных зависимостей..."; \
+        ls -la node_modules/ || echo "node_modules пуст или не существует"; \
+        exit 1; \
+    else \
+        echo "✅ Все зависимости успешно установлены, включая hls.js"; \
+    fi
+
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Copy source code
 COPY . .
 
 EXPOSE 3000
 
-# Start Vite dev server
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+# Используем entrypoint скрипт, который проверяет и устанавливает зависимости при необходимости
+# Это нужно на случай, если package.json изменился через volume после сборки
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 

@@ -307,7 +307,7 @@
   animation: crown-glow-small 2s ease-in-out infinite;
 }
 
-.crown-icon-small svg {
+.crown-icon-small img {
   filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.8));
   animation: crown-svg-glow-small 2s ease-in-out infinite;
 }
@@ -430,6 +430,8 @@
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+  position: relative;
+  z-index: 2;
 }
 
 .user-username:hover {
@@ -457,6 +459,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  z-index: 1;
 }
 
 .user-avatar img {

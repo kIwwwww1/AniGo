@@ -3,13 +3,14 @@
   top: 0;
   left: 0;
   width: 100%;
-  height: 4px;
+  height: 2px;
   background: rgba(255, 255, 255, 0.05);
   z-index: 9999;
   overflow: hidden;
 }
 
 .scroll-progress-bar {
+  position: relative;
   height: 100%;
   background: linear-gradient(
     90deg,

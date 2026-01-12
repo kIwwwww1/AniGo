@@ -107,14 +107,58 @@ function Layout({ children }) {
     }
   }
 
-  // Загружаем цвет обводки аватарки из localStorage
-  const loadAvatarBorderColor = useCallback(() => {
+  // Загружаем цвет обводки аватарки из API
+  const loadAvatarBorderColor = useCallback(async () => {
     if (user && user.username) {
-      const savedColor = localStorage.getItem(`user_${user.username}_avatar_border_color`)
-      const availableColors = ['#ffffff', '#000000', '#808080', '#c4c4af', '#0066ff', '#00cc00', '#ff0000', '#ff69b4', '#ffd700', '#9932cc']
-      if (savedColor && availableColors.includes(savedColor)) {
-        setAvatarBorderColor(savedColor)
-        // Устанавливаем CSS переменную глобально
+      try {
+        const response = await userAPI.getProfileSettings()
+        if (response.message && response.message.avatar_border_color) {
+          const savedColor = response.message.avatar_border_color
+          const availableColors = ['#ffffff', '#000000', '#808080', '#c4c4af', '#0066ff', '#00cc00', '#ff0000', '#ff69b4', '#ffd700', '#9932cc']
+          if (availableColors.includes(savedColor)) {
+            setAvatarBorderColor(savedColor)
+            // Сохраняем цвет в localStorage для быстрой загрузки при следующем открытии
+            localStorage.setItem('user-avatar-border-color', savedColor)
+            // Устанавливаем CSS переменную глобально
+            document.documentElement.style.setProperty('--user-accent-color', savedColor)
+            
+            // Создаем rgba версию для hover эффектов
+            const hex = savedColor.replace('#', '')
+            const r = parseInt(hex.slice(0, 2), 16)
+            const g = parseInt(hex.slice(2, 4), 16)
+            const b = parseInt(hex.slice(4, 6), 16)
+            const rgba = `rgba(${r}, ${g}, ${b}, 0.1)`
+            document.documentElement.style.setProperty('--user-accent-color-rgba', rgba)
+            
+            // Создаем тень для box-shadow
+            const shadowRgba = `rgba(${r}, ${g}, ${b}, 0.4)`
+            document.documentElement.style.setProperty('--user-accent-color-shadow', shadowRgba)
+          } else {
+            setAvatarBorderColor('#ff0000') // Цвет по умолчанию
+          }
+        } else {
+          setAvatarBorderColor('#ff0000') // Цвет по умолчанию
+        }
+      } catch (err) {
+        // Если не удалось загрузить настройки, используем цвет по умолчанию
+        setAvatarBorderColor('#ff0000')
+      }
+    }
+  }, [user])
+
+  // Синхронная загрузка цвета из localStorage при инициализации
+  useEffect(() => {
+    const savedColor = localStorage.getItem('user-avatar-border-color')
+    const availableColors = ['#ffffff', '#000000', '#808080', '#c4c4af', '#0066ff', '#00cc00', '#ff0000', '#ff69b4', '#ffd700', '#9932cc']
+    
+    if (savedColor && availableColors.includes(savedColor)) {
+      setAvatarBorderColor(savedColor)
+      // Используем глобальную функцию updateGlobalAccentColor из App.jsx, если она доступна
+      // Это гарантирует применение всех CSS переменных сразу
+      if (window.updateGlobalAccentColor) {
+        window.updateGlobalAccentColor(savedColor)
+      } else {
+        // Если функция еще не загружена, применяем базовые переменные
         document.documentElement.style.setProperty('--user-accent-color', savedColor)
         
         // Создаем rgba версию для hover эффектов
@@ -128,11 +172,9 @@ function Layout({ children }) {
         // Создаем тень для box-shadow
         const shadowRgba = `rgba(${r}, ${g}, ${b}, 0.4)`
         document.documentElement.style.setProperty('--user-accent-color-shadow', shadowRgba)
-      } else {
-        setAvatarBorderColor('#ff0000') // Цвет по умолчанию
       }
     }
-  }, [user])
+  }, []) // Выполняется только при монтировании компонента
 
   // Загружаем цвет обводки при изменении пользователя
   useEffect(() => {
@@ -167,20 +209,8 @@ function Layout({ children }) {
     console.log('Should show auth buttons:', !loadingUser && (!user || !user.username))
   }, [user, loadingUser])
 
-  // Слушаем изменения цвета обводки аватарки в localStorage
+  // Слушаем кастомное событие для обновления цвета обводки аватарки
   useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key && e.key.startsWith('user_') && e.key.endsWith('_avatar_border_color') && user && user.username) {
-        if (e.key === `user_${user.username}_avatar_border_color`) {
-          loadAvatarBorderColor()
-        }
-      }
-    }
-    
-    // Слушаем изменения в текущей вкладке
-    window.addEventListener('storage', handleStorageChange)
-    
-    // Слушаем кастомное событие для обновления в текущей вкладке
     const handleAvatarBorderColorUpdate = () => {
       if (user && user.username) {
         loadAvatarBorderColor()
@@ -189,7 +219,6 @@ function Layout({ children }) {
     window.addEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
     
     return () => {
-      window.removeEventListener('storage', handleStorageChange)
       window.removeEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
     }
   }, [user, loadAvatarBorderColor])
@@ -324,11 +353,21 @@ function Layout({ children }) {
       await userAPI.logout()
       setUser(null)
       setShowUserDropdown(false)
+      // Очищаем сохраненный цвет из localStorage при выходе
+      localStorage.removeItem('user-avatar-border-color')
+      // Сбрасываем цвет на значение по умолчанию
+      setAvatarBorderColor('#ff0000')
+      document.documentElement.style.setProperty('--user-accent-color', '#ff0000')
     } catch (err) {
       console.error('Ошибка при выходе:', err)
       // Все равно очищаем состояние пользователя
       setUser(null)
       setShowUserDropdown(false)
+      // Очищаем сохраненный цвет из localStorage при выходе
+      localStorage.removeItem('user-avatar-border-color')
+      // Сбрасываем цвет на значение по умолчанию
+      setAvatarBorderColor('#ff0000')
+      document.documentElement.style.setProperty('--user-accent-color', '#ff0000')
     }
   }
 

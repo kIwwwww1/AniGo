@@ -1,4 +1,4 @@
-import { useState, memo } from 'react'
+import { useState, memo, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { userAPI } from '../services/api'
 import LazyImage from './LazyImage'
@@ -77,12 +77,12 @@ const BestAnimeSection = memo(function BestAnimeSection({ bestAnime, favorites, 
   const [selectedPlace, setSelectedPlace] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  // Создаем массив для 3 позиций
-  const animeByPlace = {
+  // Создаем массив для 3 позиций с использованием useMemo для правильного обновления
+  const animeByPlace = useMemo(() => ({
     1: bestAnime.find(a => a.place === 1) || null,
     2: bestAnime.find(a => a.place === 2) || null,
     3: bestAnime.find(a => a.place === 3) || null,
-  }
+  }), [bestAnime])
 
 
   const handleSelect = (place) => {
@@ -91,13 +91,17 @@ const BestAnimeSection = memo(function BestAnimeSection({ bestAnime, favorites, 
   }
 
   const handleAnimeSelect = async (animeId) => {
+    // Защита от двойных кликов
+    if (loading) {
+      return
+    }
     try {
       setLoading(true)
       await userAPI.setBestAnime(animeId, selectedPlace)
       setShowModal(false)
       setSelectedPlace(null)
       if (onUpdate) {
-        onUpdate()
+        await onUpdate()
       }
     } catch (error) {
       console.error('Ошибка при установке аниме:', error)
@@ -108,6 +112,10 @@ const BestAnimeSection = memo(function BestAnimeSection({ bestAnime, favorites, 
   }
 
   const handleRemove = async (place) => {
+    // Защита от двойных кликов
+    if (loading) {
+      return
+    }
     if (!window.confirm('Удалить аниме с этого места?')) {
       return
     }
@@ -115,7 +123,7 @@ const BestAnimeSection = memo(function BestAnimeSection({ bestAnime, favorites, 
       setLoading(true)
       await userAPI.removeBestAnime(place)
       if (onUpdate) {
-        onUpdate()
+        await onUpdate()
       }
     } catch (error) {
       console.error('Ошибка при удалении аниме:', error)
@@ -138,12 +146,19 @@ const BestAnimeSection = memo(function BestAnimeSection({ bestAnime, favorites, 
   return (
     <div className="best-anime-section">
       <div className="best-anime-section-header">
-        <h2 
-          className="best-anime-section-title"
-          style={avatarBorderColor ? { color: avatarBorderColor } : {}}
-        >
-          Топ-3 аниме
-        </h2>
+        <div className="best-anime-section-title-wrapper">
+          <div className="sort-info-tooltip">
+            <span className="tooltip-icon">?</span>
+            <div className="tooltip-content">
+              <div>Аниме из этого раздела видны другим пользователям в вашем профиле</div>
+              <div className="tooltip-divider"></div>
+              <div className="tooltip-secondary-text">Если только что добавленное аниме ещё не отображается — подождите минуту, оно появится.</div>
+            </div>
+          </div>
+          <h2 className="best-anime-section-title">
+            Топ-3 аниме
+          </h2>
+        </div>
       </div>
       <div className="best-anime-cards-container">
         {displayOrder.map((place) => {

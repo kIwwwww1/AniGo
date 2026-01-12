@@ -6,6 +6,7 @@ import WatchPage from './pages/WatchPage'
 import WatchPageSearch from './pages/WatchPageSearch'
 import MyFavoritesPage from './pages/MyFavoritesPage'
 import UserProfilePage from './pages/UserProfilePage'
+import UserFavoritesPage from './pages/UserFavoritesPage'
 import SettingsPage from './pages/SettingsPage'
 import PopularAnimePage from './pages/PopularAnimePage'
 import AllAnimePage from './pages/AllAnimePage'
@@ -20,6 +21,11 @@ import './components/PageTransition.css'
 
 // Функция для обновления глобального цвета кнопок
 const updateGlobalAccentColor = (color) => {
+  // Сохраняем цвет в localStorage сразу при применении (если его еще нет или он отличается)
+  const currentSavedColor = localStorage.getItem('user-avatar-border-color')
+  if (currentSavedColor !== color) {
+    localStorage.setItem('user-avatar-border-color', color)
+  }
   document.documentElement.style.setProperty('--user-accent-color', color)
   
   // Создаем rgba версию для hover эффектов
@@ -104,23 +110,36 @@ const updateGlobalAccentColor = (color) => {
   document.documentElement.style.setProperty('--user-accent-color-bg-dark', bgDark)
 }
 
+// Экспортируем функцию в window для использования в других компонентах
+if (typeof window !== 'undefined') {
+  window.updateGlobalAccentColor = updateGlobalAccentColor
+}
+
 // Функция для загрузки цвета обводки аватарки текущего пользователя
 const loadUserAccentColor = async () => {
   try {
     const response = await userAPI.getCurrentUser()
     if (response.message && response.message.username) {
-      const username = response.message.username
-      const savedAvatarBorderColor = localStorage.getItem(`user_${username}_avatar_border_color`)
-      
-      // Доступные цвета
-      const availableColors = [
-        '#ffffff', '#000000', '#808080', '#c4c4af', 
-        '#0066ff', '#00cc00', '#ff0000', '#ff69b4', 
-        '#ffd700', '#9932cc'
-      ]
-      
-      if (savedAvatarBorderColor && availableColors.includes(savedAvatarBorderColor)) {
-        updateGlobalAccentColor(savedAvatarBorderColor)
+      // Загружаем настройки профиля из API
+      const settingsResponse = await userAPI.getProfileSettings()
+      if (settingsResponse.message && settingsResponse.message.avatar_border_color) {
+        const savedAvatarBorderColor = settingsResponse.message.avatar_border_color
+        
+        // Доступные цвета
+        const availableColors = [
+          '#ffffff', '#000000', '#808080', '#c4c4af', 
+          '#0066ff', '#00cc00', '#ff0000', '#ff69b4', 
+          '#ffd700', '#9932cc'
+        ]
+        
+        if (availableColors.includes(savedAvatarBorderColor)) {
+          // Сохраняем цвет в localStorage для быстрой загрузки при следующем открытии
+          localStorage.setItem('user-avatar-border-color', savedAvatarBorderColor)
+          updateGlobalAccentColor(savedAvatarBorderColor)
+        } else {
+          // Используем цвет по умолчанию
+          updateGlobalAccentColor('#ff0000')
+        }
       } else {
         // Используем цвет по умолчанию
         updateGlobalAccentColor('#ff0000')
@@ -129,6 +148,20 @@ const loadUserAccentColor = async () => {
   } catch (err) {
     // Если пользователь не авторизован, используем цвет по умолчанию
     updateGlobalAccentColor('#e50914')
+  }
+}
+
+// Функция для синхронной загрузки цвета из localStorage (вызывается сразу при загрузке)
+const loadUserAccentColorFromStorage = () => {
+  const savedColor = localStorage.getItem('user-avatar-border-color')
+  const availableColors = [
+    '#ffffff', '#000000', '#808080', '#c4c4af', 
+    '#0066ff', '#00cc00', '#ff0000', '#ff69b4', 
+    '#ffd700', '#9932cc'
+  ]
+  
+  if (savedColor && availableColors.includes(savedColor)) {
+    updateGlobalAccentColor(savedColor)
   }
 }
 
@@ -143,6 +176,10 @@ export const loadTheme = () => {
 
 function App() {
   useEffect(() => {
+    // СИНХРОННО загружаем цвет из localStorage сразу при загрузке (до API запросов)
+    // Это предотвращает мигание красного цвета по умолчанию
+    loadUserAccentColorFromStorage()
+    
     // Загружаем кастомную тему при загрузке приложения
     const savedThemeColor1 = localStorage.getItem('site-theme-color-1')
     const savedThemeColor2 = localStorage.getItem('site-theme-color-2')
@@ -160,14 +197,18 @@ function App() {
       document.documentElement.setAttribute('data-theme', 'dark')
     }
     
-    // Загружаем цвет при загрузке приложения
+    // Загружаем цвет из API (обновит цвет, если он изменился в БД)
     loadUserAccentColor()
     
-    // Слушаем изменения в localStorage для обновления цвета (работает между вкладками)
+    // Слушаем кастомное событие для обновления цвета обводки аватарки
+    const handleAvatarBorderColorUpdate = () => {
+      loadUserAccentColor()
+    }
+    window.addEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
+    
+    // Слушаем изменения в localStorage для темы (работает между вкладками)
     const handleStorageChange = (e) => {
-      if (e.key && e.key.startsWith('user_') && e.key.endsWith('_avatar_border_color')) {
-        loadUserAccentColor()
-      } else if (e.key === 'site-theme-color-1' || e.key === 'site-theme-color-2' || e.key === 'site-gradient-direction') {
+      if (e.key === 'site-theme-color-1' || e.key === 'site-theme-color-2' || e.key === 'site-gradient-direction') {
         const savedThemeColor1 = localStorage.getItem('site-theme-color-1')
         const savedThemeColor2 = localStorage.getItem('site-theme-color-2')
         const savedGradientDirection = localStorage.getItem('site-gradient-direction') || 'diagonal-right'
@@ -201,6 +242,7 @@ function App() {
     window.addEventListener('siteThemeUpdated', handleThemeUpdate)
     
     return () => {
+      window.removeEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
       window.removeEventListener('storage', handleStorageChange)
       window.removeEventListener('userAccentColorUpdated', handleColorUpdate)
       window.removeEventListener('siteThemeUpdated', handleThemeUpdate)
@@ -217,6 +259,7 @@ function App() {
             <Route path="/my" element={<MyFavoritesPage />} />
             <Route path="/watch/:animeId" element={<WatchPage />} />
             <Route path="/watch/search/:animeName" element={<WatchPageSearch />} />
+            <Route path="/profile/:username/favorites" element={<UserFavoritesPage />} />
             <Route path="/profile/:username" element={<UserProfilePage />} />
             <Route path="/settings/:username" element={<SettingsPage />} />
             <Route path="/admin" element={<AdminPanel />} />

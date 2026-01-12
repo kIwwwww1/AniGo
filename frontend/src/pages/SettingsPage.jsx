@@ -61,18 +61,25 @@ function SettingsPage() {
   }, [username])
 
   useEffect(() => {
-    // Загружаем премиум профиль после загрузки user
-    if (user && username) {
-      // Проверяем, не был ли премиум профиль явно отключен
-      const savedPremium = localStorage.getItem(`user_${username}_premium_profile`)
-      // Если премиум был явно отключен, не перезагружаем его автоматически
-      if (savedPremium !== 'false') {
-        loadPremiumProfile()
-      } else {
-        setIsPremiumProfile(false)
+    // Загружаем премиум профиль после загрузки user из API
+    const loadPremiumFromAPI = async () => {
+      if (user && username) {
+        try {
+          const response = await userAPI.getUserProfileSettings(username)
+          if (response.message) {
+            const isPremium = response.message.is_premium_profile !== undefined 
+              ? response.message.is_premium_profile 
+              : (user.id < 100) // Для пользователей с ID < 100 премиум по умолчанию
+            setIsPremiumProfile(isPremium)
+          }
+        } catch (err) {
+          // Если настройки не найдены, используем дефолтное значение
+          setIsPremiumProfile(user.id < 100)
+        }
+        loadBadges()
       }
-      loadBadges()
     }
+    loadPremiumFromAPI()
   }, [user, username, bestAnime])
 
   const formatDate = (dateString) => {
@@ -366,8 +373,21 @@ function SettingsPage() {
             // Обновляем аватар сразу в состоянии
             setUser({ ...user, avatar_url: newAvatarUrl })
             setAvatarError(false) // Сбрасываем ошибку аватара
-            // Отправляем событие для обновления аватара в Layout
-            window.dispatchEvent(new CustomEvent('avatarUpdated'))
+            // Отправляем событие для обновления аватара в Layout и TopUsersSection
+            console.log('📤 Отправляем событие avatarUpdated с URL:', newAvatarUrl)
+            window.dispatchEvent(new CustomEvent('avatarUpdated', { 
+              detail: { avatarUrl: newAvatarUrl, username: user?.username } 
+            }))
+            
+            // Также сохраняем в localStorage для надежности
+            if (user?.username) {
+              localStorage.setItem('avatarUpdated', JSON.stringify({
+                username: user.username,
+                avatarUrl: newAvatarUrl,
+                timestamp: Date.now()
+              }))
+              console.log('💾 Сохранено в localStorage:', { username: user.username, avatarUrl: newAvatarUrl })
+            }
             // Перезагружаем настройки пользователя для получения актуальных данных
             await loadUserSettings()
           } else {
@@ -405,30 +425,30 @@ function SettingsPage() {
       loadThemeColor()
     }
     
-    const handleStorageChange = (e) => {
-      if (e.key && e.key.startsWith('user_') && e.key.endsWith('_username_color')) {
-        loadUserColors()
-      } else if (e.key && e.key.startsWith('user_') && e.key.endsWith('_avatar_border_color')) {
-        loadUserColors()
-      } else if (e.key === 'site-theme-color-1' || e.key === 'site-theme-color-2' || e.key === 'site-gradient-direction') {
-        loadThemeColor()
-      } else if (e.key && e.key.startsWith('user_') && e.key.endsWith('_premium_profile')) {
-        if (user) {
-          loadPremiumProfile()
-        }
+    // Слушаем кастомные события для обновления настроек
+    const handleAvatarBorderColorUpdate = () => {
+      loadUserColors()
+    }
+    
+    const handleProfileSettingsUpdate = () => {
+      loadUserColors()
+      if (user) {
+        loadPremiumProfile()
       }
     }
     
     window.addEventListener('avatarBorderColorUpdated', handleColorUpdate)
     window.addEventListener('userAccentColorUpdated', handleColorUpdate)
-    window.addEventListener('siteThemeUpdated', handleThemeUpdate)
-    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('siteThemeUpdated', handleThemeUpdate)    
+    window.addEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
+    window.addEventListener('profileSettingsUpdated', handleProfileSettingsUpdate)
     
     return () => {
       window.removeEventListener('avatarBorderColorUpdated', handleColorUpdate)
       window.removeEventListener('userAccentColorUpdated', handleColorUpdate)
       window.removeEventListener('siteThemeUpdated', handleThemeUpdate)
-      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
+      window.removeEventListener('profileSettingsUpdated', handleProfileSettingsUpdate)
     }
   }, [username, user])
 
@@ -456,16 +476,9 @@ function SettingsPage() {
       if (response && response.message) {
         const updatedUser = response.message
         setUser(updatedUser)
-        // После обновления пользователя перезагружаем премиум профиль
-        // но только если он не был явно отключен
+        // После обновления пользователя перезагружаем премиум профиль из API
         if (username) {
-          const savedPremium = localStorage.getItem(`user_${username}_premium_profile`)
-          // Если премиум был явно отключен, не перезагружаем его
-          if (savedPremium !== 'false') {
-            loadPremiumProfile()
-          } else {
-            setIsPremiumProfile(false)
-          }
+          loadPremiumProfile()
         }
       } else {
         setError('Пользователь не найден')
@@ -494,18 +507,23 @@ function SettingsPage() {
     }
   }
 
-  const loadUserColors = () => {
+  const loadUserColors = async () => {
     if (username) {
-      const savedUsernameColor = localStorage.getItem(`user_${username}_username_color`)
-      const savedAvatarBorderColor = localStorage.getItem(`user_${username}_avatar_border_color`)
-      
-      const availableColorValues = AVAILABLE_COLORS.map(c => c.value)
-      
-      if (savedUsernameColor && availableColorValues.includes(savedUsernameColor)) {
-        setUsernameColor(savedUsernameColor)
-      }
-      if (savedAvatarBorderColor && availableColorValues.includes(savedAvatarBorderColor)) {
-        setAvatarBorderColor(savedAvatarBorderColor)
+      try {
+        const response = await userAPI.getUserProfileSettings(username)
+        if (response.message) {
+          const settings = response.message
+          const availableColorValues = AVAILABLE_COLORS.map(c => c.value)
+          
+          if (settings.username_color && availableColorValues.includes(settings.username_color)) {
+            setUsernameColor(settings.username_color)
+          }
+          if (settings.avatar_border_color && availableColorValues.includes(settings.avatar_border_color)) {
+            setAvatarBorderColor(settings.avatar_border_color)
+          }
+        }
+      } catch (err) {
+        // Игнорируем ошибки, если настройки не найдены
       }
     }
   }
@@ -584,16 +602,18 @@ function SettingsPage() {
     return {}
   }
 
-  const loadPremiumProfile = () => {
+  const loadPremiumProfile = async () => {
     if (username && user) {
-      const savedPremium = localStorage.getItem(`user_${username}_premium_profile`)
-      // Если явно установлено false, не включаем премиум
-      if (savedPremium === 'false') {
-        setIsPremiumProfile(false)
-      } else if (savedPremium === 'true') {
-        setIsPremiumProfile(true)
-      } else {
-        // Если нет сохраненного значения, для пользователей с ID < 100 включаем по умолчанию
+      try {
+        const response = await userAPI.getUserProfileSettings(username)
+        if (response.message) {
+          const isPremium = response.message.is_premium_profile !== undefined 
+            ? response.message.is_premium_profile 
+            : (user.id < 100) // Для пользователей с ID < 100 премиум по умолчанию
+          setIsPremiumProfile(isPremium)
+        }
+      } catch (err) {
+        // Если настройки не найдены, используем дефолтное значение
         setIsPremiumProfile(user.id < 100)
       }
     }

@@ -57,11 +57,17 @@ const AnimeGrid = memo(function AnimeGrid({
     if (carouselRef.current && !isScrolling) {
       setIsScrolling(true)
       const scrollAmount = page * 100
-      carouselRef.current.style.transform = `translate3d(-${scrollAmount}%, 0, 0)`
-      // Сбрасываем флаг после завершения анимации
-      setTimeout(() => {
-        setIsScrolling(false)
-      }, 500) // Время анимации из CSS
+      
+      // Используем requestAnimationFrame для плавной анимации
+      requestAnimationFrame(() => {
+        if (carouselRef.current) {
+          carouselRef.current.style.transform = `translate3d(-${scrollAmount}%, 0, 0)`
+          // Сбрасываем флаг после завершения анимации
+          setTimeout(() => {
+            setIsScrolling(false)
+          }, 500) // Время анимации из CSS
+        }
+      })
     }
   }
 

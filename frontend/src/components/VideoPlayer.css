@@ -272,6 +272,26 @@
   border-radius: 12px;
 }
 
+/* Сообщение об ошибке HLS */
+.hls-error-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(229, 9, 20, 0.9);
+  color: #fff;
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  text-align: center;
+  z-index: 100;
+  max-width: 80%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 /* Адаптивность */
 @media (max-width: 768px) {
   /* Упрощаем анимации на мобильных */

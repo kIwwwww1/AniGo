@@ -293,6 +293,32 @@ export const userAPI = {
     })
     return response.data
   },
+
+  // Получить пользователей с наибольшим количеством избранного
+  getMostFavoritedUsers: async (limit = 6, offset = 0) => {
+    const response = await api.get('/user/most-favorited', {
+      params: { limit, offset },
+    })
+    return response.data
+  },
+
+  // Получить настройки профиля текущего пользователя
+  getProfileSettings: async () => {
+    const response = await api.get('/user/profile-settings')
+    return response.data
+  },
+
+  // Получить настройки профиля пользователя по username
+  getUserProfileSettings: async (username) => {
+    const response = await api.get(`/user/profile-settings/${encodeURIComponent(username)}`)
+    return response.data
+  },
+
+  // Обновить настройки профиля текущего пользователя
+  updateProfileSettings: async (settings) => {
+    const response = await api.patch('/user/profile-settings', settings)
+    return response.data
+  },
 }
 
 export const adminAPI = {
@@ -323,6 +349,12 @@ export const adminAPI = {
   // Удалить тестовые данные
   deleteTestData: async () => {
     const response = await api.delete('/admin/delete-test-data')
+    return response.data
+  },
+
+  // Очистить кэш Redis
+  clearCache: async () => {
+    const response = await api.delete('/admin/clear-cache')
     return response.data
   },
 }

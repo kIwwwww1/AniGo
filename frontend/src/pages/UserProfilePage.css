@@ -158,19 +158,50 @@
 }
 
 .profile-username.premium-user {
+  position: relative;
   background: linear-gradient(135deg, #ffc800 0%, #fff200 25%, #ffd700 50%, #fff200 75%, #ffc800 100%) !important;
   background-size: 200% 200% !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
   background-clip: text !important;
   animation: gold-shimmer 3s ease-in-out infinite;
-  position: relative;
   color: transparent !important;
+  overflow: visible;
+  filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.5)) drop-shadow(0 0 8px rgba(255, 215, 0, 0.3));
+}
+
+.profile-username.premium-user::before {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 30%,
+    rgba(255, 255, 255, 0.4) 45%,
+    rgba(255, 255, 255, 0.9) 50%,
+    rgba(255, 255, 255, 0.4) 55%,
+    transparent 70%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-position: -200% 0;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  animation: shine-sweep 5s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: overlay;
 }
 
 /* Дополнительная специфичность для гарантии применения */
 .profile-info-section h1.profile-username.premium-user,
 h1.profile-username.premium-user {
+  position: relative;
   background: linear-gradient(135deg, #ffc800 0%, #fff200 25%, #ffd700 50%, #fff200 75%, #ffc800 100%) !important;
   background-size: 200% 200% !important;
   -webkit-background-clip: text !important;
@@ -178,6 +209,37 @@ h1.profile-username.premium-user {
   background-clip: text !important;
   animation: gold-shimmer 3s ease-in-out infinite;
   color: transparent !important;
+  overflow: visible;
+  filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.5)) drop-shadow(0 0 8px rgba(255, 215, 0, 0.3));
+}
+
+.profile-info-section h1.profile-username.premium-user::before,
+h1.profile-username.premium-user::before {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 30%,
+    rgba(255, 255, 255, 0.4) 45%,
+    rgba(255, 255, 255, 0.9) 50%,
+    rgba(255, 255, 255, 0.4) 55%,
+    transparent 70%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-position: -200% 0;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  animation: shine-sweep 5s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: overlay;
 }
 
 @keyframes gold-shimmer {
@@ -189,6 +251,98 @@ h1.profile-username.premium-user {
   }
 }
 
+@keyframes shine-sweep {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Эффект блика для премиум/админ/владелец с любым цветом никнейма */
+.profile-username.premium-shine {
+  position: relative;
+  overflow: visible;
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+.profile-username.premium-shine::before {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 30%,
+    rgba(255, 255, 255, 0.4) 45%,
+    rgba(255, 255, 255, 0.9) 50%,
+    rgba(255, 255, 255, 0.4) 55%,
+    transparent 70%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-position: -200% 0;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  animation: shine-sweep 5s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: overlay;
+}
+
+/* Дополнительная специфичность для гарантии применения */
+.profile-info-section h1.profile-username.premium-shine,
+h1.profile-username.premium-shine {
+  position: relative;
+  overflow: visible;
+  filter: drop-shadow(0 0 3px currentColor) drop-shadow(0 0 6px currentColor);
+}
+
+.profile-info-section h1.profile-username.premium-shine::before,
+h1.profile-username.premium-shine::before {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 30%,
+    rgba(255, 255, 255, 0.4) 45%,
+    rgba(255, 255, 255, 0.9) 50%,
+    rgba(255, 255, 255, 0.4) 55%,
+    transparent 70%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-position: -200% 0;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  animation: shine-sweep 5s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: overlay;
+}
+
+.profile-collector-badge {
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 25%, #ffd700 50%, #ffed4e 75%, #ffd700 100%) !important;
+  background-size: 200% 200% !important;
+  animation: gold-shimmer 3s ease-in-out infinite !important;
+  color: #000 !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 16px rgba(255, 215, 0, 0.6), 0 0 24px rgba(255, 215, 0, 0.4), 0 0 40px rgba(255, 215, 0, 0.3) !important;
+  text-shadow: none !important;
+  border: 2px solid transparent !important;
+}
+
 .crown-icon {
   display: inline-flex;
   align-items: center;
@@ -198,7 +352,7 @@ h1.profile-username.premium-user {
   animation: crown-glow 2s ease-in-out infinite;
 }
 
-.crown-icon svg {
+.crown-icon img {
   filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
   animation: crown-svg-glow 2s ease-in-out infinite;
 }
@@ -637,6 +791,9 @@ h1.profile-username.premium-user {
   --stat-color: var(--accent);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+  display: block;
+  text-decoration: none;
+  color: inherit;
 }
 
 .stat-card:hover {
