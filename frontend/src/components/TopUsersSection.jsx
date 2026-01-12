@@ -122,16 +122,12 @@ const TopUsersSection = memo(function TopUsersSection() {
 
   // Функция для обработки данных пользователей БЕЗ обновления градиентов (используется при загрузке из кэша)
   const processUsersDataWithoutGradients = (usersData, existingUsers = []) => {
-    console.log('[TopUsers] processUsersDataWithoutGradients вызвана, количество пользователей:', usersData?.length || 0)
-    
     if (!usersData || !Array.isArray(usersData) || usersData.length === 0) {
-      console.warn('[TopUsers] Нет данных пользователей для обработки')
       return []
     }
     
     // Ограничиваем до MAX_USERS пользователей
     const limitedUsersData = usersData.slice(0, MAX_USERS)
-    console.log('[TopUsers] Ограничено до', limitedUsersData.length, 'пользователей')
     
     // Обрабатываем данные без обновления градиентов - сохраняем существующие градиенты из состояния
     return limitedUsersData.map(user => {
@@ -140,7 +136,6 @@ const TopUsersSection = memo(function TopUsersSection() {
       
       // Используем настройки профиля из данных кэша
       const settings = user.profile_settings || {}
-      console.log(`[TopUsers] Настройки профиля для ${user.username} из кэша:`, settings)
       const isPremium = settings.is_premium_profile !== undefined 
         ? settings.is_premium_profile 
         : (user.id < 100)
@@ -176,19 +171,8 @@ const TopUsersSection = memo(function TopUsersSection() {
           if (color1Valid && color2Valid) {
             const gradientDirection = settings.gradient_direction || 'diagonal-right'
             themeGradient = createThemeGradient(settings.theme_color_1, settings.theme_color_2, gradientDirection)
-            console.log(`[TopUsers] ✅ Градиент создан из БД для ${user.username} (цвет1: ${settings.theme_color_1}, цвет2: ${settings.theme_color_2}, направление: ${gradientDirection})`)
-          } else {
-            console.log(`[TopUsers] ⚠️ Невалидные цвета для ${user.username}: color1=${settings.theme_color_1}, color2=${settings.theme_color_2}`)
           }
-        } else {
-          console.log(`[TopUsers] ❌ Градиент НЕ создан для ${user.username} - нет theme_color_1 или theme_color_2 в БД`, {
-            theme_color_1: settings.theme_color_1,
-            theme_color_2: settings.theme_color_2,
-            profile_settings: settings
-          })
         }
-      } else {
-        console.log(`[TopUsers] 📌 Градиент сохранен из существующего состояния для ${user.username}`)
       }
       
       return {
@@ -202,22 +186,15 @@ const TopUsersSection = memo(function TopUsersSection() {
 
   // Функция для обработки данных пользователей (вынесена для переиспользования)
   const processUsersData = (usersData) => {
-    console.log('[TopUsers] processUsersData вызвана, количество пользователей:', usersData?.length || 0)
-    console.log('[TopUsers] Первый пользователь для примера:', usersData?.[0])
-    
     if (!usersData || !Array.isArray(usersData) || usersData.length === 0) {
-      console.warn('[TopUsers] Нет данных пользователей для обработки')
       return []
     }
     
     // Ограничиваем до MAX_USERS пользователей
     const limitedUsersData = usersData.slice(0, MAX_USERS)
-    console.log('[TopUsers] Ограничено до', limitedUsersData.length, 'пользователей')
     
     // Загружаем настройки профиля для каждого пользователя из API
     return limitedUsersData.map(user => {
-      console.log('[TopUsers] Обработка пользователя:', user.username)
-      console.log('[TopUsers] Настройки профиля:', user.profile_settings)
       // Используем настройки профиля из API
       const settings = user.profile_settings || {}
       const isPremium = settings.is_premium_profile !== undefined 
@@ -250,16 +227,7 @@ const TopUsersSection = memo(function TopUsersSection() {
         if (color1Valid && color2Valid) {
           const gradientDirection = settings.gradient_direction || 'diagonal-right'
           themeGradient = createThemeGradient(settings.theme_color_1, settings.theme_color_2, gradientDirection)
-          console.log(`[TopUsers] ✅ Градиент создан из БД для ${user.username} (цвет1: ${settings.theme_color_1}, цвет2: ${settings.theme_color_2}, направление: ${gradientDirection})`)
-        } else {
-          console.log(`[TopUsers] ⚠️ Невалидные цвета для ${user.username}: color1=${settings.theme_color_1}, color2=${settings.theme_color_2}`)
         }
-      } else {
-        console.log(`[TopUsers] ❌ Градиент НЕ создан для ${user.username} - нет theme_color_1 или theme_color_2 в БД`, {
-          theme_color_1: settings.theme_color_1,
-          theme_color_2: settings.theme_color_2,
-          profile_settings: settings
-        })
       }
       
       return {
@@ -341,23 +309,17 @@ const TopUsersSection = memo(function TopUsersSection() {
       
       // Кэш отсутствует или истек, запрашиваем данные из API
       const response = await userAPI.getMostFavoritedUsers(MAX_USERS, 0)
-      console.log('[TopUsers] Полный ответ API:', response)
       
       // API возвращает {'users': [...], 'cycle_info': {...}}
       let usersData = []
       if (response.users && Array.isArray(response.users)) {
         usersData = response.users
-        console.log('[TopUsers] Найдены пользователи в response.users:', usersData.length)
       } else if (Array.isArray(response.message)) {
         // Обратная совместимость со старым форматом
         usersData = response.message
-        console.log('[TopUsers] Найдены пользователи в response.message (массив):', usersData.length)
       } else {
-        console.warn('[TopUsers] Неизвестный формат ответа API:', response)
         usersData = []
       }
-      
-      console.log('[TopUsers] Финальные данные пользователей для обработки:', usersData)
       
       // Получаем информацию о цикле из ответа
       const cycleInfoData = response.cycle_info || null
@@ -586,12 +548,7 @@ const TopUsersSection = memo(function TopUsersSection() {
               if (color1Valid && color2Valid) {
                 const gradientDirection = settings.gradient_direction || 'diagonal-right'
                 themeGradient = createThemeGradient(settings.theme_color_1, settings.theme_color_2, gradientDirection)
-                console.log(`[TopUsers] ✅ Градиент обновлен из БД для ${user.username} (цвет1: ${settings.theme_color_1}, цвет2: ${settings.theme_color_2}, направление: ${gradientDirection})`)
-              } else {
-                console.log(`[TopUsers] ⚠️ Невалидные цвета для ${user.username}: color1=${settings.theme_color_1}, color2=${settings.theme_color_2}`)
               }
-            } else {
-              console.log(`[TopUsers] ❌ Градиент НЕ обновлен для ${user.username} - нет theme_color_1 или theme_color_2 в БД`)
             }
             
             return {

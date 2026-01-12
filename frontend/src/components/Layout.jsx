@@ -74,10 +74,8 @@ function Layout({ children }) {
       await new Promise(resolve => setTimeout(resolve, 200))
       
       const response = await userAPI.getCurrentUser()
-      console.log('Auth check response:', response)
       
       if (response && response.message) {
-        console.log('Setting user:', response.message)
         const userData = {
           id: response.message.id,
           username: response.message.username,
@@ -86,16 +84,12 @@ function Layout({ children }) {
           role: response.message.role,
           type_account: response.message.type_account
         }
-        console.log('User data to set:', userData)
         setUser(userData)
-        console.log('User state should be updated now')
       } else {
-        console.log('No user data in response, setting user to null')
         setUser(null)
       }
     } catch (err) {
       // Пользователь не авторизован или заблокирован
-      console.log('User not authenticated or blocked:', err.response?.status, err.response?.data)
       if (err.response?.status === 403) {
         // Пользователь заблокирован - показываем сообщение
         alert('Ваш аккаунт заблокирован. Доступ к некоторым функциям ограничен.')
@@ -103,7 +97,6 @@ function Layout({ children }) {
       setUser(null)
     } finally {
       setLoadingUser(false)
-      console.log('Loading user set to false, user state:', user)
     }
   }
 
@@ -201,14 +194,6 @@ function Layout({ children }) {
     }
   }, [])
   
-  // Логируем изменения состояния user для отладки
-  useEffect(() => {
-    console.log('User state changed:', user)
-    console.log('Loading user:', loadingUser)
-    console.log('Should show user menu:', user && user.username)
-    console.log('Should show auth buttons:', !loadingUser && (!user || !user.username))
-  }, [user, loadingUser])
-
   // Слушаем кастомное событие для обновления цвета обводки аватарки
   useEffect(() => {
     const handleAvatarBorderColorUpdate = () => {

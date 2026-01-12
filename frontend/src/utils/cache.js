@@ -143,10 +143,6 @@ export const removeFromCache = (key) => {
           detail: { key: actualKey } 
         }))
       }
-      
-      console.log(`🗑️ Кэш "${actualKey}" удален, отправлено событие для перезагрузки`)
-    } else {
-      console.warn(`⚠️ Кэш "${actualKey}" не найден в localStorage`)
     }
   } catch (error) {
     console.error('Error removing from cache:', error)
@@ -160,7 +156,6 @@ export const removeFromCache = (key) => {
 export const clearUserProfileCache = (username) => {
   if (!username) return
   removeFromCache(`user_profile_${username}`)
-  console.log(`🗑️ Кэш профиля пользователя "${username}" очищен`)
 }
 
 /**
@@ -178,8 +173,6 @@ export const invalidateUserRelatedCache = (username) => {
   
   // Очищаем кэш избранного пользователя
   removeFromCache(`user_favorites_${username}`)
-  
-  console.log(`🗑️ Кэш связанный с пользователем "${username}" очищен`)
 }
 
 /**
@@ -199,8 +192,6 @@ export const invalidateAnimeRelatedCache = () => {
       localStorage.removeItem(key)
     }
   })
-  
-  console.log('🗑️ Кэш связанный с аниме очищен')
 }
 
 /**
@@ -227,8 +218,6 @@ const clearAllCacheInternal = () => {
         }))
       })
     }
-    
-    console.log('✅ Кэш приложения очищен')
   } catch (error) {
     console.error('Error clearing cache:', error)
     throw error
@@ -297,7 +286,6 @@ export const clearAppCacheOnly = () => {
       }
     })
     
-    console.log(`✅ Очищено ${removedCount} ключей кэша приложения (настройки темы сохранены)`)
     return { success: true, removedCount }
   } catch (error) {
     console.error('Error clearing app cache:', error)
@@ -310,11 +298,4 @@ if (typeof window !== 'undefined') {
   window.clearAllCache = clearAllCacheAdmin // Очистить весь кэш (только для админов/владельцев)
   window.removeFromCache = removeFromCache // Удалить конкретный ключ из кэша (поддерживает алиасы)
   window.clearAppCache = clearAppCacheOnly // Очистить только кэш приложения (без настроек темы)
-  
-  // Добавляем справку в консоль
-  console.log('%c📦 Доступные команды для работы с кэшем:', 'color: #4CAF50; font-weight: bold;')
-  console.log('%c  • removeFromCache(key) - удалить конкретный ключ', 'color: #2196F3;')
-  console.log('%c    Алиасы: "catalog", "highest_score", "popular", "top_users"', 'color: #666;')
-  console.log('%c  • clearAppCache() - очистить только кэш приложения (без настроек)', 'color: #2196F3;')
-  console.log('%c  • clearAllCache() - очистить весь кэш (только для админов)', 'color: #2196F3;')
 }

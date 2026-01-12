@@ -76,7 +76,6 @@ function HomePage() {
       // Если кэша нет или не первая загрузка, загружаем данные
       // Для первой загрузки загружаем cacheLimit элементов (3 страницы)
       const loadLimit = loadOffset === 0 ? cacheLimit : limit
-      console.log('📡 Загрузка данных каталога аниме с сервера...')
       const response = await animeAPI.getAnimePaginated(loadLimit, loadOffset)
       
       // Обрабатываем ответ - может быть массив или объект с message
@@ -84,15 +83,12 @@ function HomePage() {
         ? response.message 
         : (response.message || [])
       
-      console.log(`✅ Получено ${animeData.length} аниме из каталога`)
-      
       if (animeData.length > 0) {
         if (loadOffset === 0) {
           setAnimeList(animeData)
           // Сохраняем в кэш только первые 3 страницы (18 элементов)
           const dataToCache = animeData.slice(0, cacheLimit)
           setToCache(CACHE_KEY_CATALOG, dataToCache, CACHE_TTL)
-          console.log('💾 Данные каталога сохранены в кэш')
         } else {
           setAnimeList(prev => [...prev, ...animeData])
         }
@@ -137,7 +133,6 @@ function HomePage() {
       }
       
       // Если кэша нет или не первая загрузка, загружаем данные
-      console.log('📡 Загрузка данных "Высшая оценка" с сервера...')
       const response = await animeAPI.getHighestScoreAnime(limitHighestScore, loadOffset, 'desc')
       
       // Обрабатываем ответ - может быть массив или объект с message
@@ -145,15 +140,12 @@ function HomePage() {
         ? response.message 
         : (response.message || [])
       
-      console.log(`✅ Получено ${animeData.length} аниме с высшей оценкой`)
-      
       if (animeData.length > 0) {
         if (loadOffset === 0) {
           setHighestScoreAnime(animeData)
           // Сохраняем в кэш только первые 3 страницы (18 элементов)
           const dataToCache = animeData.slice(0, cacheLimit)
           setToCache(CACHE_KEY_HIGHEST_SCORE, dataToCache, CACHE_TTL)
-          console.log('💾 Данные "Высшая оценка" сохранены в кэш')
         } else {
           setHighestScoreAnime(prev => [...prev, ...animeData])
         }
@@ -266,24 +258,17 @@ function HomePage() {
 
   // Эффект для автоматического обновления данных каждую минуту
   useEffect(() => {
-    console.log('🔄 Интервал обновления запущен, будет срабатывать каждую минуту')
-    
     const interval = setInterval(() => {
-      console.log('⏰ Интервал сработал: принудительное обновление данных')
-      
       // Принудительно удаляем кэш и обновляем данные для каталога аниме
       removeFromCache(CACHE_KEY_CATALOG)
-      console.log('🗑️ Кэш каталога удален, загружаем новые данные...')
       loadAnimeRef.current(0)
       
       // Принудительно удаляем кэш и обновляем данные для блока "Высшая оценка"
       removeFromCache(CACHE_KEY_HIGHEST_SCORE)
-      console.log('🗑️ Кэш высшей оценки удален, загружаем новые данные...')
       loadHighestScoreAnimeRef.current(0)
     }, CACHE_TTL * 1000) // Обновляем каждую минуту (60 секунд)
 
     return () => {
-      console.log('🛑 Интервал обновления остановлен')
       clearInterval(interval)
     }
   }, [CACHE_TTL])

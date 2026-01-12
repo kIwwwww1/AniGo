@@ -166,19 +166,16 @@ function WatchPage() {
       // Используем первый доступный плеер с embed_url
       const player = anime.players.find(p => p && p.embed_url) || anime.players[0]
       if (player && player.embed_url) {
-        console.log('Setting selectedPlayer:', player)
         setSelectedPlayer({
           ...player,
           embed_url: player.embed_url
         })
       } else {
         // Если у плеера нет embed_url, сбрасываем selectedPlayer
-        console.log('No player with embed_url found, resetting selectedPlayer')
         setSelectedPlayer(null)
       }
     } else if (anime) {
       // Если аниме загружено, но нет плееров, сбрасываем selectedPlayer
-      console.log('Anime loaded but no players available, resetting selectedPlayer')
       setSelectedPlayer(null)
     } else {
       // Если аниме не загружено, сбрасываем selectedPlayer
@@ -412,7 +409,6 @@ function WatchPage() {
   const handleToggleFavorite = async () => {
     try {
       const response = await userAPI.toggleFavorite(parseInt(animeId))
-      console.log('Toggle favorite response:', response)
       
       // Инвалидируем кэш пользователя после изменения избранного
       const { invalidateUserRelatedCache } = await import('../utils/cache')
