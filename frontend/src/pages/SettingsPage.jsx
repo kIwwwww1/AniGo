@@ -809,7 +809,11 @@ function SettingsPage() {
                           key={user.avatar_url} // Ключ для принудительного обновления при изменении URL
                           src={avatarUrl} 
                           alt={user.username}
-                          onError={() => setAvatarError(true)}
+                          onError={(e) => {
+                            // Останавливаем повторные попытки загрузки
+                            e.target.src = ''
+                            setAvatarError(true)
+                          }}
                           onLoad={() => setAvatarError(false)}
                         />
                         {avatarHover && !avatarUploading && (

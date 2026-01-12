@@ -822,7 +822,11 @@ function WatchPage() {
                                   src={avatarUrl}
                                   alt={comment.user?.username || 'User'}
                                   className="comment-avatar"
-                                  onError={() => setAvatarErrors(prev => ({ ...prev, [comment.id]: true }))}
+                                  onError={(e) => {
+                                    // Останавливаем повторные попытки загрузки
+                                    e.target.src = ''
+                                    setAvatarErrors(prev => ({ ...prev, [comment.id]: true }))
+                                  }}
                                   onLoad={() => setAvatarErrors(prev => {
                                     const newErrors = { ...prev }
                                     delete newErrors[comment.id]

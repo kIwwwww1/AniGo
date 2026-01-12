@@ -254,8 +254,9 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
 
 .user-card .user-avatar-wrapper {
   position: absolute;
-  top: 1rem;
-  left: 1rem;
+  top: 50%;
+  right: 1rem;
+  transform: translateY(-50%);
   width: 100px;
   height: 100px;
   min-width: 100px;
@@ -318,6 +319,7 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
   z-index: 10;
   border: 3px solid #2a2a2a;
+  transform: translateY(0);
 }
 
 [data-theme="dark"] .user-rank {
@@ -477,12 +479,12 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
 
 .top-users-section .user-card .user-info {
   position: absolute !important;
-  top: 3.5rem !important;
-  left: 146px !important;
-  right: 1rem !important;
+  top: 1rem !important;
+  left: 1rem !important;
+  right: 130px !important;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.25rem;
   padding: 0;
   align-items: flex-start;
   justify-content: flex-start;
@@ -492,15 +494,22 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
   font-size: 1.875rem;
   font-weight: 700;
   color: #ffffff;
-  word-wrap: break-word;
-  word-break: break-word;
-  overflow-wrap: break-word;
   transition: color 0.3s, transform 0.3s;
   font-family: 'Nunito', 'Quicksand', 'Comfortaa', 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   letter-spacing: -0.01em;
   margin: 0;
   line-height: 1.3;
   text-align: left;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+}
+
+.user-name-text {
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  color: inherit;
 }
 
 [data-theme="dark"] .user-name {
@@ -508,8 +517,11 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
 }
 
 .user-card:hover .user-name {
-  color: var(--user-glow-color, var(--user-accent-color, #e50914));
   transform: translateX(2px);
+}
+
+.user-card:hover .user-name:not(.premium-user-name) .user-name-text {
+  color: var(--user-glow-color, var(--user-accent-color, #e50914));
 }
 
 .user-card:hover .user-avatar-wrapper {
@@ -546,7 +558,7 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
   background-size: 100% 100%, 200% 200%;
   animation: gold-border-shimmer 3s ease-in-out infinite;
   box-shadow: 0 8px 24px rgba(255, 215, 0, 0.4), 0 0 20px rgba(255, 215, 0, 0.3) !important;
-  position: relative;
+  position: absolute !important;
 }
 
 [data-theme="dark"] .user-avatar-wrapper.premium-avatar-wrapper {
@@ -578,7 +590,7 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
 
 .favorites-count {
   font-size: 0.85rem;
-  color: var(--user-glow-color, var(--user-accent-color, #e50914));
+  color: white;
   font-weight: 500;
   display: flex;
   align-items: center;
@@ -586,20 +598,20 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
 }
 
 [data-theme="dark"] .favorites-count {
-  color: var(--user-glow-color, var(--user-accent-color, #e50914));
+  color: white;
 }
 
 .favorites-heart-icon {
   width: 16px;
   height: 16px;
-  fill: var(--user-glow-color, var(--user-accent-color, #e50914));
-  stroke: var(--user-glow-color, var(--user-accent-color, #e50914));
+  fill: white;
+  stroke: white;
   transition: all 0.3s ease;
   flex-shrink: 0;
 }
 
 /* Премиум стили для имени пользователя */
-.user-name.premium-user-name {
+.user-name.premium-user-name .user-name-text {
   background: linear-gradient(135deg, #ffc800 0%, #fff200 25%, #ffd700 50%, #fff200 75%, #ffc800 100%) !important;
   background-size: 200% 200% !important;
   -webkit-background-clip: text !important;
@@ -626,6 +638,8 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
   margin-left: 0.5rem;
   vertical-align: middle;
   animation: crown-glow-top-users 2s ease-in-out infinite;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .crown-icon-top-users img {
@@ -653,12 +667,12 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
 
 /* Премиум стили для счетчика избранного */
 .favorites-count.premium-favorites {
-  color: #ffd700 !important;
+  color: white !important;
 }
 
 .favorites-heart-icon.premium-heart-icon {
-  fill: #ffd700 !important;
-  stroke: #ffd700 !important;
+  fill: white !important;
+  stroke: white !important;
 }
 
 /* Топ-3 аниме пользователя */
@@ -776,8 +790,9 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
 
 .skeleton-avatar {
   position: absolute;
-  top: 1rem;
-  left: 1rem;
+  top: 50%;
+  right: 1rem;
+  transform: translateY(-50%);
   width: 100px;
   height: 100px;
   border-radius: 50%;
@@ -889,15 +904,17 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
   .user-avatar-wrapper {
     width: 80px;
     height: 80px;
-    top: 0.75rem;
-    left: 0.75rem;
+    top: 50%;
+    right: 0.75rem;
+    transform: translateY(-50%);
   }
   
   .skeleton-avatar {
     width: 80px;
     height: 80px;
-    top: 0.75rem;
-    left: 0.75rem;
+    top: 50%;
+    right: 0.75rem;
+    transform: translateY(-50%);
   }
   
   .user-avatar-initials {
@@ -906,9 +923,9 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
   
   .top-users-section .user-card .user-info {
     position: absolute !important;
-    top: 1rem !important;
-    left: 122px !important;
-    right: 0.75rem !important;
+    top: 0.75rem !important;
+    left: 0.75rem !important;
+    right: 100px !important;
     align-items: flex-start;
   }
   

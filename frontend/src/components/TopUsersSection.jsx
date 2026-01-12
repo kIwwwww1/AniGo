@@ -16,9 +16,8 @@ const AVAILABLE_COLORS = [
 const USERS_PER_PAGE = 3
 const MAX_USERS = 6
 const CACHE_KEY = 'top_users_most_favorited'
-const CACHE_TTL_WEEK = 604800 // 1 неделя в секундах
-const CACHE_TTL_ACTIVE = 900 // 15 минут во время активной недели
-const UPDATE_INTERVAL_ACTIVE = 15 * 60 * 1000 // 15 минут в миллисекундах
+const CACHE_TTL = 900 // 15 минут в секундах
+const UPDATE_INTERVAL = 15 * 60 * 1000 // 15 минут в миллисекундах
 
 const TopUsersSection = memo(function TopUsersSection() {
   const navigate = useNavigate()
@@ -337,11 +336,8 @@ const TopUsersSection = memo(function TopUsersSection() {
       // Обрабатываем данные - всегда обновляем градиенты при загрузке из API
       const usersWithColors = processUsersData(usersData)
       
-      // Определяем время кэширования в зависимости от активности недели
-      const cacheTTL = activeWeek ? CACHE_TTL_ACTIVE : CACHE_TTL_WEEK
-      
-      // Сохраняем в кэш
-      setToCache(CACHE_KEY, usersData, cacheTTL)
+      // Сохраняем в кэш на 15 минут
+      setToCache(CACHE_KEY, usersData, CACHE_TTL)
       
       setUsers(usersWithColors)
       usersRef.current = usersWithColors // Обновляем ref
@@ -370,35 +366,44 @@ const TopUsersSection = memo(function TopUsersSection() {
     }
   }, [])
   
-  // Эффект для автоматического обновления каждые 15 минут во время активной недели
+  // Эффект для автоматического обновления каждые 15 минут
   useEffect(() => {
-    // Очищаем предыдущий интервал, если есть
-    if (updateIntervalRef.current) {
-      clearInterval(updateIntervalRef.current)
-      updateIntervalRef.current = null
+    // Устанавливаем интервал обновления
+    const setupInterval = () => {
+      if (loadTopUsersRef.current) {
+        // Устанавливаем интервал обновления на 15 минут
+        updateIntervalRef.current = setInterval(() => {
+          if (loadTopUsersRef.current) {
+            // Обновляем данные и градиенты вместе при периодическом обновлении
+            // Всегда пропускаем кэш для периодического обновления
+            loadTopUsersRef.current(true, true) // Пропускаем кэш и обновляем градиенты
+          }
+        }, UPDATE_INTERVAL)
+      }
     }
     
-    if (isActiveWeek && cycleInfo && loadTopUsersRef.current) {
-      // Устанавливаем интервал обновления на 15 минут
-      updateIntervalRef.current = setInterval(() => {
-        console.log('🔄 Автоматическое обновление данных топ коллекционеров (активная неделя)')
-        if (loadTopUsersRef.current) {
-          // Обновляем данные и градиенты вместе при периодическом обновлении
-          loadTopUsersRef.current(true, true) // Пропускаем кэш и обновляем градиенты
-        }
-      }, UPDATE_INTERVAL_ACTIVE)
-      
-      console.log('⏰ Установлен интервал обновления: каждые 15 минут (данные + градиенты)')
+    // Пытаемся установить интервал сразу
+    setupInterval()
+    
+    // Если не удалось (функция еще не загружена), пробуем через небольшую задержку
+    let timeoutId = null
+    if (!updateIntervalRef.current) {
+      timeoutId = setTimeout(() => {
+        setupInterval()
+      }, 100)
     }
     
-    // Очистка при размонтировании или изменении isActiveWeek
+    // Очистка при размонтировании
     return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
       if (updateIntervalRef.current) {
         clearInterval(updateIntervalRef.current)
         updateIntervalRef.current = null
       }
     }
-  }, [isActiveWeek, cycleInfo])
+  }, []) // Устанавливаем интервал только один раз при монтировании компонента
 
   // Обработчик удаления кэша - автоматическая перезагрузка данных
   useEffect(() => {
@@ -513,53 +518,55 @@ const TopUsersSection = memo(function TopUsersSection() {
         }
         
         // Обрабатываем данные пользователя с новыми настройками градиента
-        const updatedUsers = prevUsers.map(user => {
-          if (user.username === username) {
-            console.log(`✅ Найден пользователь ${username}, обновляем градиент`)
-            
-            // Используем настройки профиля из API
-            const isPremium = settings.is_premium_profile !== undefined 
-              ? settings.is_premium_profile 
-              : (user.id < 100)
-            
-            // Если премиум включен, используем золотой цвет
-            if (isPremium) {
-              return {
-                ...user,
-                accentColor: '#ffd700',
-                isPremium: true,
-                themeGradient: null
-              }
-            }
-            
-            // Иначе используем цвет обводки аватарки из настроек профиля
-            const userColor = settings.avatar_border_color && AVAILABLE_COLORS.includes(settings.avatar_border_color)
-              ? settings.avatar_border_color
-              : '#e50914'
-            
-            // Создаем градиент ТОЛЬКО из theme_color_1 и theme_color_2 из БД
-            // Не используем avatar_border_color для создания градиента
-            let themeGradient = null
-            if (settings.theme_color_1 && settings.theme_color_2) {
-              // Проверяем, что цвета валидные hex-цвета
-              const color1Valid = /^#[0-9A-Fa-f]{6}$/.test(settings.theme_color_1)
-              const color2Valid = /^#[0-9A-Fa-f]{6}$/.test(settings.theme_color_2)
-              
-              if (color1Valid && color2Valid) {
-                const gradientDirection = settings.gradient_direction || 'diagonal-right'
-                themeGradient = createThemeGradient(settings.theme_color_1, settings.theme_color_2, gradientDirection)
-              }
-            }
-            
+      const updatedUsers = prevUsers.map(user => {
+        if (user.username === username) {
+          console.log(`✅ Найден пользователь ${username}, обновляем градиент`)
+          
+          // Используем настройки профиля из API
+          const isPremium = settings.is_premium_profile !== undefined 
+            ? settings.is_premium_profile 
+            : (user.id < 100)
+          
+          // Если премиум включен, используем золотой цвет
+          if (isPremium) {
             return {
               ...user,
-              accentColor: userColor,
-              isPremium: false,
-              themeGradient: themeGradient
+              profile_settings: settings,
+              accentColor: '#ffd700',
+              isPremium: true,
+              themeGradient: null
             }
           }
-          return user
-        })
+          
+          // Иначе используем цвет обводки аватарки из настроек профиля
+          const userColor = settings.avatar_border_color && AVAILABLE_COLORS.includes(settings.avatar_border_color)
+            ? settings.avatar_border_color
+            : '#e50914'
+          
+          // Создаем градиент ТОЛЬКО из theme_color_1 и theme_color_2 из БД
+          // Не используем avatar_border_color для создания градиента
+          let themeGradient = null
+          if (settings.theme_color_1 && settings.theme_color_2) {
+            // Проверяем, что цвета валидные hex-цвета
+            const color1Valid = /^#[0-9A-Fa-f]{6}$/.test(settings.theme_color_1)
+            const color2Valid = /^#[0-9A-Fa-f]{6}$/.test(settings.theme_color_2)
+            
+            if (color1Valid && color2Valid) {
+              const gradientDirection = settings.gradient_direction || 'diagonal-right'
+              themeGradient = createThemeGradient(settings.theme_color_1, settings.theme_color_2, gradientDirection)
+            }
+          }
+          
+          return {
+            ...user,
+            profile_settings: settings,
+            accentColor: userColor,
+            isPremium: false,
+            themeGradient: themeGradient
+          }
+        }
+        return user
+      })
         
         console.log('📝 Обновленный список пользователей с градиентами:', updatedUsers)
         usersRef.current = updatedUsers // Обновляем ref
@@ -691,8 +698,32 @@ const TopUsersSection = memo(function TopUsersSection() {
     }
   }, [updateUserAvatar])
 
-  // Убрали мгновенное обновление градиента через событие siteThemeUpdated
-  // Теперь градиенты обновляются только периодически каждые 15 минут вместе с данными
+  // Обработчик обновления градиента текущего пользователя
+  useEffect(() => {
+    const handleThemeUpdate = async () => {
+      try {
+        // Получаем текущего пользователя
+        const response = await userAPI.getCurrentUser()
+        if (response && response.message) {
+          const currentUser = response.message
+          const username = currentUser.username
+          
+          if (username) {
+            // Обновляем градиент для текущего пользователя
+            await updateUserGradient(username)
+          }
+        }
+      } catch (err) {
+        // Игнорируем ошибки (пользователь не авторизован)
+      }
+    }
+
+    window.addEventListener('siteThemeUpdated', handleThemeUpdate)
+    
+    return () => {
+      window.removeEventListener('siteThemeUpdated', handleThemeUpdate)
+    }
+  }, [updateUserGradient])
 
   // Функция для преобразования hex в rgba
   const hexToRgba = (hex, alpha) => {
@@ -988,6 +1019,8 @@ const TopUsersSection = memo(function TopUsersSection() {
                                 alt={user.username}
                                 className="user-avatar"
                                 onError={(e) => {
+                                  // Останавливаем повторные попытки загрузки
+                                  e.target.src = ''
                                   // При ошибке загрузки сохраняем ошибку в состоянии
                                   setAvatarErrors(prev => ({
                                     ...prev,
@@ -1019,7 +1052,7 @@ const TopUsersSection = memo(function TopUsersSection() {
                       </div>
                       <div className="user-info">
                         <div className={`user-name ${isPremium ? 'premium-user-name' : ''}`}>
-                          {user.username}
+                          <span className="user-name-text">{user.username}</span>
                           {(isPremium || user.type_account === 'admin' || user.type_account === 'owner') && (
                             <span className="crown-icon-top-users">
                               <CrownIcon size={18} />

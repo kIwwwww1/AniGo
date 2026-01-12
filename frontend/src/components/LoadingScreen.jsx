@@ -30,7 +30,6 @@ function LoadingScreen({ isLoading }) {
     // Резервный таймер - гарантированно скрываем через 4 секунды
     const safetyTimer = setTimeout(() => {
       if (mountedRef.current) {
-        console.warn('LoadingScreen: Safety timer fired, forcing hide')
         setVisible(false)
       }
     }, 4000)

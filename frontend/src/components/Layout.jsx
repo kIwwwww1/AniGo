@@ -555,7 +555,11 @@ function Layout({ children }) {
                         <img 
                           src={avatarUrl} 
                           alt={user.username}
-                          onError={() => setAvatarError(true)}
+                          onError={(e) => {
+                            // Останавливаем повторные попытки загрузки
+                            e.target.src = ''
+                            setAvatarError(true)
+                          }}
                           onLoad={() => setAvatarError(false)}
                         />
                       )
@@ -585,7 +589,11 @@ function Layout({ children }) {
                                 <img 
                                   src={avatarUrl} 
                                   alt={user.username}
-                                  onError={() => setAvatarError(true)}
+                                  onError={(e) => {
+                                    // Останавливаем повторные попытки загрузки
+                                    e.target.src = ''
+                                    setAvatarError(true)
+                                  }}
                                   onLoad={() => setAvatarError(false)}
                                 />
                               )

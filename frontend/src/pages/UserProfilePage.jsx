@@ -82,7 +82,6 @@ function UserProfilePage() {
       
       // Проверяем, относится ли удаленный кэш к профилю пользователя
       if (removedKey === CACHE_KEY || removedKey?.includes(`user_profile_${username}`)) {
-        console.log(`🔄 Кэш профиля "${removedKey}" удален, перезагружаем данные...`)
         loadUserProfile()
       }
     }
@@ -303,7 +302,6 @@ function UserProfilePage() {
           theme_color_2: color2,
           gradient_direction: gradientDirection
         })
-        console.log('Градиент сохранен в API:', { theme_color_1: color, theme_color_2: color2, gradient_direction: gradientDirection })
       } catch (err) {
         console.error('Ошибка сохранения градиента:', err)
       }
@@ -334,7 +332,6 @@ function UserProfilePage() {
           theme_color_2: color,
           gradient_direction: gradientDirection
         })
-        console.log('Градиент сохранен в API:', { theme_color_1: color1, theme_color_2: color, gradient_direction: gradientDirection })
       } catch (err) {
         console.error('Ошибка сохранения градиента:', err)
       }
@@ -396,7 +393,6 @@ function UserProfilePage() {
           theme_color_2: null,
           gradient_direction: 'diagonal-right'
         })
-        console.log('Градиент сброшен в API')
       } catch (err) {
         console.error('Ошибка сброса градиента:', err)
       }
@@ -573,7 +569,6 @@ function UserProfilePage() {
 
   const togglePremiumProfile = async () => {
     const newPremiumState = !isPremiumProfile
-    console.log('Toggle premium profile:', newPremiumState, 'Current state:', isPremiumProfile, 'username:', username)
     setIsPremiumProfile(newPremiumState)
     
     if (username && currentUser && currentUser.username === username) {
@@ -581,7 +576,6 @@ function UserProfilePage() {
         await userAPI.updateProfileSettings({
           is_premium_profile: newPremiumState
         })
-        console.log('Premium profile saved to API:', newPremiumState)
         
         // Если премиум выключен, применяем сохраненную тему профиля
         if (!newPremiumState && themeColor1 && themeColor2) {
@@ -785,12 +779,10 @@ function UserProfilePage() {
       
       let response
       if (cachedData && !forceReload) {
-        console.log('✅ Профиль пользователя загружен из кэша')
         // Используем кэшированные данные
         response = { message: cachedData }
       } else {
         // Загружаем данные из API
-        console.log('💨 Кэш промах, загружаем профиль из API')
         response = await userAPI.getUserProfile(username)
         // Сохраняем в кэш
         if (response?.message) {
@@ -799,9 +791,6 @@ function UserProfilePage() {
       }
       
       if (response.message) {
-        console.log('User profile loaded:', response.message)
-        console.log('Avatar URL from API:', response.message.avatar_url)
-        
         // Загружаем настройки профиля из ответа API ПЕРЕД установкой user
         let premiumStatus = false
         if (response.message.profile_settings) {
@@ -1196,7 +1185,6 @@ function UserProfilePage() {
                     onClick={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
-                      console.log('Premium button clicked, current state:', isPremiumProfile, 'user:', user)
                       togglePremiumProfile()
                     }}
                     type="button"
@@ -1224,9 +1212,6 @@ function UserProfilePage() {
           <div className="profile-avatar-section">
             {(() => {
               const avatarUrl = normalizeAvatarUrl(user.avatar_url)
-              console.log('Avatar URL after normalization:', avatarUrl)
-              console.log('Avatar error state:', avatarError)
-              console.log('User avatar_url from API:', user.avatar_url)
               
               if (avatarUrl && !avatarError) {
                 return (
@@ -1239,11 +1224,11 @@ function UserProfilePage() {
                       boxShadow: `0 8px 24px ${hexToRgba(avatarBorderColor, 0.3)}`
                     }}
                     onError={(e) => {
-                      console.error('Error loading avatar:', avatarUrl, e)
+                      // Останавливаем повторные попытки загрузки
+                      e.target.src = ''
                       setAvatarError(true)
                     }}
                     onLoad={() => {
-                      console.log('Avatar loaded successfully:', avatarUrl)
                       setAvatarError(false)
                     }}
                   />
