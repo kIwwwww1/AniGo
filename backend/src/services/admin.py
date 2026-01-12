@@ -440,6 +440,10 @@ async def admin_delete_test_data(session: AsyncSession) -> dict:
     
     await session.commit()
     
+    # Очищаем кэш топ пользователей, так как пользователи удалены
+    from src.services.redis_cache import clear_most_favorited_cache
+    await clear_most_favorited_cache()
+    
     return {
         'deleted_users': users_count,
         'deleted_comments': comments_count,

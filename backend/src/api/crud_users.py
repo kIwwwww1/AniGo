@@ -307,6 +307,8 @@ async def set_user_best_anime(user: UserExistsDep, best_anime_data: CreateBestUs
     
     try:
         result = await set_best_anime(best_anime_data, user.id, session)
+        # Очищаем кэш профиля пользователя после изменения топ-3
+        await clear_user_profile_cache(user.username, user.id)
         return result
     except Exception as e:
         raise HTTPException(
@@ -335,6 +337,8 @@ async def remove_user_best_anime(user: UserExistsDep, place: int, session: Sessi
     
     try:
         result = await remove_best_anime(user.id, place, session)
+        # Очищаем кэш профиля пользователя после изменения топ-3
+        await clear_user_profile_cache(user.username, user.id)
         return result
     except Exception as e:
         raise HTTPException(
@@ -379,7 +383,30 @@ async def user_settings(username: str, session: SessionDep):
 
 @user_router.get('/most-favorited')
 async def most_favorited(pagin_data: UserPaginatorDep, session: SessionDep):
-    '''Получение топ коллекционеров с кэшированием в Redis на 1 неделю'''
+    '''Получение топ коллекционеров с кэшированием в Redis
+    Во время активной недели конкурса: кэш на 15 минут (900 секунд)
+    Вне активной недели: кэш на 1 неделю (604800 секунд)
+    '''
+    from datetime import datetime, timezone
+    from src.models.collector_competition import CollectorCompetitionCycleModel
+    from sqlalchemy import select
+    
+    # Проверяем, есть ли активный цикл для определения времени кэширования
+    cycle_stmt = select(CollectorCompetitionCycleModel).filter(
+        CollectorCompetitionCycleModel.is_active == True
+    ).order_by(CollectorCompetitionCycleModel.cycle_start_date.desc())
+    cycle_result = await session.execute(cycle_stmt)
+    active_cycle = cycle_result.scalar_one_or_none()
+    
+    now = datetime.now(timezone.utc)
+    is_active_week = False
+    
+    # Проверяем, активна ли неделя конкурса
+    if active_cycle and active_cycle.cycle_end_date > now:
+        is_active_week = True
+    
+    # Определяем время кэширования
+    cache_ttl = 900 if is_active_week else 604800  # 15 минут или 1 неделя
     
     # Проверяем кэш Redis
     redis = await get_redis_client()
@@ -399,16 +426,25 @@ async def most_favorited(pagin_data: UserPaginatorDep, session: SessionDep):
     resp = await get_user_most_favorited(
         limit=pagin_data.limit, offset=pagin_data.offset, session=session)
     
-    # Сохраняем в кэш на 1 неделю (604800 секунд)
+    # Извлекаем информацию о цикле и пользователей из ответа
+    cycle_info = resp.get('cycle_info') if isinstance(resp, dict) else None
+    users_list = resp.get('users', resp) if isinstance(resp, dict) else resp
+    
+    # Сохраняем в кэш только список пользователей (для обратной совместимости)
     if redis:
         try:
-            serialized_data = json.dumps(resp, default=str)
-            await redis.setex(cache_key, 604800, serialized_data)  # TTL = 1 неделя
-            logger.debug(f"💾 Cached most favorited users (TTL: 604800s, limit: {pagin_data.limit}, offset: {pagin_data.offset})")
+            serialized_data = json.dumps(users_list, default=str)
+            await redis.setex(cache_key, cache_ttl, serialized_data)
+            logger.debug(f"💾 Cached most favorited users (TTL: {cache_ttl}s, limit: {pagin_data.limit}, offset: {pagin_data.offset})")
         except Exception as e:
             logger.warning(f"Failed to cache most favorited users: {e}")
     
-    return {'message': resp}
+    # Возвращаем ответ с информацией о цикле
+    response_data = {'message': users_list}
+    if cycle_info:
+        response_data['cycle_info'] = cycle_info
+    
+    return response_data
 
 
 

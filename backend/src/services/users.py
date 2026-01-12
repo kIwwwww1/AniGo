@@ -13,6 +13,7 @@ from src.models.comments import CommentModel
 from src.models.favorites import FavoriteModel
 from src.models.best_user_anime import BestUserAnimeModel
 from src.models.user_profile_settings import UserProfileSettingsModel
+from src.models.collector_competition import CollectorCompetitionCycleModel
 from src.schemas.user import (CreateNewUser, CreateUserComment, 
                               CreateUserRating, CreateUserFavorite,
                               ChangeUserPassword, CreateBestUserAnime)
@@ -318,6 +319,28 @@ async def create_comment(comment_data: CreateUserComment, user_id: int,
     await get_user_by_id(user_id, session)
     await get_anime_by_id(comment_data.anime_id, session)
 
+    # Проверка защиты от спама: пользователь может отправлять комментарий раз в 60 секунд
+    COMMENT_COOLDOWN_SECONDS = 60
+    query_last_comment = (
+        select(CommentModel)
+        .where(CommentModel.user_id == user_id)
+        .order_by(desc(CommentModel.created_at))
+        .limit(1)
+    )
+    result = await session.execute(query_last_comment)
+    last_comment = result.scalar_one_or_none()
+    
+    if last_comment and last_comment.created_at:
+        # Вычисляем разницу во времени
+        time_diff = (datetime.now(timezone.utc) - last_comment.created_at).total_seconds()
+        
+        if time_diff < COMMENT_COOLDOWN_SECONDS:
+            remaining_seconds = int(COMMENT_COOLDOWN_SECONDS - time_diff)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f'Вы можете отправлять комментарии раз в {COMMENT_COOLDOWN_SECONDS} секунд. Подождите еще {remaining_seconds} секунд.'
+            )
+
     new_comment = CommentModel(
         user_id=user_id,
         anime_id=comment_data.anime_id,
@@ -438,6 +461,7 @@ async def create_user_comment(comment_data: CreateUserComment, request: Request,
 async def toggle_favorite(favorite_data: CreateUserFavorite, user_id: int, 
                           session: AsyncSession):
     '''Добавить или удалить аниме из избранного'''
+    from src.services.redis_cache import clear_most_favorited_cache
     
     # Проверяем существование пользователя и аниме
     await get_user_by_id(user_id, session)
@@ -460,6 +484,8 @@ async def toggle_favorite(favorite_data: CreateUserFavorite, user_id: int,
             )
         )
         await session.commit()
+        # Очищаем кэш топ пользователей, так как количество избранного изменилось
+        await clear_most_favorited_cache()
         # После удаления is_favorite должен быть False
         return {'message': 'Аниме удалено из избранного', 'is_favorite': False}
     else:
@@ -471,6 +497,8 @@ async def toggle_favorite(favorite_data: CreateUserFavorite, user_id: int,
         session.add(new_favorite)
         await session.commit()
         await session.refresh(new_favorite)
+        # Очищаем кэш топ пользователей, так как количество избранного изменилось
+        await clear_most_favorited_cache()
         return {'message': 'Аниме добавлено в избранное', 'is_favorite': True}
 
 
@@ -727,10 +755,15 @@ async def get_user_most_favorited(limit=6, offset=0, session: AsyncSession = Non
     from sqlalchemy.orm import selectinload
     from src.models.best_user_anime import BestUserAnimeModel
     
-    # Обновляем бейдж только при первой загрузке (offset=0)
-    if offset == 0:
-        await update_collector_badge(session)
+    # Получаем или создаем текущий активный цикл
+    current_cycle = await get_or_create_current_cycle(session)
     
+    if offset == 0:
+        # При первой загрузке обновляем цикл (может завершить старый и создать новый)
+        current_cycle = await get_or_create_current_cycle(session)
+    
+    # Получаем топ пользователей (6 конкурентов)
+    # Включаем лидера цикла и его ближайших конкурентов
     stmt = (
         select(UserModel)
         .options(
@@ -745,8 +778,16 @@ async def get_user_most_favorited(limit=6, offset=0, session: AsyncSession = Non
     resp = (await session.execute(stmt)).scalars().all()
 
     six_users = []
+    
+    # Определяем позицию лидера в текущем списке
+    leader_position = None
+    if current_cycle:
+        for idx, user in enumerate(resp):
+            if user.id == current_cycle.leader_user_id:
+                leader_position = idx
+                break
 
-    for user in resp:
+    for idx, user in enumerate(resp):
         # Формируем список топ-3 аниме с полными данными
         best_anime_list = []
         if user.best_anime:
@@ -775,16 +816,32 @@ async def get_user_most_favorited(limit=6, offset=0, session: AsyncSession = Non
         profile_settings = await get_user_profile_settings(user.id, session)
         settings_data = format_profile_settings_data(profile_settings, user.id)
         
+        # Определяем, является ли пользователь лидером текущего цикла
+        is_cycle_leader = current_cycle and user.id == current_cycle.leader_user_id
+        
         _user = {
             'id': user.id,
             'username': user.username,
             'amount': len(user.favorites),
             'favorite': best_anime_list,
             'avatar_url': user.avatar_url,
-            'profile_settings': settings_data
+            'profile_settings': settings_data,
+            'is_cycle_leader': is_cycle_leader
         }   
         six_users.append(_user)
-    return six_users
+    
+    # Создаем информацию о цикле отдельно (не добавляем в объект пользователя)
+    # Вернем её отдельно в API endpoint
+    return {
+        'users': six_users,
+        'cycle_info': {
+            'cycle_id': current_cycle.id,
+            'leader_user_id': current_cycle.leader_user_id,
+            'cycle_start_date': current_cycle.cycle_start_date.isoformat(),
+            'cycle_end_date': current_cycle.cycle_end_date.isoformat(),
+            'is_active': current_cycle.is_active
+        } if current_cycle else None
+    }
 
 
 # Функции для работы с настройками профиля
@@ -871,12 +928,63 @@ def format_profile_settings_data(profile_settings: UserProfileSettingsModel | No
         }
 
 
-async def update_collector_badge(session: AsyncSession):
-    """Обновить бейдж 'Коллекционер #1' для топ-1 пользователя"""
+async def get_or_create_current_cycle(session: AsyncSession) -> CollectorCompetitionCycleModel | None:
+    """Получить текущий активный цикл конкурса или создать новый"""
     from datetime import timedelta
     
-    # Получаем топ-1 пользователя
-    stmt = (
+    # Ищем активный цикл
+    active_cycle_stmt = select(CollectorCompetitionCycleModel).filter(
+        CollectorCompetitionCycleModel.is_active == True
+    ).order_by(desc(CollectorCompetitionCycleModel.cycle_start_date))
+    
+    result = await session.execute(active_cycle_stmt)
+    active_cycle = result.scalar_one_or_none()
+    
+    now = datetime.now(timezone.utc)
+    
+    # Если есть активный цикл и он еще не закончился
+    if active_cycle and active_cycle.cycle_end_date > now:
+        return active_cycle
+    
+    # Если цикл истек или его нет - нужно создать новый и завершить старый
+    if active_cycle and active_cycle.cycle_end_date <= now:
+        # Завершаем старый цикл
+        active_cycle.is_active = False
+        await session.flush()
+        
+        # Выдаем бейдж лидеру завершенного цикла (если еще не выдан)
+        if not active_cycle.badge_awarded:
+            leader_settings = await get_or_create_user_profile_settings(
+                active_cycle.leader_user_id, session
+            )
+            # Бейдж выдается на неделю от момента окончания цикла
+            expires_at = active_cycle.cycle_end_date + timedelta(weeks=1)
+            leader_settings.collector_badge_expires_at = expires_at
+            active_cycle.badge_awarded = True
+            await session.flush()
+        
+        # Очищаем кэш Redis для обновления данных на фронтенде
+        try:
+            from src.services.redis_cache import clear_most_favorited_cache
+            await clear_most_favorited_cache()
+            logger.info("🗑️ Очищен кэш Redis для топ коллекционеров (завершение цикла)")
+        except Exception as e:
+            logger.warning(f"Ошибка при очистке кэша Redis: {e}")
+    
+    # Забираем бейдж у предыдущего владельца (если был)
+    old_badge_owner_stmt = select(UserProfileSettingsModel).filter(
+        UserProfileSettingsModel.collector_badge_expires_at.isnot(None),
+        UserProfileSettingsModel.collector_badge_expires_at > now
+    )
+    old_badge_result = await session.execute(old_badge_owner_stmt)
+    old_badge_owner = old_badge_result.scalar_one_or_none()
+    
+    if old_badge_owner:
+        old_badge_owner.collector_badge_expires_at = None
+        await session.flush()
+    
+    # Определяем нового лидера (топ-1 на текущий момент)
+    top_user_stmt = (
         select(UserModel)
         .outerjoin(FavoriteModel, FavoriteModel.user_id == UserModel.id)
         .group_by(UserModel.id)
@@ -884,38 +992,33 @@ async def update_collector_badge(session: AsyncSession):
         .limit(1)
     )
     
-    result = await session.execute(stmt)
-    top_user = result.scalar_one_or_none()
+    top_user_result = await session.execute(top_user_stmt)
+    top_user = top_user_result.scalar_one_or_none()
     
     if not top_user:
         return None
     
-    # Получаем текущего владельца бейджа (если есть)
-    current_badge_owner = await session.execute(
-        select(UserProfileSettingsModel)
-        .filter(UserProfileSettingsModel.collector_badge_expires_at.isnot(None))
-        .filter(UserProfileSettingsModel.collector_badge_expires_at > datetime.now(timezone.utc))
+    # Создаем новый цикл
+    cycle_start = now
+    cycle_end = cycle_start + timedelta(weeks=1)
+    
+    new_cycle = CollectorCompetitionCycleModel(
+        leader_user_id=top_user.id,
+        cycle_start_date=cycle_start,
+        cycle_end_date=cycle_end,
+        is_active=True,
+        badge_awarded=False
     )
-    current_badge_owner_settings = current_badge_owner.scalar_one_or_none()
+    session.add(new_cycle)
+    await session.commit()
+    await session.refresh(new_cycle)
     
-    # Если топ-1 изменился или бейдж истек, обновляем
-    should_update = False
-    if current_badge_owner_settings:
-        if current_badge_owner_settings.user_id != top_user.id:
-            # Топ-1 изменился - забираем бейдж у старого владельца
-            current_badge_owner_settings.collector_badge_expires_at = None
-            should_update = True
-    else:
-        # Бейджа нет или истек - даем новому топ-1
-        should_update = True
-    
-    if should_update:
-        # Даем бейдж новому топ-1 пользователю на 1 неделю
-        top_user_settings = await get_or_create_user_profile_settings(top_user.id, session)
-        expires_at = datetime.now(timezone.utc) + timedelta(weeks=1)
-        top_user_settings.collector_badge_expires_at = expires_at
-        await session.commit()
-        await session.refresh(top_user_settings)
-        return top_user.id
-    
-    return None
+    return new_cycle
+
+
+async def update_collector_badge(session: AsyncSession):
+    """Обновить бейдж 'Коллекционер #1' - вызывается при завершении недельного цикла"""
+    # Эта функция теперь вызывается автоматически в get_or_create_current_cycle
+    # при завершении цикла
+    cycle = await get_or_create_current_cycle(session)
+    return cycle.leader_user_id if cycle else None

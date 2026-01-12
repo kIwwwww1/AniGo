@@ -182,7 +182,7 @@ async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession, background
         raise HTTPException(status_code=500, detail=f'Ошибка при загрузке аниме: {str(e)}')
 
 
-@redis_cached(prefix="popular", ttl=60)  # 1 минута
+@redis_cached(prefix="popular", ttl=300)  # 5 минут
 async def get_popular_anime(paginator_data: PaginatorData, session: AsyncSession):
     '''Получить популярное аниме (все аниме из базы, отсортированные по популярности)'''
 
