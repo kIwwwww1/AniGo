@@ -18,6 +18,9 @@ class UserModel(Base):
         DateTime(timezone=True), nullable=True
     )
     is_blocked: Mapped[bool] = mapped_column(default=False, nullable=False)
+    premium_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now()

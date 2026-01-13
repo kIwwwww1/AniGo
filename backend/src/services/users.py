@@ -3,7 +3,7 @@ from sqlalchemy import select, delete, func, desc
 from datetime import datetime
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from loguru import logger
 # 
 from src.models.users import UserModel
@@ -225,6 +225,21 @@ async def verify_email(token: str, session: AsyncSession, response: Response) ->
     
     # Обновляем объект из БД для получения актуальных данных (created_at и т.д.)
     await session.refresh(new_user)
+    
+    # Если ID пользователя <= 25 и это не owner, даем премиум на 1 месяц
+    if new_user.id <= 25 and new_user.type_account != 'owner':
+        now = datetime.now(timezone.utc)
+        premium_expires_at = now + timedelta(days=30)
+        new_user.premium_expires_at = premium_expires_at
+        new_user.type_account = 'premium'
+        
+        # Также включаем премиум профиль в настройках
+        settings = await get_or_create_user_profile_settings(new_user.id, session)
+        settings.is_premium_profile = True
+        
+        await session.commit()
+        await session.refresh(new_user)
+        logger.info(f"User {new_user.username} (ID: {new_user.id}) получил премиум подписку до {premium_expires_at}")
     
     # Создаем JWT токен и устанавливаем его в cookie для автоматического входа
     await add_token_in_cookie(sub=str(new_user.id), type_account=new_user.type_account, response=response)
@@ -892,10 +907,17 @@ async def update_user_profile_settings(
     theme_color_2: str | None = None,
     gradient_direction: str | None = None,
     is_premium_profile: bool | None = None,
-    hide_age_restriction_warning: bool | None = None
+    hide_age_restriction_warning: bool | None = None,
+    *,
+    fields_to_update: dict[str, any] | None = None
 ) -> tuple[UserProfileSettingsModel, bool]:
     """
     Обновить настройки профиля пользователя
+    
+    Args:
+        fields_to_update: Словарь с полями, которые нужно обновить (ключ - имя поля, значение - новое значение)
+                         Если передан, используется для определения явно переданных полей.
+                         Это позволяет различать "не передано" от "передано None".
     
     Returns:
         tuple: (settings, has_changes) - настройки и флаг, были ли реальные изменения
@@ -905,25 +927,70 @@ async def update_user_profile_settings(
     # Отслеживаем, были ли реальные изменения
     has_changes = False
     
-    if username_color is not None and settings.username_color != username_color:
+    # Используем fields_to_update для определения явно переданных полей
+    # Если fields_to_update не передан, используем старую логику (обратная совместимость)
+    explicit_fields = fields_to_update if fields_to_update is not None else {}
+    
+    # Обновляем username_color
+    if 'username_color' in explicit_fields:
+        if settings.username_color != explicit_fields['username_color']:
+            settings.username_color = explicit_fields['username_color']
+            has_changes = True
+    elif username_color is not None and settings.username_color != username_color:
         settings.username_color = username_color
         has_changes = True
-    if avatar_border_color is not None and settings.avatar_border_color != avatar_border_color:
+    
+    # Обновляем avatar_border_color
+    if 'avatar_border_color' in explicit_fields:
+        if settings.avatar_border_color != explicit_fields['avatar_border_color']:
+            settings.avatar_border_color = explicit_fields['avatar_border_color']
+            has_changes = True
+    elif avatar_border_color is not None and settings.avatar_border_color != avatar_border_color:
         settings.avatar_border_color = avatar_border_color
         has_changes = True
-    if theme_color_1 is not None and settings.theme_color_1 != theme_color_1:
+    
+    # Обновляем theme_color_1 (важно: разрешаем установку None для сброса)
+    if 'theme_color_1' in explicit_fields:
+        if settings.theme_color_1 != explicit_fields['theme_color_1']:
+            settings.theme_color_1 = explicit_fields['theme_color_1']
+            has_changes = True
+    elif theme_color_1 is not None and settings.theme_color_1 != theme_color_1:
         settings.theme_color_1 = theme_color_1
         has_changes = True
-    if theme_color_2 is not None and settings.theme_color_2 != theme_color_2:
+    
+    # Обновляем theme_color_2 (важно: разрешаем установку None для сброса)
+    if 'theme_color_2' in explicit_fields:
+        if settings.theme_color_2 != explicit_fields['theme_color_2']:
+            settings.theme_color_2 = explicit_fields['theme_color_2']
+            has_changes = True
+    elif theme_color_2 is not None and settings.theme_color_2 != theme_color_2:
         settings.theme_color_2 = theme_color_2
         has_changes = True
-    if gradient_direction is not None and settings.gradient_direction != gradient_direction:
+    
+    # Обновляем gradient_direction
+    if 'gradient_direction' in explicit_fields:
+        if settings.gradient_direction != explicit_fields['gradient_direction']:
+            settings.gradient_direction = explicit_fields['gradient_direction']
+            has_changes = True
+    elif gradient_direction is not None and settings.gradient_direction != gradient_direction:
         settings.gradient_direction = gradient_direction
         has_changes = True
-    if is_premium_profile is not None and settings.is_premium_profile != is_premium_profile:
+    
+    # Обновляем is_premium_profile
+    if 'is_premium_profile' in explicit_fields:
+        if settings.is_premium_profile != explicit_fields['is_premium_profile']:
+            settings.is_premium_profile = explicit_fields['is_premium_profile']
+            has_changes = True
+    elif is_premium_profile is not None and settings.is_premium_profile != is_premium_profile:
         settings.is_premium_profile = is_premium_profile
         has_changes = True
-    if hide_age_restriction_warning is not None and settings.hide_age_restriction_warning != hide_age_restriction_warning:
+    
+    # Обновляем hide_age_restriction_warning
+    if 'hide_age_restriction_warning' in explicit_fields:
+        if settings.hide_age_restriction_warning != explicit_fields['hide_age_restriction_warning']:
+            settings.hide_age_restriction_warning = explicit_fields['hide_age_restriction_warning']
+            has_changes = True
+    elif hide_age_restriction_warning is not None and settings.hide_age_restriction_warning != hide_age_restriction_warning:
         settings.hide_age_restriction_warning = hide_age_restriction_warning
         has_changes = True
     
@@ -971,6 +1038,94 @@ def format_profile_settings_data(profile_settings: UserProfileSettingsModel | No
             'has_collector_badge': False,
             'collector_badge_expires_at': None
         }
+
+
+async def check_and_update_premium_expiration(
+    user_id: int,
+    session: AsyncSession
+) -> bool:
+    """
+    Проверяет истечение премиум подписки и обновляет type_account на 'base' если премиум истек
+    Не изменяет тип аккаунта для owner и admin
+    Returns:
+        bool: True если премиум был активен и истек, False если не было изменений
+    """
+    user = await get_user_by_id(user_id, session)
+    if not user:
+        return False
+    
+    # Не проверяем истечение для owner и admin
+    if user.type_account in ('owner', 'admin'):
+        return False
+    
+    # Проверяем, есть ли премиум подписка и истекла ли она
+    if user.premium_expires_at and user.premium_expires_at < datetime.now(timezone.utc):
+        # Премиум истек, меняем тип аккаунта на 'base' (только для premium пользователей)
+        if user.type_account == 'premium':
+            user.type_account = 'base'
+            # Также отключаем премиум профиль в настройках
+            settings = await get_or_create_user_profile_settings(user_id, session)
+            settings.is_premium_profile = False
+            await session.commit()
+            logger.info(f"Премиум подписка пользователя {user.username} (ID: {user_id}) истекла. Тип аккаунта изменен на 'base'")
+            return True
+    
+    return False
+
+
+async def activate_premium_subscription(
+    user_id: int,
+    session: AsyncSession
+) -> dict:
+    """
+    Активировать премиум подписку для пользователя
+    Устанавливает premium_expires_at = текущая дата + 30 дней
+    Обновляет type_account на 'premium' и is_premium_profile на True
+    
+    Returns:
+        dict: Информация об активированной подписке
+    """
+    # Получаем пользователя
+    user = await get_user_by_id(user_id, session)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Пользователь не найден'
+        )
+    
+    # Проверяем, что пользователь имеет тип 'user'
+    if user.type_account != 'user':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Премиум подписка доступна только для пользователей с типом аккаунта "user"'
+        )
+    
+    # Вычисляем дату окончания подписки (текущая дата + 30 дней)
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=30)
+    
+    # Обновляем premium_expires_at
+    user.premium_expires_at = expires_at
+    
+    # Обновляем type_account на 'premium'
+    user.type_account = 'premium'
+    
+    # Обновляем настройки профиля - включаем премиум профиль
+    settings = await get_or_create_user_profile_settings(user_id, session)
+    settings.is_premium_profile = True
+    
+    await session.commit()
+    await session.refresh(user)
+    await session.refresh(settings)
+    
+    logger.info(f"Премиум подписка активирована для пользователя {user.username} (ID: {user_id}). Истекает: {expires_at}")
+    
+    return {
+        'success': True,
+        'message': 'Премиум подписка успешно активирована',
+        'premium_expires_at': expires_at.isoformat(),
+        'type_account': user.type_account
+    }
 
 
 async def get_or_create_current_cycle(session: AsyncSession) -> CollectorCompetitionCycleModel | None:

@@ -16,7 +16,7 @@ from src.services.users import (add_user, create_user_comment,
                                 set_best_anime, get_user_best_anime, remove_best_anime,
                                 add_new_user_photo, get_user_most_favorited,
                                 get_user_profile_settings, get_or_create_user_profile_settings,
-                                update_user_profile_settings, get_user_by_token)
+                                update_user_profile_settings, get_user_by_token, activate_premium_subscription)
 from src.services.redis_cache import (get_redis_client, get_user_profile_cache_key, 
                                       clear_user_profile_cache)
 import json
@@ -370,6 +370,7 @@ async def user_settings(username: str, session: SessionDep):
             'avatar_url': user.avatar_url,
             'type_account': user.type_account,
             'created_at': user.created_at.isoformat() if user.created_at else None,
+            'premium_expires_at': user.premium_expires_at.isoformat() if user.premium_expires_at else None,
             'stats': {
                 'favorites_count': favorites_count,
                 'ratings_count': ratings_count,
@@ -578,6 +579,10 @@ async def update_profile_settings(
     session: SessionDep
 ):
     """Обновить настройки профиля текущего пользователя"""
+    # Используем model_dump(exclude_unset=True) для получения только явно переданных полей
+    # Это позволяет различать "поле не передано" от "поле передано как None"
+    explicit_fields = settings_data.model_dump(exclude_unset=True)
+    
     settings, has_changes = await update_user_profile_settings(
         user_id=user.id,
         session=session,
@@ -587,7 +592,8 @@ async def update_profile_settings(
         theme_color_2=settings_data.theme_color_2,
         gradient_direction=settings_data.gradient_direction,
         is_premium_profile=settings_data.is_premium_profile,
-        hide_age_restriction_warning=settings_data.hide_age_restriction_warning
+        hide_age_restriction_warning=settings_data.hide_age_restriction_warning,
+        fields_to_update=explicit_fields
     )
     
     # Очищаем кэш профиля пользователя только при реальных изменениях
@@ -611,4 +617,19 @@ async def update_profile_settings(
             'updated_at': settings.updated_at.isoformat() if settings.updated_at else None
         }
     }
+
+
+@user_router.post('/activate-premium')
+async def activate_premium(
+    user: UserExistsDep,
+    session: SessionDep
+):
+    """Активировать премиум подписку для текущего пользователя"""
+    result = await activate_premium_subscription(user.id, session)
+    
+    # Очищаем кэш профиля пользователя
+    await clear_user_profile_cache(user.username, user.id)
+    logger.info(f"Cleared profile cache for user: {user.username} after premium activation")
+    
+    return {'message': result}
 

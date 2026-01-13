@@ -7,7 +7,7 @@ from src.services.animes import pagination_get_anime
 from src.schemas.anime import PaginatorData
 from src.auth.auth import get_token
 from src.models.users import UserModel
-from src.services.users import get_user_by_id
+from src.services.users import get_user_by_id, check_and_update_premium_expiration
 # from src.services.users import UserManager
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
@@ -20,6 +20,11 @@ async def get_current_user(request: Request, session: SessionDep) -> UserModel:
     token_data = await get_token(request)
     user_id = int(token_data.get('sub'))
     user = await get_user_by_id(user_id, session)
+    
+    # Проверяем истечение премиум подписки
+    await check_and_update_premium_expiration(user_id, session)
+    # Обновляем объект пользователя после возможных изменений
+    await session.refresh(user)
     
     # Проверяем, не заблокирован ли пользователь
     if user.is_blocked:

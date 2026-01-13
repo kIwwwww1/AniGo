@@ -11,6 +11,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application source
 COPY src ./src
+# Copy migrations
+COPY migrations ./migrations
 
 EXPOSE 8000
 
