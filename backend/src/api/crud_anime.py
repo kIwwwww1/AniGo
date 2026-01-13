@@ -21,6 +21,49 @@ from src.auth.auth import get_token
 anime_router = APIRouter(prefix='/anime', tags=['AnimePanel'])
 
 
+def convert_anime_to_dict(anime):
+    """
+    Конвертировать аниме (объект SQLAlchemy или словарь) в словарь для API ответа
+    
+    Args:
+        anime: Объект AnimeModel или словарь с данными аниме
+    
+    Returns:
+        dict: Словарь с данными аниме
+    """
+    if isinstance(anime, dict):
+        # Если это уже словарь (из кэша), возвращаем его
+        return anime
+    elif isinstance(anime, str):
+        # Если это строка (неправильная сериализация из старого кэша)
+        # Проверяем, не является ли это строковым представлением объекта
+        if 'object at 0x' in anime or 'AnimeModel' in anime:
+            logger.debug(f"Пропускаем некорректные данные из старого кэша: {anime[:100] if len(anime) > 100 else anime}")
+            return None
+        # Если это обычная строка (не объект), тоже пропускаем
+        logger.debug(f"Пропускаем строковое значение: {anime[:100] if len(anime) > 100 else anime}")
+        return None
+    elif hasattr(anime, '__table__'):
+        # Если это объект SQLAlchemy, конвертируем в словарь
+        return {
+            'id': anime.id,
+            'title': anime.title,
+            'title_original': anime.title_original,
+            'poster_url': anime.poster_url,
+            'description': anime.description,
+            'year': anime.year,
+            'type': anime.type,
+            'episodes_count': anime.episodes_count,
+            'rating': anime.rating,
+            'score': anime.score,
+            'studio': anime.studio,
+            'status': anime.status,
+        }
+    else:
+        logger.warning(f"Неизвестный тип данных для аниме: {type(anime)}")
+        return None
+
+
 @anime_router.get('/search/{anime_name}')
 async def get_anime_by_name(anime_name: str, session: SessionDep, background_tasks: BackgroundTasks):
     '''Поиск аниме по названию
@@ -36,20 +79,10 @@ async def get_anime_by_name(anime_name: str, session: SessionDep, background_tas
         result = []
         for anime in anime_list:
             try:
-                anime_dict = {
-                    'id': anime.id,
-                    'title': anime.title,
-                    'title_original': anime.title_original,
-                    'poster_url': anime.poster_url,
-                    'description': anime.description,
-                    'year': anime.year,
-                    'type': anime.type,
-                    'episodes_count': anime.episodes_count,
-                    'rating': anime.rating,
-                    'score': anime.score,
-                    'studio': anime.studio,
-                    'status': anime.status,
-                }
+                anime_dict = convert_anime_to_dict(anime)
+                if anime_dict is None:
+                    # Пропускаем, если конвертация не удалась
+                    continue
                 result.append(anime_dict)
             except Exception as err:
                 logger.error(f'Ошибка при конвертации одного аниме: {err}')
@@ -80,23 +113,19 @@ async def get_anime_paginators(pagin_data: PaginatorAnimeDep,
     anime_list = []
     for anime in resp:
         try:
-            anime_dict = {
-                'id': anime.id,
-                'title': anime.title,
-                'title_original': anime.title_original,
-                'poster_url': anime.poster_url,
-                'description': anime.description,
-                'year': anime.year,
-                'type': anime.type,
-                'episodes_count': anime.episodes_count,
-                'rating': anime.rating,
-                'score': anime.score,
-                'studio': anime.studio,
-                'status': anime.status,
-            }
+            anime_dict = convert_anime_to_dict(anime)
+            if anime_dict is None:
+                # Пропускаем, если конвертация не удалась
+                continue
             anime_list.append(AnimeResponse(**anime_dict))
         except Exception as err:
-            logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
+            # Безопасное получение ID для логирования
+            anime_id = "unknown"
+            if isinstance(anime, dict):
+                anime_id = anime.get('id', 'unknown')
+            elif hasattr(anime, 'id'):
+                anime_id = anime.id
+            logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime_id}, type={type(anime)}')
             continue
     return {'message': anime_list}
 
@@ -237,24 +266,25 @@ async def get_popular_anime_data(
         anime_list = []
         for anime in resp:
             try:
-                logger.debug(f'Обработка аниме: id={anime.id}, title={anime.title}, poster_url={anime.poster_url}')
-                anime_dict = {
-                    'id': anime.id,
-                    'title': anime.title or 'Не определено',
-                    'title_original': anime.title_original or 'Не определено',
-                    'poster_url': anime.poster_url or None,
-                    'description': anime.description,
-                    'year': anime.year,
-                    'type': anime.type,
-                    'episodes_count': anime.episodes_count,
-                    'rating': anime.rating,
-                    'score': anime.score,
-                    'studio': anime.studio,
-                    'status': anime.status,
-                }
+                anime_dict = convert_anime_to_dict(anime)
+                if anime_dict is None:
+                    # Пропускаем, если конвертация не удалась
+                    continue
+                # Применяем значения по умолчанию для популярного аниме
+                if anime_dict.get('title') is None:
+                    anime_dict['title'] = 'Не определено'
+                if anime_dict.get('title_original') is None:
+                    anime_dict['title_original'] = 'Не определено'
+                logger.debug(f'Обработка аниме: id={anime_dict.get("id")}, title={anime_dict.get("title")}, poster_url={anime_dict.get("poster_url")}')
                 anime_list.append(AnimeResponse(**anime_dict))
             except Exception as err:
-                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}', exc_info=True)
+                # Безопасное получение ID для логирования
+                anime_id = "unknown"
+                if isinstance(anime, dict):
+                    anime_id = anime.get('id', 'unknown')
+                elif hasattr(anime, 'id'):
+                    anime_id = anime.id
+                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime_id}, type={type(anime)}', exc_info=True)
                 continue
         logger.info(f'Успешно конвертировано аниме: {len(anime_list)}')
         return {'message': anime_list}
@@ -278,23 +308,19 @@ async def get_random_anime_data(
         anime_list = []
         for anime in resp:
             try:
-                anime_dict = {
-                    'id': anime.id,
-                    'title': anime.title,
-                    'title_original': anime.title_original,
-                    'poster_url': anime.poster_url,
-                    'description': anime.description,
-                    'year': anime.year,
-                    'type': anime.type,
-                    'episodes_count': anime.episodes_count,
-                    'rating': anime.rating,
-                    'score': anime.score,
-                    'studio': anime.studio,
-                    'status': anime.status,
-                }
+                anime_dict = convert_anime_to_dict(anime)
+                if anime_dict is None:
+                    # Пропускаем, если конвертация не удалась
+                    continue
                 anime_list.append(AnimeResponse(**anime_dict))
             except Exception as err:
-                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
+                # Безопасное получение ID для логирования
+                anime_id = "unknown"
+                if isinstance(anime, dict):
+                    anime_id = anime.get('id', 'unknown')
+                elif hasattr(anime, 'id'):
+                    anime_id = anime.id
+                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime_id}, type={type(anime)}')
                 continue
         return {'message': anime_list}
     except Exception as e:
@@ -329,23 +355,19 @@ async def get_all_popular_anime(limit: int = 12, offset: int = 0,
         anime_list = []
         for anime in resp:
             try:
-                anime_dict = {
-                    'id': anime.id,
-                    'title': anime.title,
-                    'title_original': anime.title_original,
-                    'poster_url': anime.poster_url,
-                    'description': anime.description,
-                    'year': anime.year,
-                    'type': anime.type,
-                    'episodes_count': anime.episodes_count,
-                    'rating': anime.rating,
-                    'score': anime.score,
-                    'studio': anime.studio,
-                    'status': anime.status,
-                }
+                anime_dict = convert_anime_to_dict(anime)
+                if anime_dict is None:
+                    # Пропускаем, если конвертация не удалась
+                    continue
                 anime_list.append(AnimeResponse(**anime_dict))
             except Exception as err:
-                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
+                # Безопасное получение ID для логирования
+                anime_id = "unknown"
+                if isinstance(anime, dict):
+                    anime_id = anime.get('id', 'unknown')
+                elif hasattr(anime, 'id'):
+                    anime_id = anime.id
+                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime_id}, type={type(anime)}')
                 continue
         return {'message': anime_list}
     except Exception as e:
@@ -369,23 +391,19 @@ async def get_all_anime(limit: int = 12, offset: int = 0,
         anime_list = []
         for anime in resp:
             try:
-                anime_dict = {
-                    'id': anime.id,
-                    'title': anime.title,
-                    'title_original': anime.title_original,
-                    'poster_url': anime.poster_url,
-                    'description': anime.description,
-                    'year': anime.year,
-                    'type': anime.type,
-                    'episodes_count': anime.episodes_count,
-                    'rating': anime.rating,
-                    'score': anime.score,
-                    'studio': anime.studio,
-                    'status': anime.status,
-                }
+                anime_dict = convert_anime_to_dict(anime)
+                if anime_dict is None:
+                    # Пропускаем, если конвертация не удалась
+                    continue
                 anime_list.append(AnimeResponse(**anime_dict))
             except Exception as err:
-                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
+                # Безопасное получение ID для логирования
+                anime_id = "unknown"
+                if isinstance(anime, dict):
+                    anime_id = anime.get('id', 'unknown')
+                elif hasattr(anime, 'id'):
+                    anime_id = anime.id
+                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime_id}, type={type(anime)}')
                 continue
         return {'message': anime_list}
     except Exception as e:
@@ -407,23 +425,19 @@ async def get_all_animes(limit: int = 12, offset: int = 0,
         anime_list = []
         for anime in resp:
             try:
-                anime_dict = {
-                    'id': anime.id,
-                    'title': anime.title,
-                    'title_original': anime.title_original,
-                    'poster_url': anime.poster_url,
-                    'description': anime.description,
-                    'year': anime.year,
-                    'type': anime.type,
-                    'episodes_count': anime.episodes_count,
-                    'rating': anime.rating,
-                    'score': anime.score,
-                    'studio': anime.studio,
-                    'status': anime.status,
-                }
+                anime_dict = convert_anime_to_dict(anime)
+                if anime_dict is None:
+                    # Пропускаем, если конвертация не удалась
+                    continue
                 anime_list.append(AnimeResponse(**anime_dict))
             except Exception as err:
-                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
+                # Безопасное получение ID для логирования
+                anime_id = "unknown"
+                if isinstance(anime, dict):
+                    anime_id = anime.get('id', 'unknown')
+                elif hasattr(anime, 'id'):
+                    anime_id = anime.id
+                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime_id}, type={type(anime)}')
                 continue
         return {'message': anime_list}
     except Exception as e:
@@ -502,23 +516,16 @@ async def get_anime_by_rating(limit: int = 12, offset: int = 0,
         anime_list = []
         for anime in resp:
             try:
-                anime_dict = {
-                    'id': anime.id,
-                    'title': anime.title,
-                    'title_original': anime.title_original,
-                    'poster_url': anime.poster_url,
-                    'description': anime.description,
-                    'year': anime.year,
-                    'type': anime.type,
-                    'episodes_count': anime.episodes_count,
-                    'rating': anime.rating,
-                    'score': anime.score,
-                    'studio': anime.studio,
-                    'status': anime.status,
-                }
+                anime_dict = convert_anime_to_dict(anime)
                 anime_list.append(AnimeResponse(**anime_dict))
             except Exception as err:
-                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
+                # Безопасное получение ID для логирования
+                anime_id = "unknown"
+                if isinstance(anime, dict):
+                    anime_id = anime.get('id', 'unknown')
+                elif hasattr(anime, 'id'):
+                    anime_id = anime.id
+                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime_id}')
                 continue
         return {'message': anime_list}
     except Exception as e:
@@ -545,23 +552,19 @@ async def get_anime_by_studio(studio_name: str, limit: int = 12,
         anime_list = []
         for anime in resp:
             try:
-                anime_dict = {
-                    'id': anime.id,
-                    'title': anime.title,
-                    'title_original': anime.title_original,
-                    'poster_url': anime.poster_url,
-                    'description': anime.description,
-                    'year': anime.year,
-                    'type': anime.type,
-                    'episodes_count': anime.episodes_count,
-                    'rating': anime.rating,
-                    'score': anime.score,
-                    'studio': anime.studio,
-                    'status': anime.status,
-                }
+                anime_dict = convert_anime_to_dict(anime)
+                if anime_dict is None:
+                    # Пропускаем, если конвертация не удалась
+                    continue
                 anime_list.append(AnimeResponse(**anime_dict))
             except Exception as err:
-                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
+                # Безопасное получение ID для логирования
+                anime_id = "unknown"
+                if isinstance(anime, dict):
+                    anime_id = anime.get('id', 'unknown')
+                elif hasattr(anime, 'id'):
+                    anime_id = anime.id
+                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime_id}, type={type(anime)}')
                 continue
         return {'message': anime_list}
     except Exception as e:
@@ -587,23 +590,19 @@ async def get_anime_by_genre(genre: str, limit: int = 12,
         anime_list = []
         for anime in resp:
             try:
-                anime_dict = {
-                    'id': anime.id,
-                    'title': anime.title,
-                    'title_original': anime.title_original,
-                    'poster_url': anime.poster_url,
-                    'description': anime.description,
-                    'year': anime.year,
-                    'type': anime.type,
-                    'episodes_count': anime.episodes_count,
-                    'rating': anime.rating,
-                    'score': anime.score,
-                    'studio': anime.studio,
-                    'status': anime.status,
-                }
+                anime_dict = convert_anime_to_dict(anime)
+                if anime_dict is None:
+                    # Пропускаем, если конвертация не удалась
+                    continue
                 anime_list.append(AnimeResponse(**anime_dict))
             except Exception as err:
-                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
+                # Безопасное получение ID для логирования
+                anime_id = "unknown"
+                if isinstance(anime, dict):
+                    anime_id = anime.get('id', 'unknown')
+                elif hasattr(anime, 'id'):
+                    anime_id = anime.id
+                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime_id}, type={type(anime)}')
                 continue
         return {'message': anime_list}
     except Exception as e:
@@ -625,23 +624,19 @@ async def get_best_anime_by_score(limit: int = 12, offset: int = 0,
         anime_list = []
         for anime in resp:
             try:
-                anime_dict = {
-                    'id': anime.id,
-                    'title': anime.title,
-                    'title_original': anime.title_original,
-                    'poster_url': anime.poster_url,
-                    'description': anime.description,
-                    'year': anime.year,
-                    'type': anime.type,
-                    'episodes_count': anime.episodes_count,
-                    'rating': anime.rating,
-                    'score': anime.score,
-                    'studio': anime.studio,
-                    'status': anime.status,
-                }
+                anime_dict = convert_anime_to_dict(anime)
+                if anime_dict is None:
+                    # Пропускаем, если конвертация не удалась
+                    continue
                 anime_list.append(AnimeResponse(**anime_dict))
             except Exception as err:
-                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime.id if hasattr(anime, "id") else "unknown"}')
+                # Безопасное получение ID для логирования
+                anime_id = "unknown"
+                if isinstance(anime, dict):
+                    anime_id = anime.get('id', 'unknown')
+                elif hasattr(anime, 'id'):
+                    anime_id = anime.id
+                logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime_id}, type={type(anime)}')
                 continue
         return {'message': anime_list}
     except Exception as e:

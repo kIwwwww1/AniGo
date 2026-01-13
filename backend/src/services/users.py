@@ -314,9 +314,10 @@ async def get_user_by_username(username: str, session: AsyncSession):
 async def create_comment(comment_data: CreateUserComment, user_id: int, 
                          session: AsyncSession):
     '''Создать комментарий к аниме'''
+    from src.services.redis_cache import clear_user_profile_cache
     
     # Проверяем существование пользователя и аниме
-    await get_user_by_id(user_id, session)
+    user = await get_user_by_id(user_id, session)
     await get_anime_by_id(comment_data.anime_id, session)
 
     # Проверка защиты от спама: пользователь может отправлять комментарий раз в 60 секунд
@@ -353,12 +354,18 @@ async def create_comment(comment_data: CreateUserComment, user_id: int,
     # Обновляем объект из БД для получения актуальных данных (created_at и т.д.)
     await session.refresh(new_comment)
     
+    # Очищаем кэш профиля пользователя, так как статистика комментариев изменилась
+    if user and user.username:
+        await clear_user_profile_cache(user.username, user.id)
+    
     return new_comment
 
 async def create_rating(rating_data: CreateUserRating, user_id: int, session: AsyncSession):
     '''Создать или обновить рейтинг аниме'''
+    from src.services.redis_cache import clear_user_profile_cache
     
-    # await get_user_by_id(user_id, session)
+    # Получаем пользователя для очистки кэша
+    user = await get_user_by_id(user_id, session)
     await get_anime_by_id(rating_data.anime_id, session)
 
     # Убеждаемся, что rating - целое число (конвертируем в float для модели)
@@ -382,6 +389,9 @@ async def create_rating(rating_data: CreateUserRating, user_id: int, session: As
         await session.commit()
         # Обновляем объект из БД для получения актуальных данных
         await session.refresh(existing_rating)
+        # Очищаем кэш профиля пользователя, так как статистика рейтингов изменилась
+        if user and user.username:
+            await clear_user_profile_cache(user.username, user.id)
         return 'Оценка обновлена'
     else:
         # Создаем новую оценку
@@ -395,6 +405,9 @@ async def create_rating(rating_data: CreateUserRating, user_id: int, session: As
         await session.commit()
         # Обновляем объект из БД для получения актуальных данных (created_at и т.д.)
         await session.refresh(new_rating)
+        # Очищаем кэш профиля пользователя, так как статистика рейтингов изменилась
+        if user and user.username:
+            await clear_user_profile_cache(user.username, user.id)
         return 'Оценка создана'
 
 
@@ -461,10 +474,10 @@ async def create_user_comment(comment_data: CreateUserComment, request: Request,
 async def toggle_favorite(favorite_data: CreateUserFavorite, user_id: int, 
                           session: AsyncSession):
     '''Добавить или удалить аниме из избранного'''
-    from src.services.redis_cache import clear_most_favorited_cache
+    from src.services.redis_cache import clear_most_favorited_cache, clear_user_profile_cache
     
     # Проверяем существование пользователя и аниме
-    await get_user_by_id(user_id, session)
+    user = await get_user_by_id(user_id, session)
     await get_anime_by_id(favorite_data.anime_id, session)
     
     # Проверяем, есть ли уже это аниме в избранном
@@ -486,6 +499,9 @@ async def toggle_favorite(favorite_data: CreateUserFavorite, user_id: int,
         await session.commit()
         # Очищаем кэш топ пользователей, так как количество избранного изменилось
         await clear_most_favorited_cache()
+        # Очищаем кэш профиля пользователя, так как избранное изменилось
+        if user and user.username:
+            await clear_user_profile_cache(user.username, user.id)
         # После удаления is_favorite должен быть False
         return {'message': 'Аниме удалено из избранного', 'is_favorite': False}
     else:
@@ -499,6 +515,9 @@ async def toggle_favorite(favorite_data: CreateUserFavorite, user_id: int,
         await session.refresh(new_favorite)
         # Очищаем кэш топ пользователей, так как количество избранного изменилось
         await clear_most_favorited_cache()
+        # Очищаем кэш профиля пользователя, так как избранное изменилось
+        if user and user.username:
+            await clear_user_profile_cache(user.username, user.id)
         return {'message': 'Аниме добавлено в избранное', 'is_favorite': True}
 
 
@@ -872,27 +891,51 @@ async def update_user_profile_settings(
     theme_color_1: str | None = None,
     theme_color_2: str | None = None,
     gradient_direction: str | None = None,
-    is_premium_profile: bool | None = None
-) -> UserProfileSettingsModel:
-    """Обновить настройки профиля пользователя"""
+    is_premium_profile: bool | None = None,
+    hide_age_restriction_warning: bool | None = None
+) -> tuple[UserProfileSettingsModel, bool]:
+    """
+    Обновить настройки профиля пользователя
+    
+    Returns:
+        tuple: (settings, has_changes) - настройки и флаг, были ли реальные изменения
+    """
     settings = await get_or_create_user_profile_settings(user_id, session)
     
-    if username_color is not None:
-        settings.username_color = username_color
-    if avatar_border_color is not None:
-        settings.avatar_border_color = avatar_border_color
-    if theme_color_1 is not None:
-        settings.theme_color_1 = theme_color_1
-    if theme_color_2 is not None:
-        settings.theme_color_2 = theme_color_2
-    if gradient_direction is not None:
-        settings.gradient_direction = gradient_direction
-    if is_premium_profile is not None:
-        settings.is_premium_profile = is_premium_profile
+    # Отслеживаем, были ли реальные изменения
+    has_changes = False
     
-    await session.commit()
-    await session.refresh(settings)
-    return settings
+    if username_color is not None and settings.username_color != username_color:
+        settings.username_color = username_color
+        has_changes = True
+    if avatar_border_color is not None and settings.avatar_border_color != avatar_border_color:
+        settings.avatar_border_color = avatar_border_color
+        has_changes = True
+    if theme_color_1 is not None and settings.theme_color_1 != theme_color_1:
+        settings.theme_color_1 = theme_color_1
+        has_changes = True
+    if theme_color_2 is not None and settings.theme_color_2 != theme_color_2:
+        settings.theme_color_2 = theme_color_2
+        has_changes = True
+    if gradient_direction is not None and settings.gradient_direction != gradient_direction:
+        settings.gradient_direction = gradient_direction
+        has_changes = True
+    if is_premium_profile is not None and settings.is_premium_profile != is_premium_profile:
+        settings.is_premium_profile = is_premium_profile
+        has_changes = True
+    if hide_age_restriction_warning is not None and settings.hide_age_restriction_warning != hide_age_restriction_warning:
+        settings.hide_age_restriction_warning = hide_age_restriction_warning
+        has_changes = True
+    
+    # Коммитим только если были изменения
+    if has_changes:
+        await session.commit()
+        await session.refresh(settings)
+        logger.debug(f"Настройки профиля пользователя {user_id} обновлены")
+    else:
+        logger.debug(f"Настройки профиля пользователя {user_id} не изменились, пропускаем коммит")
+    
+    return settings, has_changes
 
 
 def format_profile_settings_data(profile_settings: UserProfileSettingsModel | None, user_id: int = None) -> dict:
@@ -910,6 +953,7 @@ def format_profile_settings_data(profile_settings: UserProfileSettingsModel | No
             'theme_color_2': profile_settings.theme_color_2,
             'gradient_direction': profile_settings.gradient_direction,
             'is_premium_profile': profile_settings.is_premium_profile,
+            'hide_age_restriction_warning': profile_settings.hide_age_restriction_warning,
             'has_collector_badge': has_collector_badge,
             'collector_badge_expires_at': profile_settings.collector_badge_expires_at.isoformat() if profile_settings.collector_badge_expires_at else None
         }
@@ -923,6 +967,7 @@ def format_profile_settings_data(profile_settings: UserProfileSettingsModel | No
             'theme_color_2': None,
             'gradient_direction': None,
             'is_premium_profile': is_premium,
+            'hide_age_restriction_warning': False,
             'has_collector_badge': False,
             'collector_badge_expires_at': None
         }

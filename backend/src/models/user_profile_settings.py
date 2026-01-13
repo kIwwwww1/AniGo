@@ -21,6 +21,9 @@ class UserProfileSettingsModel(Base):
     # Премиум настройки
     is_premium_profile: Mapped[bool] = mapped_column(default=False, nullable=False)
     
+    # Настройки возрастных ограничений
+    hide_age_restriction_warning: Mapped[bool] = mapped_column(default=False, nullable=False)
+    
     # Бейдж "Коллекционер #1"
     collector_badge_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

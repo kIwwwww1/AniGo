@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, HTTPException, status, Depends, Query
+from fastapi import APIRouter, Request, HTTPException, status, Depends, Query, Response
 from typing import Annotated
 from src.models.users import UserModel
 from src.dependencies.all_dep import SessionDep, UserExistsDep
@@ -14,6 +14,7 @@ from src.schemas.user import (CreateNewUser, CreateUserComment,
                               CreateUserRating, LoginUser, 
                               CreateUserFavorite, UserName, ChangeUserPassword, CreateBestUserAnime)
 from src.auth.auth import get_token, delete_token
+from os import getenv
 
 
 admin_router = APIRouter(prefix='/admin', tags=['AdminPanel'])
@@ -135,5 +136,128 @@ async def clear_cache(is_admin: IsAdminDep):
     return {
         'message': result['message'],
         'success': result['success']
+    }
+
+
+@admin_router.get('/clear-frontend-data-commands')
+async def get_clear_frontend_data_commands(is_admin: IsAdminDep):
+    '''Получить команды для очистки localStorage и куков в консоли браузера
+    
+    Возвращает инструкции и команды JavaScript для выполнения в консоли браузера
+    для полной очистки данных фронтенда (localStorage и куки).
+    
+    Returns:
+        JSON с командами и инструкциями для очистки данных фронтенда
+    '''
+    commands = {
+        'message': 'Команды для очистки данных фронтенда',
+        'instructions': {
+            'localStorage': {
+                'description': 'Очистка localStorage (кэш приложения и настройки)',
+                'commands': [
+                    {
+                        'name': 'Очистить только кэш приложения (рекомендуется)',
+                        'command': 'clearAppCache()',
+                        'note': 'Удаляет только кэш приложения, сохраняет настройки темы'
+                    },
+                    {
+                        'name': 'Очистить весь localStorage',
+                        'command': 'localStorage.clear()',
+                        'note': '⚠️ Удаляет ВСЕ данные, включая настройки темы'
+                    },
+                    {
+                        'name': 'Удалить конкретный ключ кэша',
+                        'command': 'removeFromCache("catalog") // или "highest_score", "popular", "top_users"',
+                        'note': 'Поддерживает алиасы: catalog, highest_score, popular, top_users'
+                    }
+                ]
+            },
+            'cookies': {
+                'description': 'Очистка куков (сессия аутентификации)',
+                'commands': [
+                    {
+                        'name': 'Удалить куку сессии через API',
+                        'command': 'await fetch("/admin/clear-frontend-data", { method: "DELETE", credentials: "include" })',
+                        'note': 'Рекомендуемый способ - использует эндпоинт API'
+                    },
+                    {
+                        'name': 'Удалить куку сессии вручную',
+                        'command': 'document.cookie = "session_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"',
+                        'note': 'Альтернативный способ через консоль браузера'
+                    },
+                    {
+                        'name': 'Просмотреть все куки',
+                        'command': 'document.cookie',
+                        'note': 'Показывает все куки текущего домена'
+                    }
+                ]
+            },
+            'full_cleanup': {
+                'description': 'Полная очистка всех данных фронтенда',
+                'commands': [
+                    {
+                        'name': 'Полная очистка (localStorage + куки)',
+                        'command': 'localStorage.clear(); document.cookie.split(";").forEach(c => { document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); }); location.reload();',
+                        'note': '⚠️ Удаляет ВСЕ данные и перезагружает страницу'
+                    }
+                ]
+            }
+        },
+        'api_endpoint': {
+            'description': 'Использование API эндпоинта для удаления куков',
+            'endpoint': 'DELETE /admin/clear-frontend-data',
+            'note': 'Удаляет куки аутентификации и возвращает инструкции для localStorage'
+        }
+    }
+    return commands
+
+
+@admin_router.delete('/clear-frontend-data')
+async def clear_frontend_data(is_admin: IsAdminDep, response: Response):
+    '''Удалить куки аутентификации и получить инструкции для очистки localStorage
+    
+    Удаляет куки сессии (session_id) на сервере и возвращает инструкции
+    для очистки localStorage на клиенте.
+    
+    Примечание: localStorage может быть очищен только на стороне клиента
+    через консоль браузера или JavaScript код.
+    
+    Returns:
+        Результат удаления куков и инструкции для очистки localStorage
+    '''
+    # Удаляем куку аутентификации
+    session_key = getenv('COOKIES_SESSION_ID_KEY', 'session_id')
+    delete_token(response)
+    
+    # Также удаляем все возможные куки (на случай, если есть другие)
+    response.delete_cookie(session_key, path='/')
+    response.delete_cookie(session_key, path='/', domain=None)
+    
+    return {
+        'message': 'Куки аутентификации удалены',
+        'success': True,
+        'localStorage_instructions': {
+            'note': 'localStorage может быть очищен только на стороне клиента',
+            'commands': {
+                'clear_app_cache': {
+                    'command': 'clearAppCache()',
+                    'description': 'Очистить только кэш приложения (сохраняет настройки темы)'
+                },
+                'clear_all_localStorage': {
+                    'command': 'localStorage.clear()',
+                    'description': '⚠️ Очистить весь localStorage (включая настройки темы)'
+                },
+                'remove_specific_cache': {
+                    'command': 'removeFromCache("catalog") // или другие ключи',
+                    'description': 'Удалить конкретный ключ кэша (поддерживает алиасы)'
+                }
+            },
+            'available_aliases': ['catalog', 'highest_score', 'popular', 'top_users']
+        },
+        'next_steps': [
+            '1. Куки аутентификации уже удалены на сервере',
+            '2. Выполните в консоли браузера: clearAppCache() или localStorage.clear()',
+            '3. Перезагрузите страницу для применения изменений'
+        ]
     }
 

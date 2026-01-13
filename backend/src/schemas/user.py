@@ -124,6 +124,7 @@ class UserProfileSettingsBase(BaseModel):
     theme_color_2: str | None = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$', description='Hex цвет второй темы')
     gradient_direction: str | None = Field(None, max_length=20, description='Направление градиента')
     is_premium_profile: bool | None = Field(None, description='Премиум оформление профиля')
+    hide_age_restriction_warning: bool | None = Field(None, description='Скрыть предупреждение о возрастных ограничениях')
 
 
 class UserProfileSettingsUpdate(UserProfileSettingsBase):

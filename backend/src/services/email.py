@@ -179,3 +179,5 @@ async def send_verification_email(email: str, username: str, token: str) -> bool
         logger.error(f"SMTP settings: HOST={SMTP_HOST}, PORT={SMTP_PORT}, USER={'set' if SMTP_USER else 'not set'}, FROM={SMTP_FROM_EMAIL}")
         return False
 
+
+

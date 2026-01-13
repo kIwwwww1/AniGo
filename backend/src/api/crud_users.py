@@ -384,60 +384,58 @@ async def user_settings(username: str, session: SessionDep):
 @user_router.get('/most-favorited')
 async def most_favorited(pagin_data: UserPaginatorDep, session: SessionDep):
     '''Получение топ коллекционеров с кэшированием в Redis
-    Во время активной недели конкурса: кэш на 15 минут (900 секунд)
-    Вне активной недели: кэш на 1 неделю (604800 секунд)
+    Кэш на 15 минут (900 секунд) для актуальности данных
     '''
-    from datetime import datetime, timezone
-    from src.models.collector_competition import CollectorCompetitionCycleModel
-    from sqlalchemy import select
-    
-    # Проверяем, есть ли активный цикл для определения времени кэширования
-    cycle_stmt = select(CollectorCompetitionCycleModel).filter(
-        CollectorCompetitionCycleModel.is_active == True
-    ).order_by(CollectorCompetitionCycleModel.cycle_start_date.desc())
-    cycle_result = await session.execute(cycle_stmt)
-    active_cycle = cycle_result.scalar_one_or_none()
-    
-    now = datetime.now(timezone.utc)
-    is_active_week = False
-    
-    # Проверяем, активна ли неделя конкурса
-    if active_cycle and active_cycle.cycle_end_date > now:
-        is_active_week = True
-    
-    # Определяем время кэширования
-    cache_ttl = 900 if is_active_week else 604800  # 15 минут или 1 неделя
+    # Определяем время кэширования - всегда 15 минут
+    cache_ttl = 900  # 15 минут
     
     # Проверяем кэш Redis
     redis = await get_redis_client()
     cache_key = f"most_favorited_users:limit:{pagin_data.limit}:offset:{pagin_data.offset}"
     
+    users_list = None
     if redis:
         try:
             cached_data = await redis.get(cache_key)
             if cached_data is not None:
                 logger.debug(f"🎯 Cache HIT: most favorited users (limit: {pagin_data.limit}, offset: {pagin_data.offset})")
-                return {'message': json.loads(cached_data)}
+                users_list = json.loads(cached_data)
         except Exception as e:
             logger.warning(f"Redis cache check error for most favorited users: {e}")
     
-    # Кэш промах - загружаем данные из БД
-    logger.debug(f"💨 Cache MISS: most favorited users (limit: {pagin_data.limit}, offset: {pagin_data.offset})")
-    resp = await get_user_most_favorited(
-        limit=pagin_data.limit, offset=pagin_data.offset, session=session)
-    
-    # Извлекаем информацию о цикле и пользователей из ответа
-    cycle_info = resp.get('cycle_info') if isinstance(resp, dict) else None
-    users_list = resp.get('users', resp) if isinstance(resp, dict) else resp
-    
-    # Сохраняем в кэш только список пользователей (для обратной совместимости)
-    if redis:
-        try:
-            serialized_data = json.dumps(users_list, default=str)
-            await redis.setex(cache_key, cache_ttl, serialized_data)
-            logger.debug(f"💾 Cached most favorited users (TTL: {cache_ttl}s, limit: {pagin_data.limit}, offset: {pagin_data.offset})")
-        except Exception as e:
-            logger.warning(f"Failed to cache most favorited users: {e}")
+    # Если данные не в кэше - загружаем из БД
+    if users_list is None:
+        logger.debug(f"💨 Cache MISS: most favorited users (limit: {pagin_data.limit}, offset: {pagin_data.offset})")
+        resp = await get_user_most_favorited(
+            limit=pagin_data.limit, offset=pagin_data.offset, session=session)
+        
+        # Извлекаем информацию о цикле и пользователей из ответа
+        cycle_info = resp.get('cycle_info') if isinstance(resp, dict) else None
+        users_list = resp.get('users', resp) if isinstance(resp, dict) else resp
+        
+        # Сохраняем в кэш только список пользователей (для обратной совместимости)
+        if redis:
+            try:
+                serialized_data = json.dumps(users_list, default=str)
+                await redis.setex(cache_key, cache_ttl, serialized_data)
+                logger.debug(f"💾 Cached most favorited users (TTL: {cache_ttl}s, limit: {pagin_data.limit}, offset: {pagin_data.offset})")
+            except Exception as e:
+                logger.warning(f"Failed to cache most favorited users: {e}")
+    else:
+        # Данные из кэша - получаем актуальную информацию о цикле из БД
+        from src.services.users import get_or_create_current_cycle
+        current_cycle = await get_or_create_current_cycle(session)
+        
+        if current_cycle:
+            cycle_info = {
+                'cycle_id': current_cycle.id,
+                'leader_user_id': current_cycle.leader_user_id,
+                'cycle_start_date': current_cycle.cycle_start_date.isoformat(),
+                'cycle_end_date': current_cycle.cycle_end_date.isoformat(),
+                'is_active': current_cycle.is_active
+            }
+        else:
+            cycle_info = None
     
     # Возвращаем ответ с информацией о цикле
     response_data = {'message': users_list}
@@ -580,7 +578,7 @@ async def update_profile_settings(
     session: SessionDep
 ):
     """Обновить настройки профиля текущего пользователя"""
-    settings = await update_user_profile_settings(
+    settings, has_changes = await update_user_profile_settings(
         user_id=user.id,
         session=session,
         username_color=settings_data.username_color,
@@ -588,12 +586,16 @@ async def update_profile_settings(
         theme_color_1=settings_data.theme_color_1,
         theme_color_2=settings_data.theme_color_2,
         gradient_direction=settings_data.gradient_direction,
-        is_premium_profile=settings_data.is_premium_profile
+        is_premium_profile=settings_data.is_premium_profile,
+        hide_age_restriction_warning=settings_data.hide_age_restriction_warning
     )
     
-    # Очищаем кэш профиля пользователя после обновления настроек
-    await clear_user_profile_cache(user.username, user.id)
-    logger.info(f"Cleared profile cache for user: {user.username} after settings update")
+    # Очищаем кэш профиля пользователя только при реальных изменениях
+    if has_changes:
+        await clear_user_profile_cache(user.username, user.id)
+        logger.info(f"Cleared profile cache for user: {user.username} after settings update")
+    else:
+        logger.debug(f"No changes detected for user {user.username}, skipping cache clear")
     
     return {
         'message': {
@@ -604,9 +606,9 @@ async def update_profile_settings(
             'theme_color_2': settings.theme_color_2,
             'gradient_direction': settings.gradient_direction,
             'is_premium_profile': settings.is_premium_profile,
+            'hide_age_restriction_warning': settings.hide_age_restriction_warning,
             'created_at': settings.created_at.isoformat() if settings.created_at else None,
             'updated_at': settings.updated_at.isoformat() if settings.updated_at else None
         }
     }
-
 
