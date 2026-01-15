@@ -31,6 +31,7 @@
 /* Кастомная тема - цвета будут установлены через JavaScript */
 [data-theme="custom"] {
   /* Переменные устанавливаются динамически через applyCustomTheme */
+  /* stylelint-disable-next-line */
 }
 
 body {
@@ -42,6 +43,13 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.6;
+  /* Защита от копирования текста */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 code {
@@ -65,5 +73,33 @@ img {
   max-width: 100%;
   height: auto;
   display: block;
+  /* Блокируем перетаскивание изображений */
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  /* stylelint-disable-next-line */
+  user-drag: none;
+  pointer-events: none;
 }
 
+/* Разрешаем выделение текста только в полях ввода */
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* Разрешаем взаимодействие с изображениями в карточках и других интерактивных элементах */
+a img,
+button img,
+[role="button"] img,
+.anime-card img,
+.poster img,
+.avatar img,
+.search-result-poster img {
+  pointer-events: auto;
+}

@@ -4,6 +4,7 @@ import { animeAPI } from '../services/api'
 import PopularAnimeCarousel from '../components/PopularAnimeCarousel'
 import TopUsersSection from '../components/TopUsersSection'
 import AnimeGrid from '../components/AnimeGrid'
+import QRModal from '../components/QRModal'
 import { getFromCache, setToCache, removeFromCache } from '../utils/cache'
 import '../components/AnimeCardGrid.css'
 import './HomePage.css'
@@ -27,6 +28,9 @@ function HomePage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const backgroundImages = useMemo(() => ['/screensaver_1.png', '/screensaver_2.png'], [])
   
+  // Состояние для модального окна с QR кодом
+  const [isQRModalOpen, setIsQRModalOpen] = useState(false)
+  
   // Состояние для 3D эффекта параллакса
   const [parallaxStyle, setParallaxStyle] = useState({
     transform: 'translate(0px, 0px) scale(1.1)',
@@ -42,7 +46,7 @@ function HomePage() {
   const itemsPerPage = 6
   const maxPagesToShow = 3
   const cacheLimit = 18 // Кэшируем 3 страницы по 6 элементов = 18 элементов
-  const CACHE_TTL = 60 // Время жизни кэша: 1 минута (60 секунд)
+  const CACHE_TTL = 300 // Время жизни кэша: 5 минут (300 секунд) - синхронизировано с backend
   const CACHE_KEY_CATALOG = 'anime_catalog'
   const CACHE_KEY_HIGHEST_SCORE = 'anime_highest_score'
 
@@ -256,7 +260,7 @@ function HomePage() {
     loadHighestScoreAnime(0)
   }, [loadAnimeCount, loadAnime, loadHighestScoreAnime])
 
-  // Эффект для автоматического обновления данных каждую минуту
+  // Эффект для автоматического обновления данных каждые 5 минут
   useEffect(() => {
     const interval = setInterval(() => {
       // Принудительно удаляем кэш и обновляем данные для каталога аниме
@@ -266,7 +270,7 @@ function HomePage() {
       // Принудительно удаляем кэш и обновляем данные для блока "Высшая оценка"
       removeFromCache(CACHE_KEY_HIGHEST_SCORE)
       loadHighestScoreAnimeRef.current(0)
-    }, CACHE_TTL * 1000) // Обновляем каждую минуту (60 секунд)
+    }, CACHE_TTL * 1000) // Обновляем каждые 5 минут (300 секунд) - синхронизировано с backend
 
     return () => {
       clearInterval(interval)
@@ -324,7 +328,18 @@ function HomePage() {
           <h2 className="hero-title">Добро пожаловать в Yumivo</h2>
           <p className="hero-subtitle">Yumivo — аниме, которое хочется смотреть</p>
         </div>
+        <button 
+          className="support-button"
+          onClick={() => setIsQRModalOpen(true)}
+        >
+          Поддержать Yumivo
+        </button>
       </section>
+      
+      <QRModal 
+        isOpen={isQRModalOpen} 
+        onClose={() => setIsQRModalOpen(false)} 
+      />
 
       <div className="container">
 

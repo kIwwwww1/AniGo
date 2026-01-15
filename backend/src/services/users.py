@@ -30,7 +30,12 @@ async def get_user_by_token(request: Request, session: AsyncSession):
 
     token_data = await get_token(request)
     user_id = int(token_data.get('sub'))
-    return await get_user_by_id(user_id, session)
+    user = await get_user_by_id(user_id, session)
+    # Проверяем и обновляем статус премиума, если подписка истекла
+    await update_premium_status_if_expired(user_id, session)
+    # Обновляем объект пользователя после возможного обновления
+    await session.refresh(user)
+    return user
 
 
 async def nickname_is_free(name: str, session: AsyncSession):
@@ -226,21 +231,6 @@ async def verify_email(token: str, session: AsyncSession, response: Response) ->
     # Обновляем объект из БД для получения актуальных данных (created_at и т.д.)
     await session.refresh(new_user)
     
-    # Если ID пользователя <= 25 и это не owner, даем премиум на 1 месяц
-    if new_user.id <= 25 and new_user.type_account != 'owner':
-        now = datetime.now(timezone.utc)
-        premium_expires_at = now + timedelta(days=30)
-        new_user.premium_expires_at = premium_expires_at
-        new_user.type_account = 'premium'
-        
-        # Также включаем премиум профиль в настройках
-        settings = await get_or_create_user_profile_settings(new_user.id, session)
-        settings.is_premium_profile = True
-        
-        await session.commit()
-        await session.refresh(new_user)
-        logger.info(f"User {new_user.username} (ID: {new_user.id}) получил премиум подписку до {premium_expires_at}")
-    
     # Создаем JWT токен и устанавливаем его в cookie для автоматического входа
     await add_token_in_cookie(sub=str(new_user.id), type_account=new_user.type_account, response=response)
     logger.info(f"User {new_user.username} (ID: {new_user.id}) successfully registered and logged in")
@@ -250,21 +240,29 @@ async def verify_email(token: str, session: AsyncSession, response: Response) ->
 
 async def login_user(username: str, password: str, response: Response, 
                      session: AsyncSession):
-    '''Вход пользователя по имени и паролю'''
+    '''Вход пользователя по имени пользователя или email и паролю'''
     
-    # Ищем пользователя по username
+    logger.info(f'Попытка входа пользователя: {username}')
+    
+    # Ищем пользователя по username или email
     user = (await session.execute(
-        select(UserModel).filter_by(username=username)
+        select(UserModel).filter(
+            (UserModel.username == username) | (UserModel.email == username)
+        )
     )).scalar_one_or_none()
     
     if not user:
+        logger.warning(f'Пользователь не найден: {username}')
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='Неверное имя пользователя или пароль'
         )
     
+    logger.info(f'Пользователь найден: ID={user.id}, username={user.username}, email_verified={user.email_verified}, is_blocked={user.is_blocked}')
+    
     # Проверяем пароль
     if not await password_verification(user.password_hash, password):
+        logger.warning(f'Неверный пароль для пользователя: {username}')
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='Неверное имя пользователя или пароль'
@@ -272,14 +270,29 @@ async def login_user(username: str, password: str, response: Response,
     
     # Проверяем, подтвержден ли email
     if not user.email_verified:
+        logger.warning(f'Email не подтвержден для пользователя: {username}')
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail='Пожалуйста, подтвердите ваш email адрес перед входом. Проверьте вашу почту для получения ссылки подтверждения.'
         )
     
+    # Проверяем, не заблокирован ли пользователь
+    if user.is_blocked:
+        logger.warning(f'Пользователь заблокирован: {username}')
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Ваш аккаунт заблокирован. Обратитесь к администратору для получения дополнительной информации.'
+        )
+    
+    # Проверяем и обновляем статус премиума, если подписка истекла
+    await update_premium_status_if_expired(user.id, session)
+    await session.refresh(user)
+    
     # Создаем токен и устанавливаем cookie
+    logger.info(f'Установка cookie для пользователя ID={user.id}')
     await add_token_in_cookie(sub=str(user.id), type_account=user.type_account, 
                               response=response)
+    logger.info(f'Успешный вход пользователя ID={user.id}, username={user.username}')
     
     return 'Успешный вход'
 
@@ -329,7 +342,7 @@ async def get_user_by_username(username: str, session: AsyncSession):
 async def create_comment(comment_data: CreateUserComment, user_id: int, 
                          session: AsyncSession):
     '''Создать комментарий к аниме'''
-    from src.services.redis_cache import clear_user_profile_cache
+    from src.services.redis_cache import clear_user_profile_cache, clear_cache_pattern
     
     # Проверяем существование пользователя и аниме
     user = await get_user_by_id(user_id, session)
@@ -373,11 +386,14 @@ async def create_comment(comment_data: CreateUserComment, user_id: int,
     if user and user.username:
         await clear_user_profile_cache(user.username, user.id)
     
+    # Очищаем кэш популярных аниме, так как комментарии влияют на популярность
+    await clear_cache_pattern("popular:*")
+    
     return new_comment
 
 async def create_rating(rating_data: CreateUserRating, user_id: int, session: AsyncSession):
     '''Создать или обновить рейтинг аниме'''
-    from src.services.redis_cache import clear_user_profile_cache
+    from src.services.redis_cache import clear_user_profile_cache, clear_cache_pattern
     
     # Получаем пользователя для очистки кэша
     user = await get_user_by_id(user_id, session)
@@ -407,6 +423,10 @@ async def create_rating(rating_data: CreateUserRating, user_id: int, session: As
         # Очищаем кэш профиля пользователя, так как статистика рейтингов изменилась
         if user and user.username:
             await clear_user_profile_cache(user.username, user.id)
+        # Очищаем кэш аниме, так как рейтинг влияет на score и популярность
+        await clear_cache_pattern("popular:*")
+        await clear_cache_pattern("anime_paginated:*")
+        await clear_cache_pattern("anime_by_score:*")
         return 'Оценка обновлена'
     else:
         # Создаем новую оценку
@@ -423,6 +443,10 @@ async def create_rating(rating_data: CreateUserRating, user_id: int, session: As
         # Очищаем кэш профиля пользователя, так как статистика рейтингов изменилась
         if user and user.username:
             await clear_user_profile_cache(user.username, user.id)
+        # Очищаем кэш аниме, так как рейтинг влияет на score и популярность
+        await clear_cache_pattern("popular:*")
+        await clear_cache_pattern("anime_paginated:*")
+        await clear_cache_pattern("anime_by_score:*")
         return 'Оценка создана'
 
 
@@ -859,6 +883,7 @@ async def get_user_most_favorited(limit=6, offset=0, session: AsyncSession = Non
             'amount': len(user.favorites),
             'favorite': best_anime_list,
             'avatar_url': user.avatar_url,
+            'background_image_url': user.background_image_url,
             'profile_settings': settings_data,
             'is_cycle_leader': is_cycle_leader
         }   
@@ -903,10 +928,6 @@ async def update_user_profile_settings(
     session: AsyncSession,
     username_color: str | None = None,
     avatar_border_color: str | None = None,
-    theme_color_1: str | None = None,
-    theme_color_2: str | None = None,
-    gradient_direction: str | None = None,
-    is_premium_profile: bool | None = None,
     hide_age_restriction_warning: bool | None = None,
     *,
     fields_to_update: dict[str, any] | None = None
@@ -949,41 +970,7 @@ async def update_user_profile_settings(
         settings.avatar_border_color = avatar_border_color
         has_changes = True
     
-    # Обновляем theme_color_1 (важно: разрешаем установку None для сброса)
-    if 'theme_color_1' in explicit_fields:
-        if settings.theme_color_1 != explicit_fields['theme_color_1']:
-            settings.theme_color_1 = explicit_fields['theme_color_1']
-            has_changes = True
-    elif theme_color_1 is not None and settings.theme_color_1 != theme_color_1:
-        settings.theme_color_1 = theme_color_1
-        has_changes = True
-    
-    # Обновляем theme_color_2 (важно: разрешаем установку None для сброса)
-    if 'theme_color_2' in explicit_fields:
-        if settings.theme_color_2 != explicit_fields['theme_color_2']:
-            settings.theme_color_2 = explicit_fields['theme_color_2']
-            has_changes = True
-    elif theme_color_2 is not None and settings.theme_color_2 != theme_color_2:
-        settings.theme_color_2 = theme_color_2
-        has_changes = True
-    
-    # Обновляем gradient_direction
-    if 'gradient_direction' in explicit_fields:
-        if settings.gradient_direction != explicit_fields['gradient_direction']:
-            settings.gradient_direction = explicit_fields['gradient_direction']
-            has_changes = True
-    elif gradient_direction is not None and settings.gradient_direction != gradient_direction:
-        settings.gradient_direction = gradient_direction
-        has_changes = True
-    
-    # Обновляем is_premium_profile
-    if 'is_premium_profile' in explicit_fields:
-        if settings.is_premium_profile != explicit_fields['is_premium_profile']:
-            settings.is_premium_profile = explicit_fields['is_premium_profile']
-            has_changes = True
-    elif is_premium_profile is not None and settings.is_premium_profile != is_premium_profile:
-        settings.is_premium_profile = is_premium_profile
-        has_changes = True
+    # background_image_url теперь хранится в таблице user, а не в user_profile_settings
     
     # Обновляем hide_age_restriction_warning
     if 'hide_age_restriction_warning' in explicit_fields:
@@ -1016,116 +1003,27 @@ def format_profile_settings_data(profile_settings: UserProfileSettingsModel | No
         return {
             'username_color': profile_settings.username_color,
             'avatar_border_color': profile_settings.avatar_border_color,
-            'theme_color_1': profile_settings.theme_color_1,
-            'theme_color_2': profile_settings.theme_color_2,
-            'gradient_direction': profile_settings.gradient_direction,
-            'is_premium_profile': profile_settings.is_premium_profile,
+            'background_scale': profile_settings.background_scale,
+            'background_position_x': profile_settings.background_position_x,
+            'background_position_y': profile_settings.background_position_y,
             'hide_age_restriction_warning': profile_settings.hide_age_restriction_warning,
+            'is_premium_profile': profile_settings.is_premium_profile,
             'has_collector_badge': has_collector_badge,
             'collector_badge_expires_at': profile_settings.collector_badge_expires_at.isoformat() if profile_settings.collector_badge_expires_at else None
         }
     else:
         # Дефолтные настройки
-        is_premium = user_id < 100 if user_id else False
         return {
             'username_color': None,
             'avatar_border_color': None,
-            'theme_color_1': None,
-            'theme_color_2': None,
-            'gradient_direction': None,
-            'is_premium_profile': is_premium,
+            'background_scale': 100,
+            'background_position_x': 50,
+            'background_position_y': 50,
             'hide_age_restriction_warning': False,
+            'is_premium_profile': False,
             'has_collector_badge': False,
             'collector_badge_expires_at': None
         }
-
-
-async def check_and_update_premium_expiration(
-    user_id: int,
-    session: AsyncSession
-) -> bool:
-    """
-    Проверяет истечение премиум подписки и обновляет type_account на 'base' если премиум истек
-    Не изменяет тип аккаунта для owner и admin
-    Returns:
-        bool: True если премиум был активен и истек, False если не было изменений
-    """
-    user = await get_user_by_id(user_id, session)
-    if not user:
-        return False
-    
-    # Не проверяем истечение для owner и admin
-    if user.type_account in ('owner', 'admin'):
-        return False
-    
-    # Проверяем, есть ли премиум подписка и истекла ли она
-    if user.premium_expires_at and user.premium_expires_at < datetime.now(timezone.utc):
-        # Премиум истек, меняем тип аккаунта на 'base' (только для premium пользователей)
-        if user.type_account == 'premium':
-            user.type_account = 'base'
-            # Также отключаем премиум профиль в настройках
-            settings = await get_or_create_user_profile_settings(user_id, session)
-            settings.is_premium_profile = False
-            await session.commit()
-            logger.info(f"Премиум подписка пользователя {user.username} (ID: {user_id}) истекла. Тип аккаунта изменен на 'base'")
-            return True
-    
-    return False
-
-
-async def activate_premium_subscription(
-    user_id: int,
-    session: AsyncSession
-) -> dict:
-    """
-    Активировать премиум подписку для пользователя
-    Устанавливает premium_expires_at = текущая дата + 30 дней
-    Обновляет type_account на 'premium' и is_premium_profile на True
-    
-    Returns:
-        dict: Информация об активированной подписке
-    """
-    # Получаем пользователя
-    user = await get_user_by_id(user_id, session)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail='Пользователь не найден'
-        )
-    
-    # Проверяем, что пользователь имеет тип 'user'
-    if user.type_account != 'user':
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail='Премиум подписка доступна только для пользователей с типом аккаунта "user"'
-        )
-    
-    # Вычисляем дату окончания подписки (текущая дата + 30 дней)
-    now = datetime.now(timezone.utc)
-    expires_at = now + timedelta(days=30)
-    
-    # Обновляем premium_expires_at
-    user.premium_expires_at = expires_at
-    
-    # Обновляем type_account на 'premium'
-    user.type_account = 'premium'
-    
-    # Обновляем настройки профиля - включаем премиум профиль
-    settings = await get_or_create_user_profile_settings(user_id, session)
-    settings.is_premium_profile = True
-    
-    await session.commit()
-    await session.refresh(user)
-    await session.refresh(settings)
-    
-    logger.info(f"Премиум подписка активирована для пользователя {user.username} (ID: {user_id}). Истекает: {expires_at}")
-    
-    return {
-        'success': True,
-        'message': 'Премиум подписка успешно активирована',
-        'premium_expires_at': expires_at.isoformat(),
-        'type_account': user.type_account
-    }
 
 
 async def get_or_create_current_cycle(session: AsyncSession) -> CollectorCompetitionCycleModel | None:
@@ -1222,3 +1120,83 @@ async def update_collector_badge(session: AsyncSession):
     # при завершении цикла
     cycle = await get_or_create_current_cycle(session)
     return cycle.leader_user_id if cycle else None
+
+
+async def activate_premium(user_id: int, days: int, session: AsyncSession):
+    """Активировать премиум подписку для пользователя на указанное количество дней"""
+    from datetime import timedelta
+    
+    user = await get_user_by_id(user_id, session)
+    now = datetime.now(timezone.utc)
+    
+    # Если у пользователя уже есть активная подписка, продлеваем её
+    if user.premium_expires_at and user.premium_expires_at > now:
+        # Продлеваем с текущей даты окончания
+        user.premium_expires_at = user.premium_expires_at + timedelta(days=days)
+    else:
+        # Создаем новую подписку
+        user.premium_expires_at = now + timedelta(days=days)
+    
+    # Обновляем type_account на 'premium' если он не 'admin' или 'owner'
+    if user.type_account not in ['admin', 'owner']:
+        user.type_account = 'premium'
+    
+    await session.commit()
+    await session.refresh(user)
+    
+    logger.info(f"Премиум подписка активирована для пользователя {user.username} (ID: {user.id}) до {user.premium_expires_at}")
+    return user
+
+
+async def check_premium_status(user_id: int, session: AsyncSession) -> dict:
+    """Проверить статус премиум подписки пользователя"""
+    user = await get_user_by_id(user_id, session)
+    now = datetime.now(timezone.utc)
+    
+    is_premium = False
+    expires_at = None
+    days_remaining = 0
+    
+    if user.premium_expires_at:
+        expires_at = user.premium_expires_at
+        if user.premium_expires_at > now:
+            is_premium = True
+            days_remaining = (user.premium_expires_at - now).days
+        else:
+            # Подписка истекла - обновляем type_account
+            if user.type_account == 'premium':
+                user.type_account = 'base'
+                user.premium_expires_at = None
+                await session.commit()
+                await session.refresh(user)
+                logger.info(f"Премиум подписка истекла для пользователя {user.username} (ID: {user.id})")
+    
+    # Проверяем также type_account (для admin и owner всегда премиум)
+    if user.type_account in ['admin', 'owner']:
+        is_premium = True
+        expires_at = None  # Для admin/owner нет даты окончания
+        days_remaining = None
+    
+    return {
+        'is_premium': is_premium,
+        'expires_at': expires_at.isoformat() if expires_at else None,
+        'days_remaining': days_remaining,
+        'type_account': user.type_account
+    }
+
+
+async def update_premium_status_if_expired(user_id: int, session: AsyncSession):
+    """Проверить и обновить статус премиума, если подписка истекла"""
+    user = await get_user_by_id(user_id, session)
+    now = datetime.now(timezone.utc)
+    
+    # Если подписка истекла и type_account = 'premium', сбрасываем на 'base'
+    if user.type_account == 'premium' and user.premium_expires_at:
+        if user.premium_expires_at <= now:
+            user.type_account = 'base'
+            user.premium_expires_at = None
+            await session.commit()
+            await session.refresh(user)
+            logger.info(f"Премиум подписка истекла для пользователя {user.username} (ID: {user.id}), type_account обновлен на 'base'")
+    
+    return user

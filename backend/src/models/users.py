@@ -11,6 +11,7 @@ class UserModel(Base):
     email: Mapped[str] = mapped_column(unique=True)
     password_hash: Mapped[str] = mapped_column(nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(nullable=True)
+    background_image_url: Mapped[str | None] = mapped_column(nullable=True)  # URL фонового изображения под аватаркой
     type_account: Mapped[str] = mapped_column(default='base', nullable=False)
     email_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
     email_verification_token: Mapped[str | None] = mapped_column(nullable=True)

@@ -140,6 +140,36 @@ function AdminPanel() {
     }
   }
 
+  const handleMakeAdmin = async (userId) => {
+    if (!window.confirm('Вы уверены, что хотите назначить этого пользователя администратором?')) {
+      return
+    }
+    try {
+      await adminAPI.makeAdmin(userId)
+      alert('Пользователь успешно назначен администратором')
+      await loadUsers(currentPage)
+    } catch (err) {
+      console.error('Ошибка назначения администратором:', err)
+      const errorMessage = err.response?.data?.detail || 'Не удалось назначить пользователя администратором'
+      alert(errorMessage)
+    }
+  }
+
+  const handleRemoveAdmin = async (userId) => {
+    if (!window.confirm('Вы уверены, что хотите снять права администратора у этого пользователя?')) {
+      return
+    }
+    try {
+      await adminAPI.removeAdmin(userId)
+      alert('Права администратора успешно сняты')
+      await loadUsers(currentPage)
+    } catch (err) {
+      console.error('Ошибка снятия прав администратора:', err)
+      const errorMessage = err.response?.data?.detail || 'Не удалось снять права администратора'
+      alert(errorMessage)
+    }
+  }
+
   const handleDeleteTestData = async () => {
     const confirmMessage = '⚠️ ВНИМАНИЕ!\n\n' +
       'Вы собираетесь удалить ВСЕХ пользователей с типом аккаунта "base" и "admin" и все связанные с ними данные:\n' +
@@ -316,6 +346,26 @@ function AdminPanel() {
                               disabled={loading}
                             >
                               Заблокировать
+                            </button>
+                          )}
+                          {currentUser?.type_account === 'owner' && user.type_account === 'base' && (
+                            <button
+                              className="admin-btn admin-btn-make-admin"
+                              onClick={() => handleMakeAdmin(user.id)}
+                              disabled={loading}
+                              style={{ marginLeft: '8px' }}
+                            >
+                              Сделать админом
+                            </button>
+                          )}
+                          {currentUser?.type_account === 'owner' && user.type_account === 'admin' && (
+                            <button
+                              className="admin-btn admin-btn-remove-admin"
+                              onClick={() => handleRemoveAdmin(user.id)}
+                              disabled={loading}
+                              style={{ marginLeft: '8px' }}
+                            >
+                              Снять права админа
                             </button>
                           )}
                         </>

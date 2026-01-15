@@ -9,7 +9,10 @@ from src.services.users import (add_user, create_user_comment,
                                 get_user_by_username, verify_email, change_username, change_password,
                                 set_best_anime, get_user_best_anime, remove_best_anime,
                                 add_new_user_photo)
-from src.services.admin import (admin_block_user, admin_unblock_user, admin_get_all_users, admin_create_test_users, admin_delete_test_data, admin_clear_cache)
+from src.services.admin import (admin_block_user, admin_unblock_user,
+                                 admin_get_all_users, admin_create_test_users, 
+                                 admin_delete_test_data, admin_clear_cache, delete_comment,
+                                 admin_make_admin, admin_remove_admin)
 from src.schemas.user import (CreateNewUser, CreateUserComment, 
                               CreateUserRating, LoginUser, 
                               CreateUserFavorite, UserName, ChangeUserPassword, CreateBestUserAnime)
@@ -29,6 +32,17 @@ async def is_admin(request: Request):
 
 
 IsAdminDep = Annotated[bool, Depends(is_admin)]
+
+async def is_owner(request: Request):
+    user_type_account = (await get_token(request)).get('type_account')
+    if user_type_account != 'owner':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Только владелец может выполнить это действие')
+    return True
+
+
+IsOwnerDep = Annotated[bool, Depends(is_owner)]
 
 @admin_router.get('/all-users')
 async def get_all_users(is_admin: IsAdminDep, session: SessionDep, limit: int = Query(10, ge=1, le=100), offset: int = Query(0, ge=0)):
@@ -63,13 +77,19 @@ async def unblock_user(is_admin: IsAdminDep, user_id: int, session: SessionDep):
     resp = await admin_unblock_user(user_id, session)
     return {'message': resp}
 
-async def remove_admin(user_id: int, session: SessionDep):
-    pass
+
+@admin_router.patch('/make-admin')
+async def make_admin(is_owner: IsOwnerDep, user_id: int, session: SessionDep):
+    '''Назначить пользователя админом (только для владельца)'''
+    resp = await admin_make_admin(user_id, session)
+    return {'message': resp}
 
 
-@admin_router.delete('delete/user/comment')
-async def delete_comment(is_admin: IsAdminDep, comment: int, session: SessionDep):
-    pass
+@admin_router.patch('/remove-admin')
+async def remove_admin(is_owner: IsOwnerDep, user_id: int, session: SessionDep):
+    '''Снять права администратора у пользователя (только для владельца)'''
+    resp = await admin_remove_admin(user_id, session)
+    return {'message': resp}
 
 
 @admin_router.post('/create-test-users')
@@ -227,7 +247,7 @@ async def clear_frontend_data(is_admin: IsAdminDep, response: Response):
     '''
     # Удаляем куку аутентификации
     session_key = getenv('COOKIES_SESSION_ID_KEY', 'session_id')
-    delete_token(response)
+    await delete_token(response)
     
     # Также удаляем все возможные куки (на случай, если есть другие)
     response.delete_cookie(session_key, path='/')
@@ -261,3 +281,25 @@ async def clear_frontend_data(is_admin: IsAdminDep, response: Response):
         ]
     }
 
+
+@admin_router.delete('/delete-user-comment')
+async def delete_commet(comment_id: int, request: Request, session: SessionDep):
+    """Удалить комментарий. Доступно админам/владельцам или владельцу комментария"""
+    # Получаем текущего пользователя из токена
+    try:
+        token_data = await get_token(request)
+        current_user_id = int(token_data.get('sub'))
+        current_user_type = token_data.get('type_account', 'base')
+    except HTTPException:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Требуется авторизация'
+        )
+    
+    resp = await delete_comment(current_user_id, current_user_type, comment_id, session)
+    if resp is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Нет прав для удаления этого комментария'
+        )
+    return {'message': resp}

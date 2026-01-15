@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { animeAPI, userAPI } from '../services/api'
+import { animeAPI, userAPI, adminAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
+import { parseMentions } from '../utils/parseMentions'
 import VideoPlayer from '../components/VideoPlayer'
 import AnimeCard from '../components/AnimeCard'
 import CrownIcon from '../components/CrownIcon'
+import AgeRestrictionModal from '../components/AgeRestrictionModal'
 import './WatchPage.css'
 
 function WatchPage() {
@@ -37,10 +39,37 @@ function WatchPage() {
   const [lastCommentTime, setLastCommentTime] = useState(null) // Время последнего комментария
   const [commentCooldown, setCommentCooldown] = useState(0) // Осталось секунд до следующего комментария
   const COMMENT_COOLDOWN_SECONDS = 60 // Время между комментариями в секундах
+  const [showAgeRestriction, setShowAgeRestriction] = useState(false) // Показывать ли модальное окно возрастного ограничения
+  const [hideAgeRestrictionWarning, setHideAgeRestrictionWarning] = useState(false) // Настройка пользователя
+  const [ageRestrictionConfirmed, setAgeRestrictionConfirmed] = useState(false) // Подтверждено ли возрастное ограничение в текущей сессии
+  const [copiedTitle, setCopiedTitle] = useState(false) // Состояние для уведомления о копировании названия
+  const [isAuthenticated, setIsAuthenticated] = useState(false) // Авторизован ли пользователь
+  const [currentUser, setCurrentUser] = useState(null) // Текущий пользователь
   
   // useRef для debounce автоматического подтверждения рейтинга
   const ratingTimeoutRef = useRef(null)
   const cooldownIntervalRef = useRef(null)
+
+  // Функция для проверки авторизации
+  const checkAuthentication = async () => {
+    try {
+      const response = await userAPI.getCurrentUser()
+      setIsAuthenticated(!!(response && response.message))
+      if (response && response.message) {
+        setCurrentUser(response.message)
+      } else {
+        setCurrentUser(null)
+      }
+    } catch (err) {
+      setIsAuthenticated(false)
+      setCurrentUser(null)
+    }
+  }
+
+  // Функция для открытия модального окна регистрации/входа
+  const openAuthModal = (type = 'register') => {
+    window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { type } }))
+  }
 
   useEffect(() => {
     // Прокручиваем страницу вверх при переходе на страницу аниме
@@ -58,6 +87,8 @@ function WatchPage() {
     setSelectedPlayer(null) // Сбрасываем плеер при смене аниме
     setLastCommentTime(null) // Сбрасываем время последнего комментария
     setCommentCooldown(0) // Сбрасываем кулдаун
+    setAgeRestrictionConfirmed(false) // Сбрасываем подтверждение возрастного ограничения
+    setShowAgeRestriction(false) // Сбрасываем показ модального окна возрастного ограничения
     
     loadAnime()
     loadRandomAnime()
@@ -65,7 +96,27 @@ function WatchPage() {
     checkUserRating()
     loadComments(0) // Загружаем первую страницу комментариев
     loadAvatarBorderColor() // Загружаем цвет обводки аватарки
+    loadProfileSettings() // Загружаем настройки профиля
+    checkAuthentication() // Проверяем авторизацию
   }, [animeId])
+
+  // Проверяем авторизацию при монтировании компонента
+  useEffect(() => {
+    checkAuthentication()
+    
+    // Слушаем событие успешного входа
+    const handleAuthSuccess = () => {
+      checkAuthentication()
+      // Перезагружаем данные, которые требуют авторизации
+      checkFavoriteStatus()
+      checkUserRating()
+    }
+    
+    window.addEventListener('authSuccess', handleAuthSuccess)
+    return () => {
+      window.removeEventListener('authSuccess', handleAuthSuccess)
+    }
+  }, [])
 
   // Загружаем цвет обводки аватарки и устанавливаем в CSS переменную
   const loadAvatarBorderColor = async () => {
@@ -103,6 +154,56 @@ function WatchPage() {
     }
   }
 
+  // Загружаем настройки профиля
+  const loadProfileSettings = async () => {
+    try {
+      const response = await userAPI.getProfileSettings()
+      if (response && response.message) {
+        setHideAgeRestrictionWarning(response.message.hide_age_restriction_warning || false)
+      }
+    } catch (err) {
+      // Пользователь не авторизован, игнорируем
+    }
+  }
+
+  // Проверяем рейтинг аниме и показываем модальное окно при необходимости
+  useEffect(() => {
+    if (anime && anime.rating && !hideAgeRestrictionWarning && !ageRestrictionConfirmed) {
+      const rating = anime.rating.toUpperCase()
+      // Проверяем только рейтинг R+
+      if (rating.includes('R+')) {
+        setShowAgeRestriction(true)
+      } else {
+        // Если рейтинг не R+, закрываем модальное окно
+        setShowAgeRestriction(false)
+      }
+    } else {
+      // Если нет рейтинга или настройка скрыта, закрываем модальное окно
+      setShowAgeRestriction(false)
+    }
+  }, [anime, hideAgeRestrictionWarning, ageRestrictionConfirmed])
+
+  // Обработчик подтверждения возрастного ограничения
+  const handleAgeRestrictionConfirm = () => {
+    setShowAgeRestriction(false)
+    setAgeRestrictionConfirmed(true)
+  }
+
+  // Обработчик "не показывать больше"
+  const handleDontShowAgeRestriction = async () => {
+    try {
+      await userAPI.updateProfileSettings({
+        hide_age_restriction_warning: true
+      })
+      setHideAgeRestrictionWarning(true)
+      setShowAgeRestriction(false)
+    } catch (err) {
+      console.error('Ошибка при сохранении настройки:', err)
+      // Все равно закрываем модальное окно
+      setShowAgeRestriction(false)
+    }
+  }
+
   // Слушаем изменения цвета обводки
   useEffect(() => {
     const handleAvatarBorderColorUpdate = () => {
@@ -111,6 +212,17 @@ function WatchPage() {
     window.addEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
     return () => {
       window.removeEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
+    }
+  }, [])
+
+  // Слушаем обновления настроек профиля
+  useEffect(() => {
+    const handleProfileSettingsUpdate = () => {
+      loadProfileSettings()
+    }
+    window.addEventListener('profileSettingsUpdated', handleProfileSettingsUpdate)
+    return () => {
+      window.removeEventListener('profileSettingsUpdated', handleProfileSettingsUpdate)
     }
   }, [])
 
@@ -210,11 +322,7 @@ function WatchPage() {
       }
       setError(null)
     } catch (err) {
-      if (err.response?.status === 401) {
-        // Пользователь не авторизован
-        setAuthError(true)
-        setError('Для просмотра аниме необходимо войти в аккаунт')
-      } else if (err.response?.status === 403) {
+      if (err.response?.status === 403) {
         // Пользователь заблокирован
         setAuthError(true)
         setError('Ваш аккаунт заблокирован. Доступ к просмотру аниме ограничен.')
@@ -356,6 +464,12 @@ function WatchPage() {
     e.preventDefault()
     if (!commentText.trim() || commentCooldown > 0) return
 
+    // Проверяем авторизацию перед отправкой комментария
+    if (!isAuthenticated) {
+      openAuthModal('register')
+      return
+    }
+
     try {
       setSubmittingComment(true)
       await userAPI.createComment(parseInt(animeId), commentText)
@@ -370,7 +484,11 @@ function WatchPage() {
       await updateComments()
     } catch (err) {
       console.error('Ошибка при отправке комментария:', err)
-      if (err.response?.status === 429) {
+      if (err.response?.status === 401) {
+        // Пользователь не авторизован
+        setIsAuthenticated(false)
+        openAuthModal('register')
+      } else if (err.response?.status === 429) {
         // Ошибка защиты от спама
         const errorMessage = err.response?.data?.detail || 'Вы отправляете комментарии слишком часто. Подождите немного.'
         alert(errorMessage)
@@ -388,6 +506,13 @@ function WatchPage() {
   const handleSubmitRating = async (rating) => {
     if (rating < 1 || rating > 10) return
 
+    // Проверяем авторизацию перед отправкой рейтинга
+    if (!isAuthenticated) {
+      openAuthModal('register')
+      setIsRatingMenuOpen(false)
+      return
+    }
+
     try {
       setSubmittingRating(true)
       await userAPI.createRating(parseInt(animeId), rating)
@@ -400,13 +525,26 @@ function WatchPage() {
       await updateRating()
     } catch (err) {
       console.error('Ошибка при отправке рейтинга:', err)
-      alert(err.response?.data?.detail || 'Ошибка при отправке рейтинга')
+      if (err.response?.status === 401) {
+        // Пользователь не авторизован
+        setIsAuthenticated(false)
+        openAuthModal('register')
+        setIsRatingMenuOpen(false)
+      } else {
+        alert(err.response?.data?.detail || 'Ошибка при отправке рейтинга')
+      }
     } finally {
       setSubmittingRating(false)
     }
   }
 
   const handleToggleFavorite = async () => {
+    // Проверяем авторизацию перед добавлением в избранное
+    if (!isAuthenticated) {
+      openAuthModal('register')
+      return
+    }
+
     try {
       const response = await userAPI.toggleFavorite(parseInt(animeId))
       
@@ -428,7 +566,9 @@ function WatchPage() {
       }
     } catch (err) {
       if (err.response?.status === 401) {
-        alert('Необходимо войти в аккаунт для добавления в избранное')
+        // Пользователь не авторизован
+        setIsAuthenticated(false)
+        openAuthModal('register')
       } else {
         console.error('Ошибка при работе с избранным:', err)
         alert('Ошибка при работе с избранным')
@@ -440,12 +580,41 @@ function WatchPage() {
 
   const handleReportComment = async (commentId) => {
     try {
-      // TODO: Реализовать API для жалобы на комментарий
-      alert('Жалоба отправлена. Спасибо за обратную связь!')
+      // Находим комментарий в списке
+      const comment = comments.find(c => c.id === commentId)
+      if (!comment) {
+        alert('Комментарий не найден')
+        setOpenReportMenu(null)
+        return
+      }
+
+      // Проверяем, является ли текущий пользователь админом/владельцем или владельцем комментария
+      const isAdminOrOwner = currentUser && (currentUser.type_account === 'admin' || currentUser.type_account === 'owner')
+      const isCommentOwner = currentUser && comment.user && comment.user.id === currentUser.id
+
+      if (isAdminOrOwner || isCommentOwner) {
+        // Удаляем комментарий навсегда
+        try {
+          await adminAPI.deleteComment(commentId)
+          // Удаляем комментарий из локального состояния
+          setComments(prevComments => prevComments.filter(c => c.id !== commentId))
+          alert('Комментарий удален')
+        } catch (deleteErr) {
+          console.error('Ошибка при удалении комментария:', deleteErr)
+          if (deleteErr.response?.status === 403) {
+            alert('Нет прав для удаления этого комментария')
+          } else {
+            alert('Ошибка при удалении комментария')
+          }
+        }
+      } else {
+        // Обычная жалоба (пока просто alert, можно реализовать позже)
+        alert('Жалоба отправлена. Спасибо за обратную связь!')
+      }
       setOpenReportMenu(null)
     } catch (err) {
-      console.error('Ошибка при отправке жалобы:', err)
-      alert('Ошибка при отправке жалобы')
+      console.error('Ошибка при обработке комментария:', err)
+      alert('Ошибка при обработке комментария')
     }
   }
 
@@ -464,6 +633,37 @@ function WatchPage() {
   const handlePosterMouseLeave = () => {
     setIsHoveringPoster(false)
     setMousePosition({ x: 0.5, y: 0.5 })
+  }
+
+  const handleCopyTitle = async () => {
+    if (!anime || !anime.title) return
+    
+    try {
+      await navigator.clipboard.writeText(anime.title)
+      setCopiedTitle(true)
+      setTimeout(() => {
+        setCopiedTitle(false)
+      }, 2000)
+    } catch (err) {
+      console.error('Ошибка при копировании названия:', err)
+      // Fallback для старых браузеров
+      const textArea = document.createElement('textarea')
+      textArea.value = anime.title
+      textArea.style.position = 'fixed'
+      textArea.style.opacity = '0'
+      document.body.appendChild(textArea)
+      textArea.select()
+      try {
+        document.execCommand('copy')
+        setCopiedTitle(true)
+        setTimeout(() => {
+          setCopiedTitle(false)
+        }, 2000)
+      } catch (fallbackErr) {
+        console.error('Ошибка при копировании (fallback):', fallbackErr)
+      }
+      document.body.removeChild(textArea)
+    }
   }
 
   if (loading) {
@@ -518,6 +718,12 @@ function WatchPage() {
 
   return (
     <div className="watch-page">
+      {showAgeRestriction && (
+        <AgeRestrictionModal
+          onConfirm={handleAgeRestrictionConfirm}
+          onDontShowAgain={handleDontShowAgeRestriction}
+        />
+      )}
       <div className="container">
         {/* Верхняя часть: постер слева, данные справа */}
         <div className="watch-header-section">
@@ -548,7 +754,38 @@ function WatchPage() {
           
           <div className="anime-info-section">
             <div className="anime-title-wrapper">
-              <h1 className="anime-title-main">{anime.title}</h1>
+              <div className="anime-title-with-copy">
+                <h1 className="anime-title-main">{anime.title}</h1>
+                <button
+                  type="button"
+                  onClick={handleCopyTitle}
+                  className={`copy-title-button ${copiedTitle ? 'copied' : ''}`}
+                  aria-label="Копировать название аниме"
+                  title={copiedTitle ? 'Скопировано!' : 'Копировать название'}
+                >
+                  <svg 
+                    width="20" 
+                    height="20" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    {copiedTitle ? (
+                      <>
+                        <path d="M20 6L9 17l-5-5"/>
+                      </>
+                    ) : (
+                      <>
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                      </>
+                    )}
+                  </svg>
+                </button>
+              </div>
               {anime.title_original && (
                 <p className="anime-original-title">{anime.title_original}</p>
               )}
@@ -747,6 +984,11 @@ function WatchPage() {
                     <button
                       type="button"
                       onClick={() => {
+                        // Проверяем авторизацию перед открытием меню рейтинга
+                        if (!isAuthenticated) {
+                          openAuthModal('register')
+                          return
+                        }
                         // Инициализируем временное значение при открытии меню
                         setTempRating(userRating || 5)
                         setIsRatingMenuOpen(true)
@@ -845,10 +1087,10 @@ function WatchPage() {
                             {comment.user?.username ? (
                               <Link 
                                 to={`/profile/${comment.user.username}`} 
-                                className={`comment-username ${comment.user?.id < 100 ? 'premium-user' : ''}`}
+                                className={`comment-username ${(comment.user?.premium_status?.is_premium || comment.user?.profile_settings?.is_premium_profile || comment.user?.type_account === 'admin' || comment.user?.type_account === 'owner') ? 'premium-user' : ''}`}
                               >
                                 {comment.user.username}
-                                {comment.user?.id < 100 && (
+                                {(comment.user?.premium_status?.is_premium || comment.user?.profile_settings?.is_premium_profile || comment.user?.type_account === 'admin' || comment.user?.type_account === 'owner') && (
                                   <span className="crown-icon-small">
                                     <CrownIcon size={14} />
                                   </span>
@@ -857,7 +1099,7 @@ function WatchPage() {
                             ) : (
                               <span className="comment-username">Неизвестный</span>
                             )}
-                            <p className="comment-text">{comment.text}</p>
+                            <p className="comment-text">{parseMentions(comment.text)}</p>
                           </div>
                         </div>
                         <div className="comment-header-right">
@@ -891,7 +1133,11 @@ function WatchPage() {
                                   className="comment-report-btn"
                                   onClick={() => handleReportComment(comment.id)}
                                 >
-                                  Пожаловаться
+                                  {(() => {
+                                    const isAdminOrOwner = currentUser && (currentUser.type_account === 'admin' || currentUser.type_account === 'owner')
+                                    const isCommentOwner = currentUser && comment.user && comment.user.id === currentUser.id
+                                    return (isAdminOrOwner || isCommentOwner) ? 'Удалить' : 'Пожаловаться'
+                                  })()}
                                 </button>
                               </div>
                             )}

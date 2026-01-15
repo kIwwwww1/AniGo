@@ -29,13 +29,68 @@
 .profile-header {
   display: flex;
   gap: 2rem;
-  margin-bottom: 3rem;
+  margin: 0 auto 3rem auto;
   padding: 2rem;
+  width: 1200px;
+  max-width: 100%;
+  min-height: 350px;
+  /* Градиент по умолчанию, будет переопределен inline стилями если есть фон */
   background: var(--theme-gradient, linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%));
+  background-size: var(--bg-size, auto);
+  background-position: var(--bg-position, center);
+  background-repeat: no-repeat;
+  background-attachment: local;
   border-radius: 16px;
   border: 1px solid var(--border);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   position: relative;
+  overflow: hidden;
+}
+
+/* Фоновое изображение через псевдоэлемент для правильного отображения за всем содержимым */
+.profile-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  z-index: 0;
+  background-image: var(--bg-image, none);
+  background-size: var(--bg-size, 100%);
+  background-position: var(--bg-position, 50% 50%);
+  background-repeat: no-repeat;
+  background-attachment: local;
+  pointer-events: none;
+  /* Если нет фонового изображения, скрываем псевдоэлемент */
+  opacity: 0;
+}
+
+/* Показываем псевдоэлемент только когда есть фоновое изображение */
+.profile-header[style*="--bg-image"]:not([style*="--bg-image: none"])::before {
+  opacity: 1;
+}
+
+/* Убеждаемся, что содержимое профиля поверх фона */
+.profile-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Аватарка должна быть поверх фона с непрозрачным фоном */
+.profile-avatar-section {
+  z-index: 2;
+  /* Создаем непрозрачный фон для полного перекрытия фонового изображения */
+  background: var(--theme-gradient, linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%)) !important;
+  background-color: var(--bg-card, #1a1a1a) !important;
+}
+
+/* Информация профиля поверх фона */
+.profile-info-section {
+  z-index: 1;
 }
 
 .profile-settings-icon {
@@ -79,22 +134,54 @@
 
 .profile-avatar-section {
   flex-shrink: 0;
+  position: relative;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  /* Сплошной фон без градиента для перекрытия фонового изображения родителя */
+  background-color: var(--bg-card, #1a1a1a) !important;
+  z-index: 2;
+  /* Убеждаемся, что фон полностью непрозрачный */
+  isolation: isolate;
 }
+
+/* Дополнительный непрозрачный слой для полного перекрытия фона родителя */
+.profile-avatar-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-color: var(--bg-card, #1a1a1a);
+  z-index: -1;
+  pointer-events: none;
+}
+
 
 .profile-avatar {
   width: 150px;
   height: 150px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--accent);
-  box-shadow: 0 8px 24px rgba(229, 9, 20, 0.3);
+  border: 3px solid var(--accent);
+  box-shadow: 0 8px 48px var(--avatar-glow-color, rgba(229, 9, 20, 0.4));
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
   display: block;
-  background-color: var(--bg-secondary);
+  background-color: transparent;
+  position: relative;
+  z-index: 2;
 }
 
 .profile-avatar-fallback {
-  background-color: #000000 !important;
+  background-color: transparent;
   user-select: none;
 }
 
@@ -104,7 +191,7 @@
 
 /* Премиум стили для аватарки */
 .profile-avatar.premium-avatar {
-  border: 2px solid transparent;
+  border: 3px solid transparent;
   background: 
     linear-gradient(var(--bg-secondary), var(--bg-secondary)) padding-box,
     linear-gradient(135deg, #ffc800 0%, #fff200 25%, #ffd700 50%, #fff200 75%, #ffc800 100%) border-box;
@@ -115,7 +202,7 @@
 }
 
 .profile-avatar-fallback.premium-avatar {
-  border: 2px solid transparent;
+  border: 3px solid transparent;
   background: 
     linear-gradient(#000000, #000000) padding-box,
     linear-gradient(135deg, #ffd700 0%, #ffed4e 25%, #ffd700 50%, #ffed4e 75%, #ffd700 100%) border-box;
@@ -192,7 +279,7 @@
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
   background-clip: text !important;
-  animation: shine-sweep 5s linear infinite;
+  animation: shine-sweep 15s linear infinite;
   pointer-events: none;
   z-index: 1;
   mix-blend-mode: overlay;
@@ -236,7 +323,7 @@ h1.profile-username.premium-user::before {
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
   background-clip: text !important;
-  animation: shine-sweep 5s linear infinite;
+  animation: shine-sweep 8s linear infinite;
   pointer-events: none;
   z-index: 1;
   mix-blend-mode: overlay;
@@ -264,7 +351,7 @@ h1.profile-username.premium-user::before {
 .profile-username.premium-shine {
   position: relative;
   overflow: visible;
-  filter: drop-shadow(0 0 6px currentColor);
+  filter: drop-shadow(0 0 2px currentColor);
 }
 
 .profile-username.premium-shine::before {
@@ -289,7 +376,7 @@ h1.profile-username.premium-user::before {
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
   background-clip: text !important;
-  animation: shine-sweep 5s linear infinite;
+  animation: shine-sweep 8s linear infinite;
   pointer-events: none;
   z-index: 1;
   mix-blend-mode: overlay;
@@ -300,7 +387,7 @@ h1.profile-username.premium-user::before {
 h1.profile-username.premium-shine {
   position: relative;
   overflow: visible;
-  filter: drop-shadow(0 0 3px currentColor) drop-shadow(0 0 6px currentColor);
+  filter: drop-shadow(0 0 1px currentColor) drop-shadow(0 0 2px currentColor);
 }
 
 .profile-info-section h1.profile-username.premium-shine::before,
@@ -326,7 +413,7 @@ h1.profile-username.premium-shine::before {
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
   background-clip: text !important;
-  animation: shine-sweep 5s linear infinite;
+  animation: shine-sweep 8s linear infinite;
   pointer-events: none;
   z-index: 1;
   mix-blend-mode: overlay;
@@ -776,7 +863,9 @@ h1.profile-username.premium-shine::before {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1.5rem;
-  margin-bottom: 3rem;
+  margin: 0 auto 3rem auto;
+  width: 1200px;
+  max-width: 100%;
 }
 
 .stat-card {
@@ -903,9 +992,7 @@ h1.profile-username.premium-shine::before {
 
 /* Панель настроек */
 .profile-settings-panel {
-  position: absolute;
-  top: 60px;
-  right: 1.5rem;
+  position: fixed;
   background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -913,7 +1000,7 @@ h1.profile-username.premium-shine::before {
   min-width: 280px;
   max-width: 320px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  z-index: 100;
+  z-index: 1000;
   animation: slideDown 0.3s ease;
 }
 
@@ -1019,7 +1106,7 @@ h1.profile-username.premium-shine::before {
   width: 28px;
   height: 28px;
   border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
+  border-radius: 50%;
   cursor: pointer;
   padding: 0;
   position: relative;
@@ -1290,25 +1377,73 @@ h1.profile-username.premium-shine::before {
 
 /* Стили карточек находятся в AnimeCardGrid.css */
 
-@media (max-width: 768px) {
+/* Медиа-запросы для адаптивности */
+
+/* Планшеты (481px - 768px) */
+@media (min-width: 481px) and (max-width: 768px) {
+  .user-profile-page {
+    padding: 1.5rem 0;
+  }
+
+  .container {
+    padding: 0 1rem;
+  }
+
   .profile-header {
     flex-direction: column;
     align-items: center;
     text-align: center;
+    width: 100%;
+    min-height: 320px;
+    padding: 1.5rem;
+    gap: 1.5rem;
+  }
+
+  .profile-avatar-section {
+    width: 120px;
+    height: 120px;
+  }
+
+  .profile-avatar {
+    width: 120px;
+    height: 120px;
   }
 
   .profile-username {
-    font-size: 2rem;
+    font-size: 1.75rem;
+  }
+
+  .profile-email {
+    font-size: 1rem;
+  }
+
+  .profile-badges {
+    justify-content: center;
   }
 
   .profile-stats {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    width: 100%;
+    gap: 1rem;
+  }
+
+  .stat-card {
+    padding: 1.25rem;
+  }
+
+  .stat-value {
+    font-size: 2rem;
+  }
+
+  .stat-label {
+    font-size: 0.85rem;
   }
 
   .profile-settings-panel {
     right: 1rem;
     left: 1rem;
     min-width: auto;
+    max-width: none;
   }
 
   .color-buttons-grid {
@@ -1329,9 +1464,114 @@ h1.profile-username.premium-shine::before {
     padding: 0.4rem 0.6rem;
     font-size: 0.9rem;
   }
+
+  .section-title {
+    font-size: 1.75rem;
+  }
 }
 
+/* Мобильные устройства (до 480px) */
 @media (max-width: 480px) {
+  .user-profile-page {
+    padding: 1rem 0;
+  }
+
+  .container {
+    padding: 0 1rem;
+  }
+
+  .profile-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+    min-height: 300px;
+    padding: 1.25rem;
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+  }
+
+  .profile-settings-icon {
+    top: 1rem;
+    right: 1rem;
+    width: 36px;
+    height: 36px;
+  }
+
+  .profile-settings-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .profile-avatar-section {
+    width: 100px;
+    height: 100px;
+  }
+
+  .profile-avatar {
+    width: 100px;
+    height: 100px;
+    border-width: 2px;
+  }
+
+  .profile-username {
+    font-size: 1.5rem;
+  }
+
+  .profile-email {
+    font-size: 0.9rem;
+  }
+
+  .profile-badges {
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .profile-role {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.8rem;
+  }
+
+  .profile-stats {
+    grid-template-columns: 1fr;
+    width: 100%;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+  }
+
+  .stat-card {
+    padding: 1rem;
+  }
+
+  .stat-value {
+    font-size: 1.75rem;
+  }
+
+  .stat-label {
+    font-size: 0.8rem;
+  }
+
+  .profile-section {
+    margin-bottom: 2rem;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .profile-settings-panel {
+    right: 0.75rem;
+    left: 0.75rem;
+    min-width: auto;
+    max-width: none;
+    padding: 0.875rem;
+  }
+
+  .settings-panel-header h3 {
+    font-size: 1rem;
+  }
+
   .color-buttons-grid {
     gap: 0.25rem;
   }
@@ -1358,7 +1598,51 @@ h1.profile-username.premium-shine::before {
   .gradient-direction-btn {
     min-width: 40px;
     padding: 0.5rem;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+  }
+
+  .theme-color-reset-btn {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.625rem;
+  }
+}
+
+/* Очень маленькие экраны (до 360px) */
+@media (max-width: 360px) {
+  .profile-header {
+    padding: 1rem;
+    min-height: 280px;
+  }
+
+  .profile-avatar-section {
+    width: 80px;
+    height: 80px;
+  }
+
+  .profile-avatar {
+    width: 80px;
+    height: 80px;
+  }
+
+  .profile-username {
+    font-size: 1.25rem;
+  }
+
+  .profile-email {
+    font-size: 0.85rem;
+  }
+
+  .profile-role {
+    font-size: 0.7rem;
+    padding: 0.35rem 0.7rem;
+  }
+
+  .stat-value {
+    font-size: 1.5rem;
+  }
+
+  .section-title {
+    font-size: 1.25rem;
   }
 }
 

@@ -27,6 +27,7 @@ const TopUsersSection = memo(function TopUsersSection() {
   const [currentPage, setCurrentPage] = useState(0)
   const [isScrolling, setIsScrolling] = useState(false)
   const [avatarErrors, setAvatarErrors] = useState({}) // Состояние для отслеживания ошибок загрузки аватарок
+  const [backgroundImageErrors, setBackgroundImageErrors] = useState({}) // Состояние для отслеживания ошибок загрузки фоновых изображений
   const [cycleInfo, setCycleInfo] = useState(null) // Информация о текущем цикле конкурса
   const [isActiveWeek, setIsActiveWeek] = useState(false) // Активна ли неделя конкурса
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0, visible: false })
@@ -145,7 +146,8 @@ const TopUsersSection = memo(function TopUsersSection() {
           ...user,
           accentColor: '#ffd700',
           isPremium: true,
-          themeGradient: null
+          themeGradient: null,
+          usernameColor: 'premium' // Для премиум используем специальное значение
         }
       }
       
@@ -153,6 +155,11 @@ const TopUsersSection = memo(function TopUsersSection() {
       const userColor = settings.avatar_border_color && AVAILABLE_COLORS.includes(settings.avatar_border_color)
         ? settings.avatar_border_color
         : '#e50914'
+      
+      // Получаем цвет никнейма из настроек профиля
+      const usernameColor = settings.username_color && /^#[0-9A-Fa-f]{6}$/.test(settings.username_color)
+        ? settings.username_color
+        : '#ffffff' // Белый по умолчанию
       
       // Если есть существующий градиент, сохраняем его
       // Если нет существующего градиента, но есть настройки в данных кэша - создаем градиент из них
@@ -178,7 +185,8 @@ const TopUsersSection = memo(function TopUsersSection() {
         ...user,
         accentColor: userColor,
         isPremium: false,
-        themeGradient: themeGradient
+        themeGradient: themeGradient,
+        usernameColor: usernameColor
       }
     })
   }
@@ -206,7 +214,8 @@ const TopUsersSection = memo(function TopUsersSection() {
           ...user,
           accentColor: '#ffd700', // Золотой цвет для премиум
           isPremium: true,
-          themeGradient: null // Премиум не использует градиент, использует золотую обводку
+          themeGradient: null, // Премиум не использует градиент, использует золотую обводку
+          usernameColor: 'premium' // Для премиум используем специальное значение
         }
       }
       
@@ -214,6 +223,11 @@ const TopUsersSection = memo(function TopUsersSection() {
       const userColor = settings.avatar_border_color && AVAILABLE_COLORS.includes(settings.avatar_border_color)
         ? settings.avatar_border_color
         : '#e50914' // Цвет по умолчанию
+      
+      // Получаем цвет никнейма из настроек профиля
+      const usernameColor = settings.username_color && /^#[0-9A-Fa-f]{6}$/.test(settings.username_color)
+        ? settings.username_color
+        : '#ffffff' // Белый по умолчанию
       
       // Создаем градиент ТОЛЬКО из theme_color_1 и theme_color_2 из БД
       // Не используем avatar_border_color для создания градиента
@@ -233,7 +247,8 @@ const TopUsersSection = memo(function TopUsersSection() {
         ...user,
         accentColor: userColor,
         isPremium: false,
-        themeGradient: themeGradient
+        themeGradient: themeGradient,
+        usernameColor: usernameColor
       }
     })
   }
@@ -509,6 +524,17 @@ const TopUsersSection = memo(function TopUsersSection() {
 
       const settings = settingsResponse.message
       
+      // Получаем профиль пользователя для получения фонового изображения
+      let backgroundImageUrl = null
+      try {
+        const profileResponse = await userAPI.getUserProfile(username)
+        if (profileResponse && profileResponse.message && profileResponse.message.background_image_url) {
+          backgroundImageUrl = profileResponse.message.background_image_url
+        }
+      } catch (err) {
+        console.warn(`Не удалось получить профиль пользователя ${username} для фонового изображения:`, err)
+      }
+      
       setUsers(prevUsers => {
         // Проверяем, есть ли пользователь в списке
         const userExists = prevUsers.some(u => u.username === username)
@@ -532,6 +558,7 @@ const TopUsersSection = memo(function TopUsersSection() {
             return {
               ...user,
               profile_settings: settings,
+              background_image_url: backgroundImageUrl !== null ? backgroundImageUrl : user.background_image_url,
               accentColor: '#ffd700',
               isPremium: true,
               themeGradient: null
@@ -542,6 +569,11 @@ const TopUsersSection = memo(function TopUsersSection() {
           const userColor = settings.avatar_border_color && AVAILABLE_COLORS.includes(settings.avatar_border_color)
             ? settings.avatar_border_color
             : '#e50914'
+          
+          // Получаем цвет никнейма из настроек профиля
+          const usernameColor = settings.username_color && /^#[0-9A-Fa-f]{6}$/.test(settings.username_color)
+            ? settings.username_color
+            : '#ffffff' // Белый по умолчанию
           
           // Создаем градиент ТОЛЬКО из theme_color_1 и theme_color_2 из БД
           // Не используем avatar_border_color для создания градиента
@@ -560,9 +592,11 @@ const TopUsersSection = memo(function TopUsersSection() {
           return {
             ...user,
             profile_settings: settings,
+            background_image_url: backgroundImageUrl !== null ? backgroundImageUrl : user.background_image_url,
             accentColor: userColor,
             isPremium: false,
-            themeGradient: themeGradient
+            themeGradient: themeGradient,
+            usernameColor: usernameColor
           }
         }
         return user
@@ -581,6 +615,65 @@ const TopUsersSection = memo(function TopUsersSection() {
 
   // Градиенты теперь обновляются прямо в loadTopUsers при периодическом обновлении
   // Отдельная функция updateAllUsersGradients больше не нужна
+
+  // Функция для обновления фонового изображения пользователя
+  const updateUserBackgroundImage = useCallback(async (username) => {
+    if (!username) {
+      console.log('⚠️ Username отсутствует')
+      return
+    }
+
+    console.log(`🖼️ Обновление фонового изображения для пользователя: ${username}`)
+
+    try {
+      // Получаем профиль пользователя для получения фонового изображения
+      const profileResponse = await userAPI.getUserProfile(username)
+      if (!profileResponse || !profileResponse.message) {
+        console.log(`⚠️ Не удалось получить профиль пользователя ${username}`)
+        return
+      }
+
+      const profile = profileResponse.message
+      const backgroundImageUrl = profile.background_image_url || null
+      
+      // Получаем настройки профиля для параметров отображения
+      const settingsResponse = await userAPI.getUserProfileSettings(username)
+      const settings = settingsResponse?.message || {}
+      
+      setUsers(prevUsers => {
+        // Проверяем, есть ли пользователь в списке
+        const userExists = prevUsers.some(u => u.username === username)
+        if (!userExists) {
+          console.log(`⚠️ Пользователь ${username} не найден в списке топ пользователей`)
+          return prevUsers
+        }
+        
+        const updatedUsers = prevUsers.map(user => {
+          if (user.username === username) {
+            console.log(`✅ Найден пользователь ${username}, обновляем фоновое изображение`)
+            
+            return {
+              ...user,
+              background_image_url: backgroundImageUrl,
+              profile_settings: {
+                ...user.profile_settings,
+                ...settings
+              }
+            }
+          }
+          return user
+        })
+        
+        console.log('📝 Обновленный список пользователей с фоновым изображением:', updatedUsers)
+        usersRef.current = updatedUsers // Обновляем ref
+        return updatedUsers
+      })
+      
+      console.log(`✅ Фоновое изображение пользователя ${username} обновлено в блоке "Топ коллекционеров"`)
+    } catch (err) {
+      console.error(`Ошибка обновления фонового изображения для ${username}:`, err)
+    }
+  }, [])
 
   // Обработчик обновления аватарки текущего пользователя
   useEffect(() => {
@@ -698,7 +791,7 @@ const TopUsersSection = memo(function TopUsersSection() {
     }
   }, [updateUserAvatar])
 
-  // Обработчик обновления градиента текущего пользователя
+  // Обработчик обновления градиента и цвета текущего пользователя
   useEffect(() => {
     const handleThemeUpdate = async () => {
       try {
@@ -709,8 +802,10 @@ const TopUsersSection = memo(function TopUsersSection() {
           const username = currentUser.username
           
           if (username) {
-            // Обновляем градиент для текущего пользователя
+            // Обновляем градиент и цвет для текущего пользователя
             await updateUserGradient(username)
+            // Также обновляем фоновое изображение
+            await updateUserBackgroundImage(username)
           }
         }
       } catch (err) {
@@ -718,12 +813,41 @@ const TopUsersSection = memo(function TopUsersSection() {
       }
     }
 
+    // Обработчик обновления фонового изображения
+    const handleBackgroundImageUpdate = async () => {
+      try {
+        // Получаем текущего пользователя
+        const response = await userAPI.getCurrentUser()
+        if (response && response.message) {
+          const currentUser = response.message
+          const username = currentUser.username
+          
+          if (username) {
+            // Обновляем фоновое изображение для текущего пользователя
+            await updateUserBackgroundImage(username)
+          }
+        }
+      } catch (err) {
+        // Игнорируем ошибки (пользователь не авторизован)
+      }
+    }
+
+    // Слушаем обновления темы (градиента)
     window.addEventListener('siteThemeUpdated', handleThemeUpdate)
+    // Слушаем обновления цвета обводки аватарки
+    window.addEventListener('avatarBorderColorUpdated', handleThemeUpdate)
+    // Слушаем обновления настроек профиля
+    window.addEventListener('profileSettingsUpdated', handleThemeUpdate)
+    // Слушаем обновления фонового изображения
+    window.addEventListener('backgroundImageUpdated', handleBackgroundImageUpdate)
     
     return () => {
       window.removeEventListener('siteThemeUpdated', handleThemeUpdate)
+      window.removeEventListener('avatarBorderColorUpdated', handleThemeUpdate)
+      window.removeEventListener('profileSettingsUpdated', handleThemeUpdate)
+      window.removeEventListener('backgroundImageUpdated', handleBackgroundImageUpdate)
     }
-  }, [updateUserGradient])
+  }, [updateUserGradient, updateUserBackgroundImage])
 
   // Функция для преобразования hex в rgba
   const hexToRgba = (hex, alpha) => {
@@ -907,6 +1031,14 @@ const TopUsersSection = memo(function TopUsersSection() {
                   const isPremium = user.isPremium || false
                   const themeGradient = user.themeGradient || null
                   
+                  // Получаем фоновое изображение и параметры отображения
+                  const backgroundImageUrl = user.background_image_url || null
+                  const settings = user.profile_settings || {}
+                  const backgroundScale = settings.background_scale || 100
+                  const backgroundPositionX = settings.background_position_x || 50
+                  const backgroundPositionY = settings.background_position_y || 50
+                  const hasBackgroundImageError = backgroundImageErrors[user.username] || false
+                  
                   // Для премиум используем специальное золотое свечение
                   let rgbaColor, rgbaColorLight
                   if (isPremium) {
@@ -930,8 +1062,7 @@ const TopUsersSection = memo(function TopUsersSection() {
                       '--user-glow-color': userColor,
                       '--user-glow-rgba': rgbaColor,
                       '--user-glow-rgba-light': rgbaColorLight,
-                      borderColor: userColor,
-                      boxShadow: `0 4px 16px ${rgbaColorLight}, 0 0 0 1px ${userColor}`
+                      border: `1px solid ${userColor}`
                     }
                     // Если есть градиент, применяем его к фону
                     if (themeGradient) {
@@ -944,6 +1075,18 @@ const TopUsersSection = memo(function TopUsersSection() {
                     }
                   }
                   
+                  // Применяем фоновое изображение к карточке, если оно есть
+                  if (backgroundImageUrl && !hasBackgroundImageError) {
+                    cardStyle['--card-bg-image'] = `url("${backgroundImageUrl}")`
+                    // Используем cover для заполнения всей карточки без черных полос
+                    cardStyle['--card-bg-size'] = 'cover'
+                    cardStyle['--card-bg-position'] = `${backgroundPositionX}% ${backgroundPositionY}%`
+                    cardStyle['--card-bg-opacity'] = '1'
+                  } else {
+                    cardStyle['--card-bg-image'] = 'none'
+                    cardStyle['--card-bg-opacity'] = '0'
+                  }
+                  
                   return (
                     <div 
                       key={user.username} 
@@ -951,13 +1094,42 @@ const TopUsersSection = memo(function TopUsersSection() {
                       onClick={() => handleUserClick(user.username)}
                       style={cardStyle}
                     >
+                      {/* Скрытый img для проверки загрузки фонового изображения карточки */}
+                      {backgroundImageUrl && !hasBackgroundImageError && (
+                        <img
+                          src={backgroundImageUrl}
+                          alt=""
+                          style={{
+                            position: 'absolute',
+                            width: 0,
+                            height: 0,
+                            opacity: 0,
+                            pointerEvents: 'none',
+                            zIndex: -1
+                          }}
+                          onError={() => {
+                            console.warn(`⚠️ Ошибка загрузки фонового изображения для ${user.username}:`, backgroundImageUrl)
+                            setBackgroundImageErrors(prev => ({
+                              ...prev,
+                              [user.username]: true
+                            }))
+                          }}
+                          onLoad={() => {
+                            // Изображение загружено успешно, сбрасываем ошибку если была
+                            setBackgroundImageErrors(prev => {
+                              const newErrors = { ...prev }
+                              delete newErrors[user.username]
+                              return newErrors
+                            })
+                          }}
+                        />
+                      )}
                       <div 
                         className={`user-avatar-wrapper ${isPremium ? 'premium-avatar-wrapper' : ''}`}
                         style={{
                           '--user-glow-color': userColor,
                           '--user-glow-rgba': rgbaColor,
-                          '--user-glow-rgba-light': rgbaColorLight,
-                          border: isPremium ? '2px solid transparent' : `2px solid ${userColor}`
+                          '--user-glow-rgba-light': rgbaColorLight
                         }}
                       >
                         {globalIndex === 0 ? (
@@ -1018,6 +1190,10 @@ const TopUsersSection = memo(function TopUsersSection() {
                                 src={avatarUrl} 
                                 alt={user.username}
                                 className="user-avatar"
+                                style={{
+                                  border: isPremium ? 'none' : `4px solid ${userColor}`,
+                                  boxShadow: isPremium ? 'none' : `0 4px 12px ${rgbaColor}, 0 0 16px ${rgbaColorLight}`
+                                }}
                                 onError={(e) => {
                                   // Останавливаем повторные попытки загрузки
                                   e.target.src = ''
@@ -1042,7 +1218,11 @@ const TopUsersSection = memo(function TopUsersSection() {
                             return (
                               <div 
                                 className="user-avatar-initials"
-                                style={{ backgroundColor: getColorFromUsername(user.username) }}
+                                style={{ 
+                                  backgroundColor: getColorFromUsername(user.username),
+                                  border: isPremium ? 'none' : `4px solid ${userColor}`,
+                                  boxShadow: isPremium ? 'none' : `0 4px 12px ${rgbaColor}, 0 0 16px ${rgbaColorLight}`
+                                }}
                               >
                                 {getInitials(user.username)}
                               </div>
@@ -1051,7 +1231,10 @@ const TopUsersSection = memo(function TopUsersSection() {
                         })()}
                       </div>
                       <div className="user-info">
-                        <div className={`user-name ${isPremium ? 'premium-user-name' : ''}`}>
+                        <div 
+                          className={`user-name ${isPremium ? 'premium-user-name' : ''}`}
+                          style={!isPremium && user.usernameColor && user.usernameColor !== 'premium' ? { color: user.usernameColor } : undefined}
+                        >
                           <span className="user-name-text">{user.username}</span>
                           {(isPremium || user.type_account === 'admin' || user.type_account === 'owner') && (
                             <span className="crown-icon-top-users">
@@ -1060,7 +1243,10 @@ const TopUsersSection = memo(function TopUsersSection() {
                           )}
                         </div>
                         <div className="user-stats">
-                          <span className={`favorites-count ${isPremium ? 'premium-favorites' : ''}`}>
+                          <span 
+                            className={`favorites-count ${isPremium ? 'premium-favorites' : ''}`}
+                            style={!isPremium && user.usernameColor && user.usernameColor !== 'premium' ? { color: user.usernameColor } : undefined}
+                          >
                             <svg 
                               width="16" 
                               height="16" 
@@ -1069,6 +1255,7 @@ const TopUsersSection = memo(function TopUsersSection() {
                               stroke="currentColor"
                               strokeWidth="2"
                               className={`favorites-heart-icon ${isPremium ? 'premium-heart-icon' : ''}`}
+                              style={!isPremium && user.usernameColor && user.usernameColor !== 'premium' ? { color: user.usernameColor } : undefined}
                             >
                               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                             </svg>

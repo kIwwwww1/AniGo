@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 # 
 from src.dependencies.all_dep import (SessionDep, PaginatorAnimeDep, 
-                                      CookieDataDep)
+                                      CookieDataDep, OptionalCookieDataDep)
 from src.schemas.anime import PaginatorData
 from src.parsers.kodik import get_anime_by_shikimori_id
 from src.parsers.shikimori import (shikimori_get_anime, background_search_and_add_anime, get_anime_by_title_db)
@@ -132,9 +132,9 @@ async def get_anime_paginators(pagin_data: PaginatorAnimeDep,
 
 @anime_router.get('/{anime_id:int}', response_model=dict)
 async def watch_anime_by_id(anime_id: int, session: SessionDep, background_tasks: BackgroundTasks, 
-                            token_data: CookieDataDep):
+                            token_data: OptionalCookieDataDep = None):
     '''Поиск аниме в базе по id с полными данными
-    Требует аутентификации (JWT токен в cookies)'''
+    Аутентификация опциональна (JWT токен в cookies)'''
 
     try:
         anime = await get_anime_in_db_by_id(anime_id, session, background_tasks)
@@ -187,10 +187,28 @@ async def watch_anime_by_id(anime_id: int, session: SessionDep, background_tasks
                         # Проверяем, что user загружен
                         user_data = None
                         if hasattr(comment, 'user') and comment.user:
+                            from datetime import datetime, timezone
+                            # Вычисляем is_premium из premium_expires_at и type_account
+                            is_premium = False
+                            if comment.user.type_account in ['admin', 'owner']:
+                                is_premium = True
+                            elif comment.user.premium_expires_at:
+                                now = datetime.now(timezone.utc)
+                                if comment.user.premium_expires_at > now:
+                                    is_premium = True
+                            
                             user_data = {
                                 'id': comment.user.id,
                                 'username': comment.user.username,
-                                'avatar_url': getattr(comment.user, 'avatar_url', None)
+                                'avatar_url': getattr(comment.user, 'avatar_url', None),
+                                'type_account': comment.user.type_account,
+                                'premium_status': {
+                                    'is_premium': is_premium,
+                                    'expires_at': comment.user.premium_expires_at.isoformat() if comment.user.premium_expires_at else None
+                                },
+                                'profile_settings': {
+                                    'is_premium_profile': comment.user.profile_settings.is_premium_profile if comment.user.profile_settings else False
+                                }
                             }
                         else:
                             # Если user не загружен, пропускаем комментарий
@@ -464,10 +482,28 @@ async def get_comments_paginator(anime_id: int, limit: int = 4,
                 # Проверяем, что user загружен
                 user_data = None
                 if hasattr(comment, 'user') and comment.user:
+                    from datetime import datetime, timezone
+                    # Вычисляем is_premium из premium_expires_at и type_account
+                    is_premium = False
+                    if comment.user.type_account in ['admin', 'owner']:
+                        is_premium = True
+                    elif comment.user.premium_expires_at:
+                        now = datetime.now(timezone.utc)
+                        if comment.user.premium_expires_at > now:
+                            is_premium = True
+                    
                     user_data = {
                         'id': comment.user.id,
                         'username': comment.user.username,
-                        'avatar_url': getattr(comment.user, 'avatar_url', None)
+                        'avatar_url': getattr(comment.user, 'avatar_url', None),
+                        'type_account': comment.user.type_account,
+                        'premium_status': {
+                            'is_premium': is_premium,
+                            'expires_at': comment.user.premium_expires_at.isoformat() if comment.user.premium_expires_at else None
+                        },
+                        'profile_settings': {
+                            'is_premium_profile': comment.user.profile_settings.is_premium_profile if comment.user.profile_settings else False
+                        }
                     }
                 else:
                     logger.warning(f'User not loaded for comment {getattr(comment, "id", "unknown")}')

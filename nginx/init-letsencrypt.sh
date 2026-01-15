@@ -42,15 +42,30 @@ docker-compose -f docker-compose.prod.yml up -d nginx
 # Ждем запуска
 sleep 5
 
+# Проверяем, что nginx доступен
+echo "Проверяем доступность Nginx..."
+if ! docker exec anigo-nginx-prod nginx -t > /dev/null 2>&1; then
+    echo "Ошибка: Nginx не запущен или конфигурация неверна!"
+    exit 1
+fi
+
+# Создаем директорию для certbot через certbot контейнер
+echo "Подготавливаем директорию для certbot..."
+docker-compose -f docker-compose.prod.yml run --rm --entrypoint="/bin/sh" certbot -c "mkdir -p /var/www/certbot/.well-known/acme-challenge && chmod -R 755 /var/www/certbot" || true
+
 # Получаем сертификат
 echo "Получаем SSL сертификат от Let's Encrypt..."
+echo "Используем метод webroot для получения сертификата..."
 docker-compose -f docker-compose.prod.yml run --rm certbot certonly \
     --webroot \
     --webroot-path=/var/www/certbot \
-    --email $EMAIL \
+    --email "$EMAIL" \
     --agree-tos \
     --no-eff-email \
-    -d $DOMAIN
+    --non-interactive \
+    --preferred-challenges http \
+    -d "$DOMAIN" \
+    -d "www.$DOMAIN"
 
 if [ $? -eq 0 ]; then
     echo ""

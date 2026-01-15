@@ -120,10 +120,9 @@ class CreateBestUserAnime(BaseModel):
 class UserProfileSettingsBase(BaseModel):
     username_color: str | None = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$', description='Hex цвет имени пользователя')
     avatar_border_color: str | None = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$', description='Hex цвет обводки аватарки')
-    theme_color_1: str | None = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$', description='Hex цвет первой темы')
-    theme_color_2: str | None = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$', description='Hex цвет второй темы')
-    gradient_direction: str | None = Field(None, max_length=20, description='Направление градиента')
-    is_premium_profile: bool | None = Field(None, description='Премиум оформление профиля')
+    background_scale: int | None = Field(None, ge=50, le=200, description='Масштаб фонового изображения (50-200%)')
+    background_position_x: int | None = Field(None, ge=0, le=100, description='Позиция X фонового изображения (0-100%)')
+    background_position_y: int | None = Field(None, ge=0, le=100, description='Позиция Y фонового изображения (0-100%)')
     hide_age_restriction_warning: bool | None = Field(None, description='Скрыть предупреждение о возрастных ограничениях')
 
 
@@ -140,3 +139,17 @@ class UserProfileSettingsResponse(UserProfileSettingsBase):
     
     class Config:
         from_attributes = True
+
+
+# Схемы для премиум подписки
+class ActivatePremiumRequest(BaseModel):
+    """Схема для активации премиум подписки"""
+    days: int = Field(ge=1, le=365, description='Количество дней подписки (от 1 до 365)')
+
+
+class PremiumStatusResponse(BaseModel):
+    """Схема для ответа со статусом премиум подписки"""
+    is_premium: bool
+    expires_at: str | None
+    days_remaining: int | None
+    type_account: str

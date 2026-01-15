@@ -109,6 +109,7 @@ async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession, background
 
     from sqlalchemy.orm import selectinload
     from src.models.comments import CommentModel
+    from src.models.users import UserModel
     
     try:
         logger.info(f'Загрузка аниме {anime_id} с relationships')
@@ -117,7 +118,7 @@ async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession, background
                 .options(
                     selectinload(AnimeModel.players),
                     selectinload(AnimeModel.genres),
-                    selectinload(AnimeModel.comments).selectinload(CommentModel.user),  # Загружаем пользователя для комментариев
+                    selectinload(AnimeModel.comments).selectinload(CommentModel.user).selectinload(UserModel.profile_settings),  # Загружаем пользователя и его profile_settings для комментариев
                 )
                 .filter_by(id=anime_id)
             )).scalar_one_or_none()
@@ -313,7 +314,7 @@ async def comments_paginator(limit: int, offset: int,
     comments = (await session.execute(
         select(CommentModel)
             .options(
-                selectinload(CommentModel.user)  # Загружаем пользователя для каждого комментария
+                selectinload(CommentModel.user).selectinload(UserModel.profile_settings)  # Загружаем пользователя и его profile_settings для каждого комментария
             )
             .where(CommentModel.anime_id == anime_id)
             .order_by(CommentModel.created_at.desc())  # Сортируем от новых к старым

@@ -1,5 +1,3 @@
-from PIL import Image
-import io
 from fastapi import (APIRouter, Response, Request, 
                      HTTPException, UploadFile)
 from sqlalchemy import select
@@ -16,7 +14,8 @@ from src.services.users import (add_user, create_user_comment,
                                 set_best_anime, get_user_best_anime, remove_best_anime,
                                 add_new_user_photo, get_user_most_favorited,
                                 get_user_profile_settings, get_or_create_user_profile_settings,
-                                update_user_profile_settings, get_user_by_token, activate_premium_subscription)
+                                update_user_profile_settings, get_user_by_token,
+                                activate_premium, check_premium_status, update_premium_status_if_expired)
 from src.services.redis_cache import (get_redis_client, get_user_profile_cache_key, 
                                       clear_user_profile_cache)
 import json
@@ -24,11 +23,14 @@ from src.schemas.user import (CreateNewUser, CreateUserComment,
                               CreateUserRating, LoginUser, 
                               CreateUserFavorite, UserName, ChangeUserPassword, 
                               CreateBestUserAnime, UserProfileSettingsUpdate,
-                              UserProfileSettingsResponse)
+                              UserProfileSettingsResponse, ActivatePremiumRequest,
+                              PremiumStatusResponse)
 from src.auth.auth import get_token, delete_token
 from src.db.database import engine, new_session
 from src.services.database import restart_database
 from src.services.s3 import s3_client
+from src.utils.file_wrapper import FileWrapper
+from src.utils.image_validator import AVATAR_VALIDATOR, BACKGROUND_IMAGE_VALIDATOR
 
 
 user_router = APIRouter(prefix='/user', tags=['UserPanel'])
@@ -99,16 +101,28 @@ async def create_user_rating(user: UserExistsDep, rating_data: CreateUserRating,
 
 
 @user_router.get('/me')
-async def get_current_user_info(user: UserExistsDep):
+async def get_current_user_info(user: UserExistsDep, session: SessionDep):
     '''Получить информацию о текущем пользователе'''
-
+    
+    logger.info(f'Запрос информации о текущем пользователе: ID={user.id}, username={user.username}')
+    
+    # Проверяем и обновляем статус премиума, если подписка истекла
+    await update_premium_status_if_expired(user.id, session)
+    await session.refresh(user)
+    
+    # Получаем статус премиума
+    premium_status = await check_premium_status(user.id, session)
+    
+    logger.info(f'Информация о пользователе успешно получена: ID={user.id}')
+    
     return {
         'message': {
             'id': user.id,
             'username': user.username,
             'email': user.email,
             'avatar_url': user.avatar_url,
-            'type_account': user.type_account
+            'type_account': user.type_account,
+            'premium_status': premium_status
         }
     }
 
@@ -240,17 +254,22 @@ async def user_profile(username: str, session: SessionDep):
     profile_settings = await get_user_profile_settings(user.id, session)
     settings_data = format_profile_settings_data(profile_settings, user.id)
     
+    # Получаем статус премиума
+    premium_status = await check_premium_status(user.id, session)
+    
     response_data = {
         'message': {
             'id': user.id,
             'username': user.username,
             'email': user.email,
             'avatar_url': user.avatar_url,
+            'background_image_url': user.background_image_url,
             'type_account': user.type_account,
             'created_at': user.created_at.isoformat() if user.created_at else None,
             'favorites': favorites_list,
             'best_anime': best_anime_list,
             'profile_settings': settings_data,
+            'premium_status': premium_status,
             'stats': {
                 'favorites_count': favorites_count,
                 'ratings_count': ratings_count,
@@ -353,6 +372,13 @@ async def user_settings(username: str, session: SessionDep):
     
     user = await get_user_by_username(username, session)
     
+    # Проверяем и обновляем статус премиума, если подписка истекла
+    await update_premium_status_if_expired(user.id, session)
+    await session.refresh(user)
+    
+    # Получаем статус премиума
+    premium_status = await check_premium_status(user.id, session)
+    
     # Подсчитываем статистику
     favorites_count = len(user.favorites) if user.favorites else 0
     ratings_count = len(user.ratings) if user.ratings else 0
@@ -368,9 +394,10 @@ async def user_settings(username: str, session: SessionDep):
             'username': user.username,
             'email': user.email,
             'avatar_url': user.avatar_url,
+            'background_image_url': user.background_image_url,
             'type_account': user.type_account,
             'created_at': user.created_at.isoformat() if user.created_at else None,
-            'premium_expires_at': user.premium_expires_at.isoformat() if user.premium_expires_at else None,
+            'premium_status': premium_status,
             'stats': {
                 'favorites_count': favorites_count,
                 'ratings_count': ratings_count,
@@ -450,66 +477,11 @@ async def most_favorited(pagin_data: UserPaginatorDep, session: SessionDep):
 @user_router.patch('/avatar')
 async def create_user_avatar(photo: UploadFile, user: UserExistsDep, session: SessionDep):
     '''Загрузить аватар пользователя с валидацией размера файла и размеров изображения'''
-
     
-    # Проверяем тип файла
-    if not photo.content_type or not photo.content_type.startswith('image/'):
-        raise HTTPException(
-            status_code=400,
-            detail='Файл должен быть изображением'
-        )
+    # Валидируем изображение
+    file_content = await AVATAR_VALIDATOR.validate(photo)
     
-    # Читаем файл
-    file_content = await photo.read()
-    file_size = len(file_content)
-    
-    # Проверяем размер файла (максимум 2 МБ)
-    MAX_FILE_SIZE = 2 * 1024 * 1024  # 2 МБ
-    if file_size > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=400,
-            detail=f'Размер файла не должен превышать 2 МБ. Текущий размер: {file_size / 1024 / 1024:.2f} МБ'
-        )
-    
-    # Проверяем размеры изображения
-    try:
-        image = Image.open(io.BytesIO(file_content))
-        width, height = image.size
-        MAX_DIMENSION = 2000  # Максимальный размер в пикселях
-        
-        if width > MAX_DIMENSION or height > MAX_DIMENSION:
-            raise HTTPException(
-                status_code=400,
-                detail=f'Размер изображения не должен превышать {MAX_DIMENSION}x{MAX_DIMENSION} пикселей. Текущий размер: {width}x{height}'
-            )
-    except HTTPException:
-        # Пробрасываем HTTPException дальше
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f'Ошибка при обработке изображения: {str(e)}'
-        )
-    
-    # Загружаем фото в S3 напрямую с содержимым файла
-    # Создаем временный UploadFile для совместимости с s3_client
-    from io import BytesIO
-    from fastapi import UploadFile
-    
-    # Создаем новый BytesIO объект с содержимым файла
-    photo_file = BytesIO(file_content)
-    photo_file.seek(0)
-    
-    # Создаем новый UploadFile объект для передачи в s3_client
-    class FileWrapper:
-        def __init__(self, file_content, filename, content_type):
-            self._file_content = file_content
-            self.filename = filename
-            self.content_type = content_type
-        
-        async def read(self):
-            return self._file_content
-    
+    # Загружаем фото в S3 с использованием FileWrapper
     file_wrapper = FileWrapper(file_content, photo.filename, photo.content_type)
     
     # Загружаем фото в S3
@@ -588,10 +560,6 @@ async def update_profile_settings(
         session=session,
         username_color=settings_data.username_color,
         avatar_border_color=settings_data.avatar_border_color,
-        theme_color_1=settings_data.theme_color_1,
-        theme_color_2=settings_data.theme_color_2,
-        gradient_direction=settings_data.gradient_direction,
-        is_premium_profile=settings_data.is_premium_profile,
         hide_age_restriction_warning=settings_data.hide_age_restriction_warning,
         fields_to_update=explicit_fields
     )
@@ -608,28 +576,172 @@ async def update_profile_settings(
             'user_id': settings.user_id,
             'username_color': settings.username_color,
             'avatar_border_color': settings.avatar_border_color,
-            'theme_color_1': settings.theme_color_1,
-            'theme_color_2': settings.theme_color_2,
-            'gradient_direction': settings.gradient_direction,
-            'is_premium_profile': settings.is_premium_profile,
             'hide_age_restriction_warning': settings.hide_age_restriction_warning,
+            'background_scale': settings.background_scale,
+            'background_position_x': settings.background_position_x,
+            'background_position_y': settings.background_position_y,
             'created_at': settings.created_at.isoformat() if settings.created_at else None,
             'updated_at': settings.updated_at.isoformat() if settings.updated_at else None
         }
     }
 
 
-@user_router.post('/activate-premium')
-async def activate_premium(
+@user_router.patch('/background-image')
+async def upload_background_image(
+    photo: UploadFile, 
+    user: UserExistsDep, 
+    session: SessionDep,
+    scale: int = 100,
+    position_x: int = 50,
+    position_y: int = 50
+):
+    '''Загрузить фоновое изображение под аватаркой пользователя с валидацией размера файла и размеров изображения
+    
+    Требует премиум подписку (premium, admin, owner)
+    '''
+    
+    # Проверяем премиум статус
+    premium_status = await check_premium_status(user.id, session)
+    if not premium_status['is_premium']:
+        raise HTTPException(
+            status_code=403,
+            detail='Фоновое изображение доступно только для премиум пользователей'
+        )
+    
+    # Валидация параметров отображения
+    if not 50 <= scale <= 200:
+        raise HTTPException(status_code=400, detail='Масштаб должен быть от 50 до 200%')
+    if not 0 <= position_x <= 100:
+        raise HTTPException(status_code=400, detail='Позиция X должна быть от 0 до 100%')
+    if not 0 <= position_y <= 100:
+        raise HTTPException(status_code=400, detail='Позиция Y должна быть от 0 до 100%')
+    
+    # Валидируем изображение
+    file_content = await BACKGROUND_IMAGE_VALIDATOR.validate(photo)
+    
+    # Загружаем фоновое изображение в S3 с использованием FileWrapper
+    file_wrapper = FileWrapper(file_content, photo.filename, photo.content_type)
+    logger.info(f"Начало загрузки фонового изображения для пользователя {user.id}")
+    background_url = await s3_client.upload_background_image(background_image=file_wrapper, user_id=user.id)
+    logger.info(f"Фоновое изображение загружено в S3, URL: {background_url}")
+    
+    # Обновляем URL в таблице user
+    user_obj = (await session.execute(
+        select(UserModel).where(UserModel.id == user.id)
+    )).scalar_one_or_none()
+    
+    if not user_obj:
+        raise HTTPException(status_code=404, detail='Пользователь не найден')
+    
+    user_obj.background_image_url = background_url
+    
+    # Обновляем параметры отображения в настройках профиля
+    from src.services.users import get_or_create_user_profile_settings
+    settings = await get_or_create_user_profile_settings(user.id, session)
+    settings.background_scale = scale
+    settings.background_position_x = position_x
+    settings.background_position_y = position_y
+    
+    await session.commit()
+    await session.refresh(user_obj)
+    await session.refresh(settings)
+    logger.info(f"Фоновое изображение сохранено в user.background_image_url, параметры: scale={scale}, x={position_x}, y={position_y}")
+    
+    # Очищаем кэш профиля пользователя после загрузки фонового изображения
+    await clear_user_profile_cache(user.username, user.id)
+    logger.info(f"Cleared profile cache for user: {user.username} after background image upload")
+    
+    return {
+        'message': 'Фоновое изображение успешно загружено', 
+        'background_image_url': background_url,
+        'background_scale': scale,
+        'background_position_x': position_x,
+        'background_position_y': position_y
+    }
+
+
+@user_router.delete('/background-image')
+async def delete_background_image(user: UserExistsDep, session: SessionDep):
+    '''Удалить фоновое изображение пользователя
+    
+    Удаляет URL из таблицы user и сбрасывает параметры отображения в user_profile_settings
+    '''
+    
+    # Получаем пользователя
+    user_obj = (await session.execute(
+        select(UserModel).where(UserModel.id == user.id)
+    )).scalar_one_or_none()
+    
+    if not user_obj:
+        raise HTTPException(status_code=404, detail='Пользователь не найден')
+    
+    # Удаляем файл из S3
+    try:
+        await s3_client.delete_background_image(user.id)
+        logger.info(f"Фоновое изображение удалено из S3 для пользователя {user.id}")
+    except Exception as e:
+        logger.warning(f"Не удалось удалить фоновое изображение из S3: {e}")
+        # Продолжаем удаление из БД даже если не удалось удалить из S3
+    
+    # Удаляем URL фонового изображения
+    user_obj.background_image_url = None
+    
+    # Сбрасываем параметры отображения в настройках
+    from src.services.users import get_or_create_user_profile_settings
+    settings = await get_or_create_user_profile_settings(user.id, session)
+    settings.background_scale = 100
+    settings.background_position_x = 50
+    settings.background_position_y = 50
+    
+    await session.commit()
+    logger.info(f"Фоновое изображение удалено для пользователя {user.id}")
+    
+    # Очищаем кэш профиля
+    await clear_user_profile_cache(user.username, user.id)
+    logger.info(f"Cleared profile cache for user: {user.username} after background image deletion")
+    
+    return {'message': 'Фоновое изображение успешно удалено'}
+
+
+@user_router.post('/premium/activate')
+async def activate_user_premium(
+    premium_data: ActivatePremiumRequest,
     user: UserExistsDep,
     session: SessionDep
 ):
     """Активировать премиум подписку для текущего пользователя"""
-    result = await activate_premium_subscription(user.id, session)
-    
-    # Очищаем кэш профиля пользователя
-    await clear_user_profile_cache(user.username, user.id)
-    logger.info(f"Cleared profile cache for user: {user.username} after premium activation")
-    
-    return {'message': result}
+    try:
+        updated_user = await activate_premium(user.id, premium_data.days, session)
+        premium_status = await check_premium_status(user.id, session)
+        
+        # Очищаем кэш профиля пользователя после активации премиума
+        await clear_user_profile_cache(user.username, user.id)
+        
+        return {
+            'message': f'Премиум подписка активирована на {premium_data.days} дней',
+            'premium_status': premium_status
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f'Ошибка при активации премиум подписки: {str(e)}'
+        )
+
+
+@user_router.get('/premium/status')
+async def get_premium_status(user: UserExistsDep, session: SessionDep):
+    """Получить статус премиум подписки текущего пользователя"""
+    try:
+        # Проверяем и обновляем статус премиума, если подписка истекла
+        await update_premium_status_if_expired(user.id, session)
+        premium_status = await check_premium_status(user.id, session)
+        
+        return {
+            'message': premium_status
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f'Ошибка при получении статуса премиум подписки: {str(e)}'
+        )
 

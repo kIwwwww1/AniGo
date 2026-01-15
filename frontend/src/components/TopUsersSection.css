@@ -212,16 +212,53 @@
   background-image: none;
   border-radius: 12px;
   padding: 1rem;
-  transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s, background 0.3s, background-color 0.3s, background-image 0.3s, min-height 0.3s ease;
+  transition: transform 0.3s, border-color 0.3s, background 0.3s, background-color 0.3s, background-image 0.3s, min-height 0.3s ease;
   cursor: pointer;
   position: relative;
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  overflow: hidden;
   min-height: 180px;
   border: 1px solid transparent;
   height: auto;
   align-self: stretch;
+  /* Изоляция для правильного наложения псевдоэлемента */
+  isolation: isolate;
+}
+
+/* Фоновое изображение через псевдоэлемент для правильного отображения за всем содержимым */
+.top-users-section .user-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  z-index: 0;
+  background-image: var(--card-bg-image, none);
+  background-size: var(--card-bg-size, cover);
+  background-position: var(--card-bg-position, center);
+  background-repeat: no-repeat;
+  background-attachment: local;
+  pointer-events: none;
+  /* Если нет фонового изображения, скрываем псевдоэлемент */
+  opacity: var(--card-bg-opacity, 0);
+  transition: opacity 0.3s ease;
+}
+
+/* Показываем псевдоэлемент когда есть фоновое изображение */
+.top-users-section .user-card[style*="--card-bg-opacity: 1"]::before,
+.top-users-section .user-card[style*="--card-bg-opacity:1"]::before {
+  opacity: 1 !important;
+}
+
+/* Когда есть фоновое изображение, делаем фон карточки прозрачным */
+.top-users-section .user-card[style*="--card-bg-opacity: 1"],
+.top-users-section .user-card[style*="--card-bg-opacity:1"] {
+  background-color: transparent !important;
 }
 
 /* Темный фон для всех тем (если градиент не установлен через inline стили) */
@@ -243,13 +280,19 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
   background: var(--user-theme-gradient, none) !important;
 }
 
+/* Убеждаемся, что содержимое карточки поверх фонового изображения */
+.top-users-section .user-card > * {
+  position: relative;
+  z-index: 1;
+}
+
 .user-card:hover {
   transform: translateY(-4px);
   z-index: 10;
 }
 
 .user-card:not(.premium-card):hover {
-  box-shadow: 0 8px 48px var(--user-glow-rgba, rgba(229, 9, 20, 0.4)), 0 0 0 1px var(--user-glow-color, #e50914) !important;
+  border-color: var(--user-glow-color, #e50914) !important;
 }
 
 .user-card .user-avatar-wrapper {
@@ -263,14 +306,19 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
   min-height: 100px;
   border-radius: 50%;
   overflow: visible;
-  background: #4a4a4a;
+  /* Фон по умолчанию */
+  background-color: transparent;
   z-index: 2;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
-  box-shadow: 0 8px 24px var(--user-glow-rgba, rgba(229, 9, 20, 0.3)), 0 0 20px var(--user-glow-rgba-light, rgba(229, 9, 20, 0.2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Убираем обводку с обертки, она теперь на аватарке */
+  border: none;
+  padding: 0;
 }
 
 [data-theme="dark"] .user-card .user-avatar-wrapper {
-  background: #1a1a1a;
+  background-color: transparent;
 }
 
 .top-users-section .user-card .user-avatar-wrapper .user-avatar {
@@ -284,6 +332,9 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
   display: block !important;
   border-radius: 50% !important;
   position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  /* Обводка применяется через inline стили */
 }
 
 .top-users-section .user-card .user-avatar-wrapper .user-avatar-initials {
@@ -300,6 +351,8 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
   text-transform: uppercase;
   border-radius: 50%;
   position: relative;
+  z-index: 1;
+  box-sizing: border-box;
 }
 
 .user-rank {
@@ -516,16 +569,13 @@ body:not([data-theme]) .top-users-section .user-card:not([style*="background"]):
   color: #ffffff;
 }
 
-.user-card:hover .user-name {
-  transform: translateX(2px);
-}
+/* Анимация движения имени пользователя убрана */
 
-.user-card:hover .user-name:not(.premium-user-name) .user-name-text {
-  color: var(--user-glow-color, var(--user-accent-color, #e50914));
-}
+/* Цвет никнейма теперь берется из usernameColor пользователя, не переопределяется при hover */
 
-.user-card:hover .user-avatar-wrapper {
-  box-shadow: 0 10px 30px var(--user-glow-rgba, rgba(229, 9, 20, 0.4)), 0 0 25px var(--user-glow-rgba-light, rgba(229, 9, 20, 0.3)) !important;
+.user-card:hover .user-avatar-wrapper .user-avatar:not(.premium-avatar),
+.user-card:hover .user-avatar-wrapper .user-avatar-initials {
+  border-color: var(--user-glow-color, #e50914) !important;
 }
 
 /* Премиум стили для карточки пользователя */

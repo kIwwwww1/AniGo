@@ -4,6 +4,7 @@ import { userAPI } from '../services/api'
 import '../components/AnimeCardGrid.css'
 import './MyFavoritesPage.css'
 import './AllAnimePage.css'
+import './AnimeMerchPage.css'
 
 function MyFavoritesPage() {
   const [allFavorites, setAllFavorites] = useState([]) // Все избранное
@@ -11,6 +12,7 @@ function MyFavoritesPage() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(null)
+  const [isUnauthorized, setIsUnauthorized] = useState(false) // Флаг для неавторизованных пользователей
   const navigate = useNavigate()
   const itemsPerRow = 6
   const limit = 12 // Количество элементов для загрузки за раз
@@ -36,13 +38,11 @@ function MyFavoritesPage() {
         setDisplayedFavorites([])
       }
       setError(null)
+      setIsUnauthorized(false)
     } catch (err) {
       if (err.response?.status === 401) {
+        setIsUnauthorized(true)
         setError('Необходимо войти в аккаунт для просмотра избранного')
-        // Перенаправляем на главную через 2 секунды
-        setTimeout(() => {
-          navigate('/')
-        }, 2000)
       } else if (err.response?.status === 403) {
         setError('Ваш аккаунт заблокирован. Доступ к избранному ограничен.')
         // Перенаправляем на главную через 2 секунды
@@ -84,7 +84,26 @@ function MyFavoritesPage() {
     )
   }
 
-  if (error) {
+  // Если пользователь не авторизован, показываем стиль как на anime-merch
+  if (isUnauthorized) {
+    return (
+      <div className="anime-merch-page">
+        <div className="anime-merch-container">
+          <img 
+            src="/anime-merch.png" 
+            alt="Авторизация" 
+            className="anime-merch-image"
+          />
+          <h2 className="anime-merch-404">Требуется авторизация</h2>
+          <p className="anime-merch-message">
+            Для просмотра избранного необходимо войти в аккаунт или зарегистрироваться
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error && !isUnauthorized) {
     return (
       <div className="my-favorites-page">
         <div className="container">

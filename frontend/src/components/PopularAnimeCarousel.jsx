@@ -64,15 +64,19 @@ const PopularAnimeCarousel = memo(function PopularAnimeCarousel() {
         setAnimeList(prev => {
           const newList = [...prev]
           const startIndex = page * itemsPerPage
-          // Заполняем пропуски если нужно
-          while (newList.length < startIndex) {
-            newList.push(null)
+          // Если данных еще нет для этой позиции, добавляем в конец
+          if (newList.length <= startIndex) {
+            return [...newList, ...cachedPageData]
           }
-          // Заменяем данные для этой страницы
+          // Если данные уже есть, обновляем их
           cachedPageData.forEach((item, index) => {
-            newList[startIndex + index] = item
+            if (startIndex + index < newList.length) {
+              newList[startIndex + index] = item
+            } else {
+              newList.push(item)
+            }
           })
-          return newList.filter(item => item !== null)
+          return newList
         })
         loadingPagesRef.current.delete(page)
         if (!silent) {
@@ -122,7 +126,24 @@ const PopularAnimeCarousel = memo(function PopularAnimeCarousel() {
           const dataToCache = animeData.slice(0, cacheLimit)
           setToCache(CACHE_KEY_POPULAR, dataToCache, CACHE_TTL)
         } else {
-          setAnimeList(prev => [...prev, ...animeData])
+          // Правильно добавляем данные в конец массива
+          // Это работает, потому что AnimeGrid использует индексы для доступа к данным
+          setAnimeList(prev => {
+            // Если данных еще нет для этой позиции, просто добавляем в конец
+            if (prev.length <= offset) {
+              return [...prev, ...animeData]
+            }
+            // Если данные уже есть, обновляем их
+            const newList = [...prev]
+            animeData.forEach((item, index) => {
+              if (offset + index < newList.length) {
+                newList[offset + index] = item
+              } else {
+                newList.push(item)
+              }
+            })
+            return newList
+          })
           // Сохраняем страницу в кэш
           setPageToCache(CACHE_KEY_POPULAR, page, animeData, CACHE_TTL)
         }
@@ -195,14 +216,25 @@ const PopularAnimeCarousel = memo(function PopularAnimeCarousel() {
 
   const handlePageChange = useCallback((page, offset) => {
     // Загружаем данные для страницы, если их еще нет
-    if (offset >= animeList.length && hasMore) {
-      loadAnime(offset, false)
+    // Проверяем, что данных действительно нет для этой страницы
+    const pageStartIndex = page * itemsPerPage
+    const pageEndIndex = (page + 1) * itemsPerPage
+    const hasDataForPage = animeList.length >= pageEndIndex
+    
+    if (!hasDataForPage && hasMore) {
+      // Загружаем данные для этой страницы
+      loadAnime(offset, false).catch((err) => {
+        console.error('Ошибка загрузки данных для страницы:', page, err)
+      })
     }
     
     // Предзагружаем следующую страницу в фоне
     const nextPage = page + 1
     const nextOffset = nextPage * itemsPerPage
-    if (nextOffset >= animeList.length && hasMore && nextPage <= maxPagesToShow) {
+    const nextPageEndIndex = (nextPage + 1) * itemsPerPage
+    const hasDataForNextPage = animeList.length >= nextPageEndIndex
+    
+    if (!hasDataForNextPage && hasMore && nextPage < maxPagesToShow) {
       // Предзагружаем тихо (без показа loading)
       loadAnime(nextOffset, true).catch(() => {
         // Игнорируем ошибки при предзагрузке
@@ -215,26 +247,16 @@ const PopularAnimeCarousel = memo(function PopularAnimeCarousel() {
   // Если аниме мало (меньше itemsPerPage), показываем реальные аниме + skeleton для заполнения
   // Когда появляется достаточно аниме (>= itemsPerPage), skeleton исчезают
   const shouldShowOnlySkeletons = loading || animeList.length === 0
-  const shouldShowSkeletons = shouldShowOnlySkeletons || (animeList.length > 0 && animeList.length < itemsPerPage)
   
-  // Формируем список для отображения
-  let displayList = animeList
-  if (shouldShowOnlySkeletons) {
-    // Если загрузка или нет аниме - показываем только skeleton
-    displayList = createSkeletonCards(itemsPerPage)
-  } else if (animeList.length > 0 && animeList.length < itemsPerPage) {
-    // Если аниме мало - показываем реальные аниме + skeleton для заполнения
-    const skeletonCount = itemsPerPage - animeList.length
-    displayList = [...animeList, ...createSkeletonCards(skeletonCount)]
-  }
-  
-  const totalPages = totalCount > 0 ? Math.ceil(totalCount / itemsPerPage) : Math.ceil(displayList.length / itemsPerPage)
+  // Формируем список для отображения - передаем реальный animeList, а не displayList
+  // AnimeGrid сам обработает skeleton на основе totalCount
+  const totalPages = totalCount > 0 ? Math.ceil(totalCount / itemsPerPage) : Math.ceil(animeList.length / itemsPerPage)
   const hasMorePages = totalCount > 0 && totalPages > maxPagesToShow && !showAll
 
   return (
     <AnimeGrid
       title="Популярное аниме"
-      animeList={displayList}
+      animeList={animeList}
       itemsPerPage={itemsPerPage}
       maxPagesToShow={maxPagesToShow}
       showExpandButton={hasMorePages && !shouldShowOnlySkeletons}

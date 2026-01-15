@@ -85,6 +85,13 @@ function VideoPlayer({ player }) {
           fragLoadingTimeOut: 20000,
           manifestLoadingTimeOut: 10000,
           levelLoadingTimeOut: 10000,
+          // Настройки для обхода CORS проблем
+          xhrSetup: (xhr, url) => {
+            // Устанавливаем withCredentials для CORS запросов
+            xhr.withCredentials = false
+            // Не устанавливаем кастомные заголовки, которые могут вызвать проблемы
+            // Сервер должен отправлять правильные CORS заголовки
+          },
         })
 
         hlsRef.current = hlsInstance
@@ -97,10 +104,33 @@ function VideoPlayer({ player }) {
         })
 
         hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+          // Проверяем на CORS ошибки и ошибки address space
+          const errorMessage = data.details || data.message || ''
+          const isCorsError = errorMessage.includes('CORS') || 
+                             errorMessage.includes('XMLHttpRequest') ||
+                             errorMessage.includes('address space') ||
+                             errorMessage.includes('blocked by CORS policy')
+          
+          if (isCorsError) {
+            console.warn('CORS/Address Space предупреждение HLS (игнорируем):', data)
+            // Не считаем CORS предупреждения критическими, если это не фатальная ошибка
+            if (!data.fatal) {
+              return
+            }
+            // Если это фатальная CORS ошибка, пытаемся восстановить
+            console.warn('Фатальная CORS ошибка, пытаемся восстановить...')
+            try {
+              hlsInstance.startLoad()
+            } catch (err) {
+              console.error('Не удалось восстановить после CORS ошибки:', err)
+            }
+            return
+          }
+
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                console.error('Ошибка сети HLS, попытка восстановления...')
+                console.error('Ошибка сети HLS, попытка восстановления...', data)
                 try {
                   hlsInstance.startLoad()
                 } catch (err) {
@@ -109,7 +139,7 @@ function VideoPlayer({ player }) {
                 }
                 break
               case Hls.ErrorTypes.MEDIA_ERROR:
-                console.error('Ошибка медиа HLS, попытка восстановления...')
+                console.error('Ошибка медиа HLS, попытка восстановления...', data)
                 try {
                   hlsInstance.recoverMediaError()
                 } catch (err) {
@@ -118,7 +148,7 @@ function VideoPlayer({ player }) {
                 }
                 break
               default:
-                console.error('Критическая ошибка HLS, перезагрузка...')
+                console.error('Критическая ошибка HLS, перезагрузка...', data)
                 hlsInstance.destroy()
                 hlsRef.current = null
                 setHlsError('Ошибка загрузки HLS потока. Попробуйте обновить страницу.')
@@ -340,6 +370,7 @@ function VideoPlayer({ player }) {
         onClick={togglePlay}
         playsInline
         crossOrigin="anonymous"
+        preload="auto"
       />
 
       <div className={`video-controls ${showControls ? 'visible' : ''}`}>

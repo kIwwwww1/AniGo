@@ -14,6 +14,9 @@ import VerifyEmailPage from './pages/VerifyEmailPage'
 import AdminPanel from './pages/AdminPanel'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import TermsOfUsePage from './pages/TermsOfUsePage'
+import AnimeMerchPage from './pages/AnimeMerchPage'
+import PremiumPurchasePage from './pages/PremiumPurchasePage'
+import PremiumPurchasePremiumPage from './pages/PremiumPurchasePremiumPage'
 import Layout from './components/Layout'
 import ScrollToTop from './components/ScrollToTop'
 import PageTransition from './components/PageTransition'
@@ -241,11 +244,68 @@ function App() {
     
     window.addEventListener('siteThemeUpdated', handleThemeUpdate)
     
+    // Защита от копирования текста
+    // Блокируем горячие клавиши для копирования
+    const handleKeyDown = (e) => {
+      // Разрешаем горячие клавиши в полях ввода
+      const target = e.target
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return
+      }
+      
+      // Блокируем Ctrl+C, Ctrl+A, Ctrl+V, Ctrl+X, Ctrl+S
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'c' || e.key === 'C' || 
+            e.key === 'a' || e.key === 'A' || 
+            e.key === 'v' || e.key === 'V' || 
+            e.key === 'x' || e.key === 'X' || 
+            e.key === 's' || e.key === 'S' ||
+            e.key === 'p' || e.key === 'P' ||
+            e.key === 'u' || e.key === 'U') {
+          e.preventDefault()
+          return false
+        }
+      }
+    }
+    
+    // Блокируем выделение текста через JavaScript
+    const handleSelectStart = (e) => {
+      const target = e.target
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return
+      }
+      e.preventDefault()
+      return false
+    }
+    
+    // Блокируем перетаскивание
+    const handleDragStart = (e) => {
+      const target = e.target
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return
+      }
+      // Разрешаем перетаскивание для бэйджей в настройках
+      const badgeItem = target.closest('.settings-badge-item')
+      if (badgeItem && badgeItem.hasAttribute('draggable')) {
+        return
+      }
+      e.preventDefault()
+      return false
+    }
+    
+    // Добавляем обработчики событий
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('selectstart', handleSelectStart)
+    document.addEventListener('dragstart', handleDragStart)
+    
     return () => {
       window.removeEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
       window.removeEventListener('storage', handleStorageChange)
       window.removeEventListener('userAccentColorUpdated', handleColorUpdate)
       window.removeEventListener('siteThemeUpdated', handleThemeUpdate)
+      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('selectstart', handleSelectStart)
+      document.removeEventListener('dragstart', handleDragStart)
     }
   }, [])
 
@@ -268,6 +328,9 @@ function App() {
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/documents/privacy-policy" element={<PrivacyPolicyPage />} />
             <Route path="/documents/terms-of-use" element={<TermsOfUsePage />} />
+            <Route path="/anime-merch" element={<AnimeMerchPage />} />
+            <Route path="/premium/purchase" element={<PremiumPurchasePage />} />
+            <Route path="/premium/purchase-premium" element={<PremiumPurchasePremiumPage />} />
           </Routes>
         </Layout>
       </PageTransition>

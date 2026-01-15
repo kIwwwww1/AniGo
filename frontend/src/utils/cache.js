@@ -169,7 +169,9 @@ export const invalidateUserRelatedCache = (username) => {
   clearUserProfileCache(username)
   
   // Очищаем кэш топ коллекционеров (может измениться при изменении избранного)
-  removeFromCache('most_favorited_users')
+  // Используем правильный ключ, который соответствует backend и frontend
+  removeFromCache('top_users_most_favorited')
+  removeFromCache('most_favorited_users') // Для обратной совместимости
   
   // Очищаем кэш избранного пользователя
   removeFromCache(`user_favorites_${username}`)

@@ -237,17 +237,9 @@ async def create_test_users(count: int = 50):
                 # Все тестовые пользователи создаются с типом 'base' (обычный)
                 type_account = 'base'
                 
-                # Случайный статус блокировки (в основном не заблокирован)
-                is_blocked = random.choices(
-                    [False, True],
-                    weights=[90, 10]  # 90% не заблокирован, 10% заблокирован
-                )[0]
-                
-                # Случайная верификация email (в основном верифицирован)
-                email_verified = random.choices(
-                    [True, False],
-                    weights=[85, 15]  # 85% верифицирован, 15% не верифицирован
-                )[0]
+                # Все тестовые пользователи активны и верифицированы для удобства тестирования
+                is_blocked = False
+                email_verified = True
                 
                 # Создаем пользователя
                 new_user = UserModel(

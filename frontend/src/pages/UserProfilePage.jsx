@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { userAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
@@ -6,9 +6,11 @@ import { getFromCache, setToCache, removeFromCache, clearUserProfileCache } from
 import AnimeGrid from '../components/AnimeGrid'
 import CrownIcon from '../components/CrownIcon'
 import BestAnimeSection from '../components/BestAnimeSection'
+import QRModal from '../components/QRModal'
 import '../components/AnimeCardGrid.css'
 import './UserProfilePage.css'
 import '../pages/HomePage.css'
+import './AnimeMerchPage.css'
 
 const AVAILABLE_COLORS = [
   { name: 'Белый', value: '#ffffff' },
@@ -32,24 +34,22 @@ function UserProfilePage() {
   const [showSettings, setShowSettings] = useState(false)
   const [usernameColor, setUsernameColor] = useState('#ffffff')
   const [avatarBorderColor, setAvatarBorderColor] = useState('#ff0000')
-  const [themeColor1, setThemeColor1] = useState(null)
-  const [themeColor2, setThemeColor2] = useState(null)
-  const [gradientDirection, setGradientDirection] = useState('diagonal-right')
   const [avatarError, setAvatarError] = useState(false)
-  const [isPremiumProfile, setIsPremiumProfile] = useState(false) // false по умолчанию, чтобы не мигать премиум темой
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState(null)
+  const [backgroundSettings, setBackgroundSettings] = useState({
+    scale: 100,
+    positionX: 50,
+    positionY: 50
+  })
+  const [panelPosition, setPanelPosition] = useState({ top: 0, right: 0 })
+  const [isQRModalOpen, setIsQRModalOpen] = useState(false)
+  const settingsIconRef = useRef(null)
   const itemsPerPage = 6
   const maxPagesToShow = 3
   
   // Проверяем, является ли текущий пользователь владельцем профиля
   const isOwner = currentUser && user && currentUser.username === user.username
   
-  const GRADIENT_DIRECTIONS = [
-    { value: 'horizontal', label: '→', title: 'Горизонтально' },
-    { value: 'vertical', label: '↓', title: 'Вертикально' },
-    { value: 'diagonal-right', label: '↘', title: 'Диагональ вправо' },
-    { value: 'diagonal-left', label: '↙', title: 'Диагональ влево' },
-    { value: 'radial', label: '○', title: 'Радиальный' }
-  ]
 
   const loadCurrentUser = async () => {
     try {
@@ -72,7 +72,6 @@ function UserProfilePage() {
     setAvatarError(false) // Сбрасываем ошибку при смене пользователя
     loadUserProfile()
     loadUserColors()
-    loadThemeColor()
     loadCurrentUser()
     
     // Обработчик удаления кэша - автоматическая перезагрузка данных
@@ -86,11 +85,106 @@ function UserProfilePage() {
       }
     }
     
+    // Обработчик обновления фонового изображения
+    const handleBackgroundImageUpdated = (event) => {
+      const { username: updatedUsername, backgroundImageUrl: newUrl, settings } = event.detail
+      if (updatedUsername === username) {
+        console.log('🔄 Обновление фонового изображения для профиля:', newUrl)
+        // Если newUrl равен null или undefined, удаляем фоновое изображение
+        setBackgroundImageUrl(newUrl || null)
+        if (settings) {
+          setBackgroundSettings({
+            scale: settings.scale || 100,
+            positionX: settings.positionX || 50,
+            positionY: settings.positionY || 50
+          })
+        } else {
+          // Сбрасываем настройки на значения по умолчанию при удалении
+          setBackgroundSettings({
+            scale: 100,
+            positionX: 50,
+            positionY: 50
+          })
+        }
+        // Перезагружаем профиль для получения актуальных данных
+        loadUserProfile()
+      }
+    }
+    
+    // Обработчик обновления аватарки
+    const handleAvatarUpdated = async (event) => {
+      const eventData = event?.detail
+      const updatedUsername = eventData?.username
+      const newAvatarUrl = eventData?.avatarUrl
+      
+      // Проверяем, относится ли обновление к текущему профилю
+      if (updatedUsername === username) {
+        console.log('🔄 Обновление аватарки для профиля:', newAvatarUrl)
+        
+        // Сбрасываем ошибку аватарки
+        setAvatarError(false)
+        
+        // Очищаем кэш профиля и перезагружаем данные
+        clearUserProfileCache(username)
+        await loadUserProfile(true)
+      }
+    }
+    
+    // Обработчик изменений localStorage (для синхронизации между вкладками)
+    const handleStorageChange = (e) => {
+      if (e.key === 'avatarUpdated' && e.newValue) {
+        try {
+          const data = JSON.parse(e.newValue)
+          if (data.username === username && data.avatarUrl) {
+            console.log('🔄 Обновление аватарки из localStorage для профиля:', data.avatarUrl)
+            setAvatarError(false)
+            clearUserProfileCache(username)
+            loadUserProfile(true)
+            // Удаляем запись из localStorage после обработки
+            localStorage.removeItem('avatarUpdated')
+          }
+        } catch (err) {
+          console.error('Ошибка обработки данных из localStorage:', err)
+        }
+      }
+    }
+    
+    // Проверяем localStorage при монтировании компонента
+    const checkLocalStorage = () => {
+      try {
+        const stored = localStorage.getItem('avatarUpdated')
+        if (stored) {
+          const data = JSON.parse(stored)
+          if (data.username === username && data.avatarUrl && data.timestamp && Date.now() - data.timestamp < 5 * 60 * 1000) {
+            console.log('🔄 Обновление аватарки из localStorage при монтировании:', data.avatarUrl)
+            setAvatarError(false)
+            clearUserProfileCache(username)
+            loadUserProfile(true)
+            localStorage.removeItem('avatarUpdated')
+          } else if (data.timestamp && Date.now() - data.timestamp >= 5 * 60 * 1000) {
+            // Удаляем устаревшие данные
+            localStorage.removeItem('avatarUpdated')
+          }
+        }
+      } catch (err) {
+        console.error('Ошибка проверки localStorage:', err)
+      }
+    }
+    
+    // Проверяем localStorage при монтировании
+    checkLocalStorage()
+    
     window.addEventListener('cacheRemoved', handleCacheRemoved)
+    window.addEventListener('backgroundImageUpdated', handleBackgroundImageUpdated)
+    window.addEventListener('avatarUpdated', handleAvatarUpdated)
+    window.addEventListener('storage', handleStorageChange)
     
     // При уходе со страницы профиля восстанавливаем цвета текущего авторизованного пользователя
     return async () => {
       window.removeEventListener('cacheRemoved', handleCacheRemoved)
+      window.removeEventListener('backgroundImageUpdated', handleBackgroundImageUpdated)
+      window.removeEventListener('avatarUpdated', handleAvatarUpdated)
+      window.removeEventListener('storage', handleStorageChange)
       // Сохраняем ссылку на функцию для использования в cleanup
       const applyFn = restoreCurrentUserColorsRef.current
       if (applyFn) {
@@ -126,280 +220,7 @@ function UserProfilePage() {
     }
   }, [username])
 
-  // Удаляем этот useEffect, так как премиум статус теперь загружается в loadUserProfile
-  // useEffect(() => {
-  //   // Загружаем премиум профиль после загрузки user
-  //   if (user) {
-  //     loadPremiumProfile()
-  //   }
-  // }, [user, username])
   
-  const loadThemeColor = () => {
-    const savedThemeColor1 = localStorage.getItem('site-theme-color-1')
-    const savedThemeColor2 = localStorage.getItem('site-theme-color-2')
-    const savedGradientDirection = localStorage.getItem('site-gradient-direction') || 'diagonal-right'
-    
-    if (savedThemeColor1 && AVAILABLE_COLORS.some(c => c.value === savedThemeColor1)) {
-      setThemeColor1(savedThemeColor1)
-      if (savedThemeColor2 && AVAILABLE_COLORS.some(c => c.value === savedThemeColor2)) {
-        setThemeColor2(savedThemeColor2)
-        setGradientDirection(savedGradientDirection)
-        applyCustomTheme(savedThemeColor1, savedThemeColor2, savedGradientDirection)
-      } else {
-        // Если есть только первый цвет, используем его для обоих
-        setThemeColor2(savedThemeColor1)
-        setGradientDirection(savedGradientDirection)
-        applyCustomTheme(savedThemeColor1, savedThemeColor1, savedGradientDirection)
-      }
-    } else {
-      setThemeColor1(null)
-      setThemeColor2(null)
-      setGradientDirection('diagonal-right')
-      // Используем темную тему по умолчанию
-      document.documentElement.setAttribute('data-theme', 'dark')
-    }
-  }
-  
-  // Делаем функцию доступной глобально для загрузки при старте
-  const applyCustomTheme = (color1, color2, direction = 'diagonal-right') => {
-    if (!color1 || !color2) return
-    
-    // Устанавливаем атрибут для кастомной темы
-    document.documentElement.setAttribute('data-theme', 'custom')
-    
-    // Функции для работы с цветом
-    const lightenColor = (hex, percent) => {
-      const num = parseInt(hex.replace('#', ''), 16)
-      const r = Math.min(255, Math.floor((num >> 16) + (255 - (num >> 16)) * percent))
-      const g = Math.min(255, Math.floor(((num >> 8) & 0x00FF) + (255 - ((num >> 8) & 0x00FF)) * percent))
-      const b = Math.min(255, Math.floor((num & 0x0000FF) + (255 - (num & 0x0000FF)) * percent))
-      return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
-    }
-    
-    const darkenColor = (hex, percent) => {
-      const num = parseInt(hex.replace('#', ''), 16)
-      const r = Math.floor((num >> 16) * (1 - percent))
-      const g = Math.floor(((num >> 8) & 0x00FF) * (1 - percent))
-      const b = Math.floor((num & 0x0000FF) * (1 - percent))
-      return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
-    }
-    
-    // Функция для создания rgba версии цвета
-    const hexToRgba = (hex, alpha) => {
-      const r = parseInt(hex.slice(1, 3), 16)
-      const g = parseInt(hex.slice(3, 5), 16)
-      const b = parseInt(hex.slice(5, 7), 16)
-      return `rgba(${r}, ${g}, ${b}, ${alpha})`
-    }
-    
-    // Функция для смешивания двух цветов
-    const mixColors = (color1, color2, ratio) => {
-      const hex1 = color1.replace('#', '')
-      const hex2 = color2.replace('#', '')
-      const r1 = parseInt(hex1.slice(0, 2), 16)
-      const g1 = parseInt(hex1.slice(2, 4), 16)
-      const b1 = parseInt(hex1.slice(4, 6), 16)
-      const r2 = parseInt(hex2.slice(0, 2), 16)
-      const g2 = parseInt(hex2.slice(2, 4), 16)
-      const b2 = parseInt(hex2.slice(4, 6), 16)
-      
-      const r = Math.round(r1 + (r2 - r1) * ratio)
-      const g = Math.round(g1 + (g2 - g1) * ratio)
-      const b = Math.round(b1 + (b2 - b1) * ratio)
-      
-      return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
-    }
-    
-    // Создаем градиенты только для плашек в профиле (не для основного фона сайта)
-    // Используем более яркие и заметные цвета с прозрачностью для лучшей видимости
-    const lightBg1 = lightenColor(color1, 0.3)
-    const mediumBg1 = color1
-    const darkBg1 = darkenColor(color1, 0.2)
-    
-    const lightBg2 = lightenColor(color2, 0.3)
-    const mediumBg2 = color2
-    const darkBg2 = darkenColor(color2, 0.2)
-    
-    // Создаем множество промежуточных цветов для максимально плавного перехода
-    const mix1 = mixColors(color1, color2, 0.2)   // 20% смеси
-    const mix2 = mixColors(color1, color2, 0.4)   // 40% смеси
-    const mix3 = mixColors(color1, color2, 0.5)    // 50% смеси (середина)
-    const mix4 = mixColors(color1, color2, 0.6)    // 60% смеси
-    const mix5 = mixColors(color1, color2, 0.8)   // 80% смеси
-    
-    // Создаем rgba версии для смешивания с темным фоном
-    const rgba1 = hexToRgba(color1, 0.4)
-    const rgba2 = hexToRgba(color2, 0.4)
-    const rgba1Light = hexToRgba(lightBg1, 0.3)
-    const rgba2Light = hexToRgba(lightBg2, 0.3)
-    
-    // Промежуточные rgba цвета с плавным изменением прозрачности
-    const rgbaMix1 = hexToRgba(mix1, 0.38)
-    const rgbaMix2 = hexToRgba(mix2, 0.37)
-    const rgbaMix3 = hexToRgba(mix3, 0.36)
-    const rgbaMix4 = hexToRgba(mix4, 0.37)
-    const rgbaMix5 = hexToRgba(mix5, 0.38)
-    
-    // Определяем направление градиента
-    let gradientString = ''
-    if (direction === 'radial') {
-      gradientString = `radial-gradient(circle, ${rgba1Light} 0%, ${rgba1} 12%, ${rgbaMix1} 25%, ${rgbaMix2} 37%, ${rgbaMix3} 50%, ${rgbaMix4} 62%, ${rgbaMix5} 75%, ${rgba2} 88%, ${rgba2Light} 100%)`
-    } else {
-      let angle = '135deg' // diagonal-right по умолчанию
-      if (direction === 'horizontal') angle = 'to right'
-      else if (direction === 'vertical') angle = 'to bottom'
-      else if (direction === 'diagonal-right') angle = '135deg'
-      else if (direction === 'diagonal-left') angle = '45deg'
-      
-      // Максимально плавный градиент с множеством промежуточных точек и равномерным распределением
-      gradientString = `linear-gradient(${angle}, ${rgba1Light} 0%, ${rgba1} 5%, ${rgbaMix1} 12%, ${rgbaMix2} 20%, ${rgbaMix3} 30%, ${rgbaMix4} 42%, ${rgbaMix5} 55%, ${rgba2} 68%, ${rgba2Light} 80%, ${rgba2} 90%, ${rgba2Light} 100%)`
-    }
-    
-    // Обратный градиент для некоторых элементов
-    let reverseGradientString = ''
-    if (direction === 'radial') {
-      reverseGradientString = `radial-gradient(circle, ${rgba2Light} 0%, ${rgba2} 12%, ${rgbaMix5} 25%, ${rgbaMix4} 37%, ${rgbaMix3} 50%, ${rgbaMix2} 62%, ${rgbaMix1} 75%, ${rgba1} 88%, ${rgba1Light} 100%)`
-    } else {
-      let angle = '135deg'
-      if (direction === 'horizontal') angle = 'to left'
-      else if (direction === 'vertical') angle = 'to top'
-      else if (direction === 'diagonal-right') angle = '315deg'
-      else if (direction === 'diagonal-left') angle = '225deg'
-      
-      // Максимально плавный градиент с множеством промежуточных точек и равномерным распределением
-      reverseGradientString = `linear-gradient(${angle}, ${rgba2Light} 0%, ${rgba2} 5%, ${rgbaMix5} 12%, ${rgbaMix4} 20%, ${rgbaMix3} 30%, ${rgbaMix2} 42%, ${rgbaMix1} 55%, ${rgba1} 68%, ${rgba1Light} 80%, ${rgba1} 90%, ${rgba1Light} 100%)`
-    }
-    
-    // Применяем только CSS переменные для градиентов плашек
-    // НЕ меняем основной фон сайта (--bg-primary, --bg-secondary, --bg-card остаются по умолчанию)
-    document.documentElement.style.setProperty('--theme-color', color1)
-    document.documentElement.style.setProperty('--theme-gradient', gradientString)
-    document.documentElement.style.setProperty('--theme-gradient-reverse', reverseGradientString)
-  }
-  
-  // Делаем функцию глобальной
-  window.applyCustomTheme = applyCustomTheme
-  
-  const handleThemeColor1Change = async (color) => {
-    // Не позволяем менять градиент при активном премиум профиле
-    if (isPremiumProfile) {
-      return
-    }
-    setThemeColor1(color)
-    const color2 = themeColor2 || color
-    setThemeColor2(color2)
-    applyCustomTheme(color, color2, gradientDirection)
-    localStorage.setItem('site-theme-color-1', color)
-    if (!localStorage.getItem('site-theme-color-2')) {
-      localStorage.setItem('site-theme-color-2', color2)
-    }
-    
-    // Сохраняем в API, если это профиль текущего пользователя
-    if (username && currentUser && currentUser.username === username) {
-      try {
-        await userAPI.updateProfileSettings({
-          theme_color_1: color,
-          theme_color_2: color2,
-          gradient_direction: gradientDirection
-        })
-      } catch (err) {
-        console.error('Ошибка сохранения градиента:', err)
-      }
-    }
-    
-    window.dispatchEvent(new Event('siteThemeUpdated'))
-  }
-  
-  const handleThemeColor2Change = async (color) => {
-    // Не позволяем менять градиент при активном премиум профиле
-    if (isPremiumProfile) {
-      return
-    }
-    setThemeColor2(color)
-    const color1 = themeColor1 || color
-    setThemeColor1(color1)
-    applyCustomTheme(color1, color, gradientDirection)
-    localStorage.setItem('site-theme-color-2', color)
-    if (!localStorage.getItem('site-theme-color-1')) {
-      localStorage.setItem('site-theme-color-1', color1)
-    }
-    
-    // Сохраняем в API, если это профиль текущего пользователя
-    if (username && currentUser && currentUser.username === username) {
-      try {
-        await userAPI.updateProfileSettings({
-          theme_color_1: color1,
-          theme_color_2: color,
-          gradient_direction: gradientDirection
-        })
-      } catch (err) {
-        console.error('Ошибка сохранения градиента:', err)
-      }
-    }
-    
-    window.dispatchEvent(new Event('siteThemeUpdated'))
-  }
-  
-  const handleGradientDirectionChange = async (direction) => {
-    // Не позволяем менять градиент при активном премиум профиле
-    if (isPremiumProfile) {
-      return
-    }
-    setGradientDirection(direction)
-    if (themeColor1 && themeColor2) {
-      applyCustomTheme(themeColor1, themeColor2, direction)
-      localStorage.setItem('site-gradient-direction', direction)
-      
-      // Сохраняем в API, если это профиль текущего пользователя
-      if (username && currentUser && currentUser.username === username) {
-        try {
-          await userAPI.updateProfileSettings({
-            theme_color_1: themeColor1,
-            theme_color_2: themeColor2,
-            gradient_direction: direction
-          })
-          console.log('Направление градиента сохранено в API:', direction)
-        } catch (err) {
-          console.error('Ошибка сохранения направления градиента:', err)
-        }
-      }
-      
-      window.dispatchEvent(new Event('siteThemeUpdated'))
-    }
-  }
-  
-  const handleResetTheme = async () => {
-    // Не позволяем сбрасывать градиент при активном премиум профиле
-    if (isPremiumProfile) {
-      return
-    }
-    setThemeColor1(null)
-    setThemeColor2(null)
-    setGradientDirection('diagonal-right')
-    localStorage.removeItem('site-theme-color-1')
-    localStorage.removeItem('site-theme-color-2')
-    localStorage.removeItem('site-gradient-direction')
-    document.documentElement.setAttribute('data-theme', 'dark')
-    // Сбрасываем только CSS переменные градиентов
-    document.documentElement.style.removeProperty('--theme-color')
-    document.documentElement.style.removeProperty('--theme-gradient')
-    document.documentElement.style.removeProperty('--theme-gradient-reverse')
-    
-    // Сохраняем в API, если это профиль текущего пользователя
-    if (username && currentUser && currentUser.username === username) {
-      try {
-        await userAPI.updateProfileSettings({
-          theme_color_1: null,
-          theme_color_2: null,
-          gradient_direction: 'diagonal-right'
-        })
-      } catch (err) {
-        console.error('Ошибка сброса градиента:', err)
-      }
-    }
-    
-    window.dispatchEvent(new Event('siteThemeUpdated'))
-  }
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -413,6 +234,95 @@ function UserProfilePage() {
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [showSettings])
+
+  // Вычисляем позицию панели настроек относительно иконки
+  useEffect(() => {
+    if (showSettings && settingsIconRef.current) {
+      const updatePosition = () => {
+        const iconRect = settingsIconRef.current.getBoundingClientRect()
+        setPanelPosition({
+          top: iconRect.bottom + 10,
+          right: window.innerWidth - iconRect.right
+        })
+      }
+      
+      updatePosition()
+      window.addEventListener('resize', updatePosition)
+      window.addEventListener('scroll', updatePosition, true)
+      
+      return () => {
+        window.removeEventListener('resize', updatePosition)
+        window.removeEventListener('scroll', updatePosition, true)
+      }
+    }
+  }, [showSettings])
+
+  // Отладка: проверяем применение стилей фона и доступность изображения
+  useEffect(() => {
+    if (backgroundImageUrl) {
+      console.log('🎨 Background image state updated:', {
+        url: backgroundImageUrl,
+        settings: backgroundSettings
+      })
+      
+      // Проверяем доступность изображения
+      const img = new Image()
+      img.onload = () => {
+        console.log('✅ Background image loaded successfully')
+      }
+      img.onerror = () => {
+        console.error('❌ Background image failed to load (404 or other error):', backgroundImageUrl)
+        console.warn('⚠️ Проверьте, что файл существует в S3 хранилище по указанному пути')
+      }
+      img.src = backgroundImageUrl
+      
+      // Проверяем элемент в DOM
+      setTimeout(() => {
+        const headerElement = document.querySelector('.profile-header')
+        if (headerElement) {
+          const headerStyle = getComputedStyle(headerElement)
+          // Проверяем псевдоэлемент ::before
+          const beforeStyle = getComputedStyle(headerElement, '::before')
+          
+          console.log('🔍 DOM element styles (.profile-header):', {
+            inlineStyle: {
+              bgImage: headerElement.style.getPropertyValue('--bg-image'),
+              bgSize: headerElement.style.getPropertyValue('--bg-size'),
+              bgPosition: headerElement.style.getPropertyValue('--bg-position')
+            },
+            computedStyle: {
+              backgroundImage: headerStyle.backgroundImage,
+              backgroundSize: headerStyle.backgroundSize,
+              backgroundPosition: headerStyle.backgroundPosition
+            },
+            beforePseudoElement: {
+              backgroundImage: beforeStyle.backgroundImage,
+              backgroundSize: beforeStyle.backgroundSize,
+              backgroundPosition: beforeStyle.backgroundPosition,
+              content: beforeStyle.content,
+              display: beforeStyle.display,
+              zIndex: beforeStyle.zIndex
+            },
+            cssVariables: {
+              bgImage: headerStyle.getPropertyValue('--bg-image'),
+              bgSize: headerStyle.getPropertyValue('--bg-size'),
+              bgPosition: headerStyle.getPropertyValue('--bg-position')
+            },
+            dataUrl: headerElement.querySelector('.profile-avatar-section')?.dataset.backgroundUrl
+          })
+          
+          // Проверяем, что фон применяется к псевдоэлементу
+          if (beforeStyle.backgroundImage === 'none' || !beforeStyle.backgroundImage.includes('url')) {
+            console.warn('⚠️ Псевдоэлемент ::before не имеет фонового изображения!')
+            console.warn('Проверьте, что CSS переменные применяются правильно')
+            console.warn('CSS переменная --bg-image:', headerStyle.getPropertyValue('--bg-image'))
+          } else {
+            console.log('✅ Фоновое изображение найдено в псевдоэлементе ::before:', beforeStyle.backgroundImage)
+          }
+        }
+      }, 200)
+    }
+  }, [backgroundImageUrl, backgroundSettings])
 
   // Ref для хранения ссылки на функцию применения цветов
   const restoreCurrentUserColorsRef = { current: null }
@@ -538,6 +448,12 @@ function UserProfilePage() {
             // Применяем цвет обводки аватарки к темам аниме карточек
             applyAvatarBorderColorToAnimeThemes(settings.avatar_border_color)
           }
+          // Загружаем настройки отображения фонового изображения
+          setBackgroundSettings({
+            scale: settings.background_scale || 100,
+            positionX: settings.background_position_x || 50,
+            positionY: settings.background_position_y || 50
+          })
         }
       } catch (err) {
         // Игнорируем ошибки, если настройки не найдены
@@ -546,63 +462,7 @@ function UserProfilePage() {
     }
   }
 
-  const loadPremiumProfile = async () => {
-    // Премиум статус теперь загружается через loadUserProfile из API
-    // Эта функция оставлена для обратной совместимости
-    if (username && user) {
-      // Дефолтное значение для пользователей с ID < 100
-      if (user.id < 100) {
-        setIsPremiumProfile(true)
-      }
-      
-      try {
-        const response = await userAPI.getUserProfileSettings(username)
-        if (response.message && response.message.is_premium_profile !== undefined) {
-          setIsPremiumProfile(response.message.is_premium_profile)
-        }
-      } catch (err) {
-        // Игнорируем ошибки, если настройки не найдены
-        console.error('Ошибка загрузки премиум статуса:', err)
-      }
-    }
-  }
-
-  const togglePremiumProfile = async () => {
-    const newPremiumState = !isPremiumProfile
-    setIsPremiumProfile(newPremiumState)
-    
-    if (username && currentUser && currentUser.username === username) {
-      try {
-        await userAPI.updateProfileSettings({
-          is_premium_profile: newPremiumState
-        })
-        
-        // Если премиум выключен, применяем сохраненную тему профиля
-        if (!newPremiumState && themeColor1 && themeColor2) {
-          applyCustomTheme(themeColor1, themeColor2, gradientDirection || 'diagonal-right')
-        } else if (!newPremiumState) {
-          // Если премиум выключен и тема не установлена, сбрасываем на дефолтную
-          document.documentElement.setAttribute('data-theme', 'dark')
-          document.documentElement.style.removeProperty('--theme-color')
-          document.documentElement.style.removeProperty('--theme-gradient')
-          document.documentElement.style.removeProperty('--theme-gradient-reverse')
-        }
-        
-        // Очищаем кэш профиля, чтобы при следующей загрузке использовались актуальные данные
-        const CACHE_KEY = `user_profile_${username}`
-        removeFromCache(CACHE_KEY)
-      } catch (err) {
-        console.error('Ошибка сохранения премиум профиля:', err)
-        // Откатываем изменение при ошибке
-        setIsPremiumProfile(!newPremiumState)
-      }
-    } else {
-      console.warn('Cannot save premium profile: username is not available or not owner')
-    }
-  }
-
   const saveUsernameColor = async (color) => {
-    // Разрешаем выбор любого цвета, включая 'premium' для золотого градиента
     setUsernameColor(color)
     
     if (username && currentUser && currentUser.username === username) {
@@ -766,9 +626,9 @@ function UserProfilePage() {
       setError(null)
       setAvatarError(false) // Сбрасываем ошибку аватарки при загрузке
       
-      // Проверяем кэш профиля пользователя (TTL: 5 минут)
+      // Проверяем кэш профиля пользователя (TTL: 1 час - синхронизировано с backend)
       const CACHE_KEY = `user_profile_${username}`
-      const CACHE_TTL = 300 // 5 минут
+      const CACHE_TTL = 3600 // 1 час (3600 секунд) - синхронизировано с backend
       
       // Если требуется принудительная перезагрузка, очищаем кэш
       if (forceReload) {
@@ -792,33 +652,12 @@ function UserProfilePage() {
       
       if (response.message) {
         // Загружаем настройки профиля из ответа API ПЕРЕД установкой user
-        let premiumStatus = false
         if (response.message.profile_settings) {
           const settings = response.message.profile_settings
           
-          // Определяем премиум статус ПЕРВЫМ
-          // Если явно установлен в настройках (включая false) - используем его
-          // Иначе: для владельцев с ID < 25 премиум включен автоматически
-          // Иначе: для пользователей с ID < 100 премиум по умолчанию
-          if (settings.is_premium_profile !== undefined && settings.is_premium_profile !== null) {
-            // Явно сохраненное значение имеет приоритет (даже если это false)
-            premiumStatus = settings.is_premium_profile
-          } else if (response.message.type_account === 'owner' && response.message.id < 25) {
-            premiumStatus = true // Для владельцев с ID < 25 премиум включен автоматически
-          } else {
-            premiumStatus = response.message.id < 100 // Для пользователей с ID < 100 премиум по умолчанию
-          }
-          
-          // Устанавливаем премиум статус сразу
-          setIsPremiumProfile(premiumStatus)
-          
-          // Загружаем цвета независимо от премиум статуса
-          // Если премиум включен и цвет не установлен, используем 'premium' по умолчанию
+          // Загружаем цвета
           if (settings.username_color) {
             setUsernameColor(settings.username_color)
-          } else if (premiumStatus) {
-            // Для премиум пользователей по умолчанию золотой градиент
-            setUsernameColor('premium')
           }
           if (settings.avatar_border_color) {
             setAvatarBorderColor(settings.avatar_border_color)
@@ -828,44 +667,37 @@ function UserProfilePage() {
             applyAvatarBorderColorToAnimeThemes(settings.avatar_border_color)
           }
           
-          // Применяем тему профиля ТОЛЬКО если премиум выключен
-          if (!premiumStatus && settings.theme_color_1 && settings.theme_color_2) {
-            setThemeColor1(settings.theme_color_1)
-            setThemeColor2(settings.theme_color_2)
-            if (settings.gradient_direction) {
-              setGradientDirection(settings.gradient_direction)
-            }
-            // Применяем тему сразу, пока не установили user
-            applyCustomTheme(
-              settings.theme_color_1,
-              settings.theme_color_2,
-              settings.gradient_direction || 'diagonal-right'
-            )
-          } else if (settings.theme_color_1 && settings.theme_color_2) {
-            // Сохраняем настройки темы, но не применяем если премиум активен
-            setThemeColor1(settings.theme_color_1)
-            setThemeColor2(settings.theme_color_2)
-            if (settings.gradient_direction) {
-              setGradientDirection(settings.gradient_direction)
-            }
-          }
-        } else {
-          // Если настроек нет, используем дефолтные значения
-          // Для владельцев с ID < 25 премиум включен автоматически
-          if (response.message.type_account === 'owner' && response.message.id < 25) {
-            premiumStatus = true
-          } else {
-            premiumStatus = response.message.id < 100
-          }
-          setIsPremiumProfile(premiumStatus)
-          // Если премиум включен, устанавливаем золотой градиент по умолчанию
-          if (premiumStatus) {
-            setUsernameColor('premium')
-          }
+          // Загружаем настройки отображения фонового изображения
+          setBackgroundSettings({
+            scale: settings.background_scale !== undefined && settings.background_scale !== null 
+              ? settings.background_scale 
+              : 100,
+            positionX: settings.background_position_x !== undefined && settings.background_position_x !== null 
+              ? settings.background_position_x 
+              : 50,
+            positionY: settings.background_position_y !== undefined && settings.background_position_y !== null 
+              ? settings.background_position_y 
+              : 50
+          })
         }
         
         // Устанавливаем user ПОСЛЕ применения всех настроек
         setUser(response.message)
+        
+        // Загружаем URL фонового изображения из user
+        console.log('🖼️ Background Image URL from API:', response.message.background_image_url)
+        if (response.message.background_image_url) {
+          setBackgroundImageUrl(response.message.background_image_url)
+          console.log('✅ Background image URL установлен:', response.message.background_image_url)
+          console.log('📐 Background settings:', {
+            scale: backgroundSettings.scale,
+            positionX: backgroundSettings.positionX,
+            positionY: backgroundSettings.positionY
+          })
+        } else {
+          setBackgroundImageUrl(null)
+          console.log('❌ Background image URL не найден')
+        }
       }
     } catch (err) {
       setError(err.response?.data?.detail || 'Пользователь не найден')
@@ -977,10 +809,26 @@ function UserProfilePage() {
 
   if (error || !user) {
     return (
-      <div className="user-profile-page">
-        <div className="container">
-          <div className="error-message">{error || 'Пользователь не найден'}</div>
+      <div className="anime-merch-page">
+        <div className="anime-merch-container">
+          <img 
+            src="/anime-merch.png" 
+            alt="Пользователь не найден" 
+            className="anime-merch-image"
+          />
+          <h2 className="anime-merch-404">404 - Not Found</h2>
+          <p className="anime-merch-message">Пользователь не найден</p>
+          <button 
+            className="anime-merch-button"
+            onClick={() => setIsQRModalOpen(true)}
+          >
+            Ускорить разработку
+          </button>
         </div>
+        <QRModal 
+          isOpen={isQRModalOpen} 
+          onClose={() => setIsQRModalOpen(false)} 
+        />
       </div>
     )
   }
@@ -1005,15 +853,26 @@ function UserProfilePage() {
     <div className="user-profile-page">
       <div className="container">
         <div 
-          className={`profile-header ${isPremiumProfile ? 'premium-header' : ''}`}
-          style={isPremiumProfile ? undefined : {
+          className="profile-header"
+          style={{
             borderColor: avatarBorderColor,
-            boxShadow: `0 8px 48px ${hexToRgba(avatarBorderColor, 0.4)}, 0 0 0 1px ${avatarBorderColor}`
+            boxShadow: `0 8px 48px ${hexToRgba(avatarBorderColor, 0.4)}, 0 0 0 1px ${avatarBorderColor}`,
+            ...(backgroundImageUrl ? {
+              '--bg-image': `url("${backgroundImageUrl}")`,
+              '--bg-size': `${backgroundSettings.scale}%`,
+              '--bg-position': `${backgroundSettings.positionX}% ${backgroundSettings.positionY}%`
+            } : {
+              '--bg-image': 'none'
+            })
           }}
         >
           {isOwner && (
             <>
-              <div className="profile-settings-icon" onClick={() => setShowSettings(!showSettings)}>
+              <div 
+                ref={settingsIconRef}
+                className="profile-settings-icon" 
+                onClick={() => setShowSettings(!showSettings)}
+              >
                 <svg 
                   width="24" 
                   height="24" 
@@ -1028,188 +887,23 @@ function UserProfilePage() {
                   <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                 </svg>
               </div>
-
-              {showSettings && (
-            <div className="profile-settings-panel">
-              <div className="settings-panel-header">
-                <h3>Настройки профиля</h3>
-                <button className="settings-close-btn" onClick={() => setShowSettings(false)}>×</button>
-              </div>
-              <div className="settings-panel-content">
-                <div className="color-picker-group">
-                  <label>Цвет никнейма:</label>
-                  <div className="color-buttons-grid">
-                    {(isPremiumProfile || (user && (user.type_account === 'owner' || user.type_account === 'admin'))) && (
-                      <button
-                        key="premium"
-                        className={`color-button ${usernameColor === 'premium' ? 'active' : ''}`}
-                        style={{ 
-                          background: 'linear-gradient(135deg, #ffc800 0%, #fff200 25%, #ffd700 50%, #fff200 75%, #ffc800 100%)'
-                        }}
-                        onClick={() => saveUsernameColor('premium')}
-                        title="Золотой градиент"
-                        aria-label="Золотой градиент"
-                      >
-                        {usernameColor === 'premium' && (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                            <polyline points="20 6 9 17 4 12"></polyline>
-                          </svg>
-                        )}
-                      </button>
-                    )}
-                    {AVAILABLE_COLORS.map((color) => (
-                      <button
-                        key={color.value}
-                        className={`color-button ${usernameColor === color.value ? 'active' : ''}`}
-                        style={{ backgroundColor: color.value }}
-                        onClick={() => saveUsernameColor(color.value)}
-                        title={color.name}
-                        aria-label={color.name}
-                      >
-                        {usernameColor === color.value && (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                            <polyline points="20 6 9 17 4 12"></polyline>
-                          </svg>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="color-picker-group">
-                  <label>Цвет обводки аватарки:</label>
-                  <div className="color-buttons-grid">
-                    {AVAILABLE_COLORS.map((color) => (
-                      <button
-                        key={color.value}
-                        className={`color-button ${avatarBorderColor === color.value ? 'active' : ''}`}
-                        style={{ backgroundColor: color.value }}
-                        onClick={() => saveAvatarBorderColor(color.value)}
-                        title={color.name}
-                        aria-label={color.name}
-                      >
-                        {avatarBorderColor === color.value && (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                            <polyline points="20 6 9 17 4 12"></polyline>
-                          </svg>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="theme-color-group">
-                  <label>Градиент темы сайта:</label>
-                  <div className="theme-color-buttons">
-                    <button
-                      className={`theme-color-reset-btn ${themeColor1 === null ? 'active' : ''}`}
-                      onClick={handleResetTheme}
-                      title="Темная тема по умолчанию"
-                      disabled={isPremiumProfile}
-                    >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                      </svg>
-                      <span>По умолчанию</span>
-                    </button>
-                  </div>
-                  <div className="theme-color-picker">
-                    <label className="theme-color-label">Цвет 1:</label>
-                    <div className="color-buttons-grid color-buttons-scrollable">
-                      {AVAILABLE_COLORS.map((color) => (
-                        <button
-                          key={`color1-${color.value}`}
-                          className={`color-button theme-color-button ${themeColor1 === color.value ? 'active' : ''}`}
-                          style={{ backgroundColor: color.value }}
-                          onClick={() => handleThemeColor1Change(color.value)}
-                          title={color.name}
-                          aria-label={color.name}
-                          disabled={isPremiumProfile}
-                        >
-                          {themeColor1 === color.value && (
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                              <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="theme-color-picker">
-                    <label className="theme-color-label">Цвет 2:</label>
-                    <div className="color-buttons-grid color-buttons-scrollable">
-                      {AVAILABLE_COLORS.map((color) => (
-                        <button
-                          key={`color2-${color.value}`}
-                          className={`color-button theme-color-button ${themeColor2 === color.value ? 'active' : ''}`}
-                          style={{ backgroundColor: color.value }}
-                          onClick={() => handleThemeColor2Change(color.value)}
-                          title={color.name}
-                          aria-label={color.name}
-                          disabled={isPremiumProfile}
-                        >
-                          {themeColor2 === color.value && (
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                              <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="gradient-direction-group">
-                    <label className="gradient-direction-label">Направление градиента:</label>
-                    <div className="gradient-direction-buttons">
-                      {GRADIENT_DIRECTIONS.map((dir) => (
-                        <button
-                          key={dir.value}
-                          className={`gradient-direction-btn ${gradientDirection === dir.value ? 'active' : ''}`}
-                          onClick={() => handleGradientDirectionChange(dir.value)}
-                          title={dir.title}
-                          aria-label={dir.title}
-                          disabled={isPremiumProfile}
-                        >
-                          {dir.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {isPremiumProfile && (
-                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
-                      Недоступно при активном премиум профиле
-                    </p>
-                  )}
-                </div>
-                <div className="premium-profile-group">
-                  <label>Премиум оформление:</label>
-                  <button
-                    className={`premium-profile-toggle ${isPremiumProfile ? 'active' : ''}`}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      togglePremiumProfile()
-                    }}
-                    type="button"
-                  >
-                    <span className="premium-toggle-label">
-                      {isPremiumProfile ? '✓ Премиум профиль активен' : 'Премиум профиль'}
-                    </span>
-                    {isPremiumProfile && (
-                      <CrownIcon size={20} />
-                    )}
-                  </button>
-                  <p className="premium-profile-description">
-                    {user && user.id < 25 
-                      ? 'Вы один из первых 25 пользователей - можете включать/отключать премиум оформление'
-                      : 'Включает золотой градиент для имени пользователя и карточек аниме'
-                    }
-                  </p>
-                </div>
-              </div>
-            </div>
-              )}
             </>
           )}
 
-          <div className="profile-avatar-section">
+          <div 
+            className="profile-avatar-section"
+            style={{
+              backgroundImage: backgroundImageUrl ? `url("${backgroundImageUrl}")` : 'none',
+              backgroundSize: `${backgroundSettings.scale}%`,
+              backgroundPosition: `${backgroundSettings.positionX}% ${backgroundSettings.positionY}%`,
+              backgroundRepeat: 'no-repeat',
+              backgroundAttachment: 'local',
+              '--avatar-border-color': avatarBorderColor,
+              '--avatar-glow-color': hexToRgba(avatarBorderColor, 0.4)
+            }}
+            data-background-url={backgroundImageUrl}
+            data-background-scale={backgroundSettings.scale}
+          >
             {(() => {
               const avatarUrl = normalizeAvatarUrl(user.avatar_url)
               
@@ -1218,10 +912,9 @@ function UserProfilePage() {
                   <img 
                     src={avatarUrl} 
                     alt={user.username}
-                    className={`profile-avatar ${isPremiumProfile ? 'premium-avatar' : ''}`}
-                    style={isPremiumProfile ? undefined : { 
-                      borderColor: avatarBorderColor,
-                      boxShadow: `0 8px 24px ${hexToRgba(avatarBorderColor, 0.3)}`
+                    className="profile-avatar"
+                    style={{ 
+                      borderColor: avatarBorderColor
                     }}
                     onError={(e) => {
                       // Останавливаем повторные попытки загрузки
@@ -1236,19 +929,20 @@ function UserProfilePage() {
               } else {
                 return (
                   <div 
-                    className={`profile-avatar profile-avatar-fallback ${isPremiumProfile ? 'premium-avatar' : ''}`}
-                    style={isPremiumProfile ? {
+                    className="profile-avatar profile-avatar-fallback"
+                    style={{
+                      width: '150px',
+                      height: '150px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      backgroundColor: '#000000'
-                    } : {
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: '#000000',
+                      backgroundColor: 'transparent',
                       borderColor: avatarBorderColor,
-                      boxShadow: `0 8px 24px ${hexToRgba(avatarBorderColor, 0.3)}`
+                      border: `3px solid ${avatarBorderColor}`,
+                      borderRadius: '50%',
+                      position: 'relative',
+                      zIndex: 2,
+                      boxShadow: `0 8px 48px ${hexToRgba(avatarBorderColor, 0.4)}`
                     }}
                   >
                     <span style={{ fontSize: '5rem', lineHeight: '1' }}>🐱</span>
@@ -1260,24 +954,21 @@ function UserProfilePage() {
           <div className="profile-info-section">
             <h1 
               className={`profile-username ${
-                usernameColor === 'premium' 
-                  ? 'premium-user' 
-                  : (user && (user.type_account === 'owner' || user.type_account === 'admin' || user.type_account === 'premium'))
-                    ? 'premium-shine'
-                    : ''
+                (user && (user.type_account === 'owner' || user.type_account === 'admin'))
+                  ? 'premium-shine'
+                  : ''
               }`}
-              style={usernameColor === 'premium' ? undefined : { 
+              style={{ 
                 color: usernameColor
               }}
-              data-premium={usernameColor === 'premium'}
               data-text={
-                usernameColor === 'premium' || (user && (user.type_account === 'owner' || user.type_account === 'admin' || user.type_account === 'premium'))
+                (user && (user.type_account === 'owner' || user.type_account === 'admin'))
                   ? user.username 
                   : ''
               }
             >
               {user.username}
-              {user.id < 25 && (
+              {(user?.premium_status?.is_premium || user?.profile_settings?.is_premium_profile || user.type_account === 'admin' || user.type_account === 'owner') && (
                 <span className="crown-icon">
                   <CrownIcon size={28} />
                 </span>
@@ -1314,20 +1005,18 @@ function UserProfilePage() {
                     id: 'role',
                     element: (
                       <span key="role" className={`profile-role role-${user.type_account}`}>
-                        {user.type_account === 'base' ? 'Базовый' : 
-                         user.type_account === 'premium' ? 'Премиум' : 
-                         user.type_account}
+                        {user.type_account === 'base' ? 'Базовый' : user.type_account}
                       </span>
                     )
                   })
                 }
                 
-                if (user.id < 25) {
+                if (user.id <= 5) {
                   allBadges.push({
                     id: 'premium',
                     element: (
                       <span key="premium" className="profile-role profile-premium-badge">
-                        Один из 25
+                        Один из 5
                       </span>
                     )
                   })
@@ -1463,39 +1152,99 @@ function UserProfilePage() {
           </div>
         </div>
 
-        <div className={`profile-stats ${isPremiumProfile ? 'premium-stats' : ''}`}>
+        {/* Панель настроек вне profile-header, чтобы не обрезалась overflow: hidden */}
+        {isOwner && showSettings && (
+          <div 
+            className="profile-settings-panel"
+            style={{
+              top: `${panelPosition.top}px`,
+              right: `${panelPosition.right}px`
+            }}
+          >
+            <div className="settings-panel-header">
+              <h3>Настройки профиля</h3>
+              <button className="settings-close-btn" onClick={() => setShowSettings(false)}>×</button>
+            </div>
+            <div className="settings-panel-content">
+              <div className="color-picker-group">
+                <label>Цвет никнейма:</label>
+                <div className="color-buttons-grid">
+                  {AVAILABLE_COLORS.map((color) => (
+                    <button
+                      key={color.value}
+                      className={`color-button ${usernameColor === color.value ? 'active' : ''}`}
+                      style={{ backgroundColor: color.value }}
+                      onClick={() => saveUsernameColor(color.value)}
+                      title={color.name}
+                      aria-label={color.name}
+                    >
+                      {usernameColor === color.value && (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="color-picker-group">
+                <label>Цвет обводки аватарки:</label>
+                <div className="color-buttons-grid">
+                  {AVAILABLE_COLORS.map((color) => (
+                    <button
+                      key={color.value}
+                      className={`color-button ${avatarBorderColor === color.value ? 'active' : ''}`}
+                      style={{ backgroundColor: color.value }}
+                      onClick={() => saveAvatarBorderColor(color.value)}
+                      title={color.name}
+                      aria-label={color.name}
+                    >
+                      {avatarBorderColor === color.value && (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="profile-stats">
           <Link 
             to={`/profile/${username}/favorites`}
             className="stat-card" 
-            style={isPremiumProfile ? undefined : { 
+            style={{ 
               '--stat-color': avatarBorderColor,
               '--stat-color-shadow': hexToRgba(avatarBorderColor, 0.3),
               cursor: 'pointer',
               textDecoration: 'none'
             }}
           >
-            <div className="stat-value" style={isPremiumProfile ? undefined : { color: avatarBorderColor }}>{stats.favorites_count}</div>
-            <div className={`stat-label ${isPremiumProfile ? 'premium-label' : ''}`}>Избранное</div>
+            <div className="stat-value" style={{ color: avatarBorderColor }}>{stats.favorites_count}</div>
+            <div className="stat-label">Избранное</div>
           </Link>
           <div 
             className="stat-card" 
-            style={isPremiumProfile ? undefined : { 
+            style={{ 
               '--stat-color': avatarBorderColor,
               '--stat-color-shadow': hexToRgba(avatarBorderColor, 0.3)
             }}
           >
-            <div className="stat-value" style={isPremiumProfile ? undefined : { color: avatarBorderColor }}>{stats.ratings_count}</div>
-            <div className={`stat-label ${isPremiumProfile ? 'premium-label' : ''}`}>Оценок</div>
+            <div className="stat-value" style={{ color: avatarBorderColor }}>{stats.ratings_count}</div>
+            <div className="stat-label">Оценок</div>
           </div>
           <div 
             className="stat-card" 
-            style={isPremiumProfile ? undefined : { 
+            style={{ 
               '--stat-color': avatarBorderColor,
               '--stat-color-shadow': hexToRgba(avatarBorderColor, 0.3)
             }}
           >
-            <div className="stat-value" style={isPremiumProfile ? undefined : { color: avatarBorderColor }}>{stats.comments_count}</div>
-            <div className={`stat-label ${isPremiumProfile ? 'premium-label' : ''}`}>Комментариев</div>
+            <div className="stat-value" style={{ color: avatarBorderColor }}>{stats.comments_count}</div>
+            <div className="stat-label">Комментариев</div>
           </div>
         </div>
 
@@ -1517,7 +1266,7 @@ function UserProfilePage() {
             showControls={favoritesAnime.length > itemsPerPage}
             showIndicators={favoritesAnime.length > itemsPerPage}
             emptyMessage="Нет избранных аниме"
-            className={user && isPremiumProfile ? 'premium-anime-grid' : ''}
+            className=""
             sortCriteria="Аниме, добавленные вами в избранное."
           />
         ) : (

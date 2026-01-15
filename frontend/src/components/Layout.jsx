@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { userAPI, animeAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
@@ -31,6 +31,7 @@ function Layout({ children }) {
   const [avatarError, setAvatarError] = useState(false)
   const [showUserDropdown, setShowUserDropdown] = useState(false)
   const [avatarBorderColor, setAvatarBorderColor] = useState('#ff0000')
+  const [premiumStatus, setPremiumStatus] = useState(null)
   const [showSearch, setShowSearch] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
@@ -40,6 +41,7 @@ function Layout({ children }) {
   const searchLinkRef = useRef(null)
   const searchResultsRef = useRef(null)
   const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
     const handleScroll = () => {
@@ -47,6 +49,26 @@ function Layout({ children }) {
     }
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  // Слушаем событие для открытия модального окна входа/регистрации
+  useEffect(() => {
+    const handleOpenAuthModal = (event) => {
+      const { type } = event.detail || {}
+      if (type === 'login') {
+        setShowLoginModal(true)
+      } else if (type === 'register') {
+        setShowRegisterModal(true)
+      } else {
+        // По умолчанию показываем окно регистрации
+        setShowRegisterModal(true)
+      }
+    }
+
+    window.addEventListener('openAuthModal', handleOpenAuthModal)
+    return () => {
+      window.removeEventListener('openAuthModal', handleOpenAuthModal)
+    }
   }, [])
 
   // Таймер для модального окна подтверждения email
@@ -85,8 +107,20 @@ function Layout({ children }) {
           type_account: response.message.type_account
         }
         setUser(userData)
+        
+        // Загружаем премиум статус
+        try {
+          const premiumResponse = await userAPI.getPremiumStatus()
+          if (premiumResponse && premiumResponse.message) {
+            setPremiumStatus(premiumResponse.message)
+          }
+        } catch (premiumErr) {
+          // Игнорируем ошибки загрузки премиум статуса
+          setPremiumStatus(null)
+        }
       } else {
         setUser(null)
+        setPremiumStatus(null)
       }
     } catch (err) {
       // Пользователь не авторизован или заблокирован
@@ -95,6 +129,7 @@ function Layout({ children }) {
         alert('Ваш аккаунт заблокирован. Доступ к некоторым функциям ограничен.')
       }
       setUser(null)
+      setPremiumStatus(null)
     } finally {
       setLoadingUser(false)
     }
@@ -333,28 +368,6 @@ function Layout({ children }) {
     searchRetryAttemptedRef.current = false
   }
 
-  const handleLogout = async () => {
-    try {
-      await userAPI.logout()
-      setUser(null)
-      setShowUserDropdown(false)
-      // Очищаем сохраненный цвет из localStorage при выходе
-      localStorage.removeItem('user-avatar-border-color')
-      // Сбрасываем цвет на значение по умолчанию
-      setAvatarBorderColor('#ff0000')
-      document.documentElement.style.setProperty('--user-accent-color', '#ff0000')
-    } catch (err) {
-      console.error('Ошибка при выходе:', err)
-      // Все равно очищаем состояние пользователя
-      setUser(null)
-      setShowUserDropdown(false)
-      // Очищаем сохраненный цвет из localStorage при выходе
-      localStorage.removeItem('user-avatar-border-color')
-      // Сбрасываем цвет на значение по умолчанию
-      setAvatarBorderColor('#ff0000')
-      document.documentElement.style.setProperty('--user-accent-color', '#ff0000')
-    }
-  }
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -374,6 +387,8 @@ function Layout({ children }) {
       await new Promise(resolve => setTimeout(resolve, 500))
       // Обновляем состояние пользователя после успешного входа
       await checkAuth()
+      // Отправляем событие успешного входа
+      window.dispatchEvent(new CustomEvent('authSuccess'))
       setLoginLoading(false)
     } catch (err) {
       setLoginError(err.response?.data?.detail || 'Ошибка при входе')
@@ -426,8 +441,9 @@ function Layout({ children }) {
               <h1>Yumivo</h1>
             </Link>
             <nav className="nav">
-              <Link to="/" className="nav-link">Главная</Link>
-              <Link to="/my" className="nav-link">Моё</Link>
+              <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`}>Главная</Link>
+              <Link to="/my" className={`nav-link ${location.pathname === '/my' ? 'active' : ''}`}>Моё</Link>
+              <Link to="/anime-merch" className={`nav-link ${location.pathname === '/anime-merch' ? 'active' : ''}`}>Аниме-товары</Link>
               <div className="search-container">
                 <button 
                   ref={searchLinkRef}
@@ -519,14 +535,14 @@ function Layout({ children }) {
               <div className="user-menu-container">
                 <Link 
                   to={`/profile/${user.username}`}
-                  className={`user-username ${user.id < 100 ? 'premium-user' : ''}`}
+                  className={`user-username ${(premiumStatus?.is_premium || user.type_account === 'admin' || user.type_account === 'owner') ? 'premium-user' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation()
                     setShowUserDropdown(false)
                   }}
                 >
                   {user.username}
-                  {user.id < 100 && (
+                  {(premiumStatus?.is_premium || user.type_account === 'admin' || user.type_account === 'owner') && (
                     <span className="crown-icon-small">
                       <CrownIcon size={14} />
                     </span>
@@ -680,7 +696,7 @@ function Layout({ children }) {
                         className="dropdown-item"
                         onClick={() => {
                           setShowUserDropdown(false)
-                          window.open('https://t.me/Yumivo_ru', '_blank', 'noopener,noreferrer')
+                          window.location.href = 'mailto:danil29070@gmail.com'
                         }}
                       >
                         <svg 
@@ -699,17 +715,6 @@ function Layout({ children }) {
                           <path d="M12 18h4"></path>
                         </svg>
                         <span>Поддержка</span>
-                      </button>
-                      <button 
-                        className="dropdown-item logout-item" 
-                        onClick={handleLogout}
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                          <polyline points="16 17 21 12 16 7"></polyline>
-                          <line x1="21" y1="12" x2="9" y2="12"></line>
-                        </svg>
-                        <span>Выйти</span>
                       </button>
                     </div>
                   </div>

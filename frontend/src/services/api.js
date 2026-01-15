@@ -294,6 +294,34 @@ export const userAPI = {
     return response.data
   },
 
+  // Загрузить фоновое изображение под аватаркой
+  uploadBackgroundImage: async (file, settings = {}) => {
+    const formData = new FormData()
+    formData.append('photo', file)
+    
+    // Добавляем параметры отображения в query string
+    const params = new URLSearchParams()
+    if (settings.scale !== undefined) params.append('scale', settings.scale)
+    if (settings.positionX !== undefined) params.append('position_x', settings.positionX)
+    if (settings.positionY !== undefined) params.append('position_y', settings.positionY)
+    
+    const queryString = params.toString()
+    const url = queryString ? `/user/background-image?${queryString}` : '/user/background-image'
+    
+    const response = await api.patch(url, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  },
+
+  // Удалить фоновое изображение
+  deleteBackgroundImage: async () => {
+    const response = await api.delete('/user/background-image')
+    return response.data
+  },
+
   // Получить пользователей с наибольшим количеством избранного
   getMostFavoritedUsers: async (limit = 6, offset = 0) => {
     const response = await api.get('/user/most-favorited', {
@@ -319,6 +347,21 @@ export const userAPI = {
     const response = await api.patch('/user/profile-settings', settings)
     return response.data
   },
+
+  // Активировать премиум подписку
+  activatePremium: async (days) => {
+    const response = await api.post('/user/premium/activate', {
+      days: days,
+    })
+    return response.data
+  },
+
+  // Получить статус премиум подписки
+  getPremiumStatus: async () => {
+    const response = await api.get('/user/premium/status')
+    return response.data
+  },
+
 }
 
 export const adminAPI = {
@@ -346,6 +389,22 @@ export const adminAPI = {
     return response.data
   },
 
+  // Назначить пользователя админом (только для владельца)
+  makeAdmin: async (userId) => {
+    const response = await api.patch('/admin/make-admin', null, {
+      params: { user_id: userId },
+    })
+    return response.data
+  },
+
+  // Снять права администратора у пользователя (только для владельца)
+  removeAdmin: async (userId) => {
+    const response = await api.patch('/admin/remove-admin', null, {
+      params: { user_id: userId },
+    })
+    return response.data
+  },
+
   // Удалить тестовые данные
   deleteTestData: async () => {
     const response = await api.delete('/admin/delete-test-data')
@@ -355,6 +414,14 @@ export const adminAPI = {
   // Очистить кэш Redis
   clearCache: async () => {
     const response = await api.delete('/admin/clear-cache')
+    return response.data
+  },
+
+  // Удалить комментарий (для админов/владельцев или владельца комментария)
+  deleteComment: async (commentId) => {
+    const response = await api.delete('/admin/delete-user-comment', {
+      params: { comment_id: commentId },
+    })
     return response.data
   },
 }

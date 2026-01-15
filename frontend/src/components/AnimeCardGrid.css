@@ -245,6 +245,11 @@
   margin-bottom: 1.5rem;
   padding-top: 8px;
   margin-top: -8px;
+  /* Убеждаемся, что wrapper правильно обрезает горизонтальное содержимое */
+  width: 100%;
+  /* Создаем новый контекст наложения для правильного обрезания */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 .anime-card-grid-container {
@@ -255,6 +260,9 @@
   will-change: transform;
   transform: translateZ(0);
   backface-visibility: hidden;
+  position: relative;
+  /* Убеждаемся, что контейнер занимает нужную ширину */
+  flex-wrap: nowrap;
   /* Убрали perspective для улучшения производительности */
 }
 
@@ -262,13 +270,18 @@
   display: flex;
   gap: 1.25rem;
   flex: 0 0 100%;
-  min-width: 0;
+  min-width: 100%;
+  max-width: 100%;
   overflow: visible;
   transform: translateZ(0);
   /* Убрали will-change со страниц - он только на контейнере */
   box-sizing: border-box;
   align-items: stretch;
   padding: 0 0.625rem;
+  position: relative;
+  /* Убеждаемся, что страницы занимают всю ширину и не сжимаются */
+  width: 100%;
+  flex-shrink: 0;
 }
 
 .anime-card-grid-item {
@@ -633,21 +646,52 @@
 }
 
 /* Медиа-запросы для адаптивности */
-@media (max-width: 1400px) {
+
+/* Большие мониторы (1400px+) */
+@media (min-width: 1401px) {
   .anime-card-grid-item {
-    flex: 0 0 calc(20% - 1.25rem);
+    flex: 0 0 calc(16.666% - 1.25rem); /* 6 колонок */
   }
 }
 
-@media (max-width: 1200px) {
+/* Средние мониторы (1201px - 1400px) */
+@media (min-width: 1201px) and (max-width: 1400px) {
   .anime-card-grid-item {
-    flex: 0 0 calc(25% - 1.25rem);
+    flex: 0 0 calc(20% - 1.25rem); /* 5 колонок */
   }
 }
 
-@media (max-width: 900px) {
+/* Небольшие ноутбуки (1025px - 1200px) */
+@media (min-width: 1025px) and (max-width: 1200px) {
   .anime-card-grid-item {
-    flex: 0 0 calc(33.333% - 1.25rem);
+    flex: 0 0 calc(25% - 1.25rem); /* 4 колонки */
+  }
+}
+
+/* Планшеты в горизонтальной ориентации (901px - 1024px) */
+@media (min-width: 901px) and (max-width: 1024px) {
+  .anime-card-grid-item {
+    flex: 0 0 calc(25% - 1.25rem); /* 4 колонки */
+  }
+
+  .section-title {
+    font-size: 2rem;
+  }
+}
+
+/* Планшеты (769px - 900px) */
+@media (min-width: 769px) and (max-width: 900px) {
+  .anime-card-grid-wrapper {
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+
+  .anime-card-grid-container {
+    overflow: visible;
+  }
+
+  .anime-card-grid-item {
+    flex: 0 0 calc(33.333% - 1.25rem); /* 3 колонки */
   }
   
   .section-header {
@@ -667,20 +711,245 @@
     padding-right: 1rem;
     flex-shrink: 0;
   }
+
+  .section-title {
+    font-size: 1.9rem;
+  }
 }
 
-@media (max-width: 600px) {
-  .anime-card-grid-item {
-    flex: 0 0 calc(50% - 1.25rem);
+/* Мобильные устройства в горизонтальной ориентации (601px - 768px) */
+@media (min-width: 601px) and (max-width: 768px) {
+  .anime-card-grid-wrapper {
+    overflow-x: hidden;
+    overflow-y: visible;
   }
-  
+
+  .anime-card-grid-container {
+    overflow: visible;
+  }
+
+  .anime-card-grid-item {
+    flex: 0 0 calc(33.333% - 1rem); /* 3 колонки */
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
   .section-title {
     font-size: 1.75rem;
   }
-  
+
   .section-title::before {
     width: 50px;
     height: 3px;
+  }
+
+  .carousel-controls {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
+    justify-content: flex-end;
+    padding-right: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .carousel-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .carousel-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* Мобильные устройства (481px - 600px) */
+@media (min-width: 481px) and (max-width: 600px) {
+  .anime-card-grid-wrapper {
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+
+  .anime-card-grid-container {
+    overflow: visible;
+  }
+
+  .anime-card-grid-item {
+    flex: 0 0 calc(50% - 1rem); /* 2 колонки */
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+  }
+
+  .section-title::before {
+    width: 40px;
+    height: 3px;
+  }
+
+  .carousel-controls {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
+    justify-content: flex-end;
+    padding-right: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .carousel-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .carousel-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .anime-card-grid-item .anime-card-title {
+    font-size: 0.85rem;
+    min-height: 2.4rem;
+    max-height: 3rem;
+  }
+}
+
+/* Маленькие мобильные устройства (до 480px) */
+@media (max-width: 480px) {
+  .anime-card-grid-wrapper {
+    overflow-x: hidden;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .anime-card-grid-container {
+    overflow: visible;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+  }
+
+  .anime-card-grid-page {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+  }
+
+  .anime-card-grid-card {
+    /* Сбрасываем z-index на мобильных для предотвращения наложения */
+    z-index: auto;
+  }
+
+  .anime-card-grid-card:hover:not(.placeholder-card) {
+    /* На мобильных устройствах hover может вызывать проблемы */
+    z-index: auto;
+  }
+
+  .anime-card-grid-section {
+    padding: 1rem 0;
+  }
+
+  .anime-card-grid-item {
+    flex: 0 0 calc(50% - 0.75rem); /* 2 колонки */
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+  }
+
+  .section-title::before {
+    width: 40px;
+    height: 3px;
+  }
+
+  .carousel-controls {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
+    justify-content: flex-end;
+    padding-right: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .carousel-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .carousel-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .anime-card-grid-item .anime-card-title {
+    font-size: 0.85rem;
+    padding: 0.625rem 0 0 0;
+    min-height: 2.4rem;
+    max-height: 3rem;
+  }
+
+  .anime-card-grid-card .anime-card-score {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.4rem;
+    top: 6px;
+    right: 6px;
+  }
+
+  .anime-card-grid-card .anime-card-score span {
+    font-size: 0.7rem;
+  }
+
+  .anime-card-grid-card .anime-card-score .star-icon {
+    font-size: 0.85rem;
+  }
+}
+
+/* Очень маленькие экраны (до 360px) */
+@media (max-width: 360px) {
+  .anime-card-grid-wrapper {
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+
+  .anime-card-grid-container {
+    overflow: visible;
+  }
+
+  .anime-card-grid-item {
+    flex: 0 0 calc(50% - 0.5rem);
+  }
+
+  .section-title {
+    font-size: 1.25rem;
+  }
+
+  .anime-card-grid-item .anime-card-title {
+    font-size: 0.8rem;
+    min-height: 2.2rem;
+    max-height: 2.8rem;
   }
 }
 

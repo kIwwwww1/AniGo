@@ -51,6 +51,50 @@ async def admin_unblock_user(user_id: int, session: AsyncSession):
     return 'Пользователь разблокирован'
 
 
+async def admin_make_admin(user_id: int, session: AsyncSession):
+    '''Назначить пользователя админом (только для владельца)'''
+    user_to_promote = await get_user_by_id(user_id, session)
+    
+    # Нельзя сделать админом владельца
+    if user_to_promote.type_account == 'owner':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Нельзя изменить роль владельца'
+        )
+    
+    # Если уже админ, ничего не делаем
+    if user_to_promote.type_account == 'admin':
+        return 'Пользователь уже является администратором'
+    
+    # Назначаем админом
+    user_to_promote.type_account = 'admin'
+    await session.commit()
+    await session.refresh(user_to_promote)
+    return 'Пользователь назначен администратором'
+
+
+async def admin_remove_admin(user_id: int, session: AsyncSession):
+    '''Снять права администратора у пользователя (только для владельца)'''
+    user_to_demote = await get_user_by_id(user_id, session)
+    
+    # Нельзя снять права у владельца
+    if user_to_demote.type_account == 'owner':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Нельзя изменить роль владельца'
+        )
+    
+    # Если не админ, ничего не делаем
+    if user_to_demote.type_account != 'admin':
+        return 'Пользователь не является администратором'
+    
+    # Снимаем права админа
+    user_to_demote.type_account = 'base'
+    await session.commit()
+    await session.refresh(user_to_demote)
+    return 'Права администратора сняты'
+
+
 # Данные для генерации тестовых пользователей
 FIRST_WORDS = [
     "cool", "awesome", "epic", "legendary", "mystic", "shadow", "dark", "bright",
@@ -230,11 +274,9 @@ async def admin_create_test_users(count: int, session: AsyncSession) -> dict:
         # Все тестовые пользователи создаются с типом 'base' (обычный)
         type_account = 'base'
         
-        # Случайный статус блокировки
-        is_blocked = random.choices([False, True], weights=[90, 10])[0]
-        
-        # Случайная верификация email
-        email_verified = random.choices([True, False], weights=[85, 15])[0]
+        # Все тестовые пользователи активны и верифицированы для удобства тестирования
+        is_blocked = False
+        email_verified = True
         
         # Создаем пользователя
         new_user = UserModel(
@@ -480,3 +522,26 @@ async def admin_clear_cache() -> dict:
             'message': f'Ошибка при очистке кэша: {str(e)}'
         }
 
+
+async def delete_comment(current_user_id: int, current_user_type: str, comment_id: int, session: AsyncSession):
+    """Удалить комментарий навсегда, если текущий пользователь админ/владелец или владелец комментария"""
+    # Получаем комментарий
+    comment_from_delete = (await session.execute(
+        select(CommentModel)
+        .where(CommentModel.id == comment_id)
+    )).scalar_one_or_none()
+    
+    if not comment_from_delete:
+        return None
+    
+    # Проверяем права: админ/владелец или владелец комментария
+    is_admin_or_owner = current_user_type in ['admin', 'owner']
+    is_comment_owner = comment_from_delete.user_id == current_user_id
+    
+    if is_admin_or_owner or is_comment_owner:
+        await session.delete(comment_from_delete)
+        await session.commit()
+        return 'Удалили комментарий'
+    
+    # Если нет прав, возвращаем None
+    return None

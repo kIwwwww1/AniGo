@@ -34,40 +34,85 @@ async def add_token_in_cookie(sub: str, type_account: str,
     '''Добавление токена в куки'''
 
     token = await create_token(sub, type_account)
+    # Определяем secure в зависимости от окружения
+    # По умолчанию secure=False для работы в development (HTTP)
+    # В production (HTTPS) можно установить SECURE_COOKIES=true
+    secure_cookies_env = getenv('SECURE_COOKIES', 'false').lower()
+    secure = secure_cookies_env == 'true'
+    
+    # Явно указываем domain=None, чтобы cookie устанавливался для текущего домена
+    # Это важно при работе через прокси (nginx)
     response.set_cookie(
         key=COOKIES_SESSION_ID_KEY, 
         value=token,
         max_age=THIRTY_DAYS,
         httponly=True,
         samesite='lax',
-        path='/')
-    logger.info('Создание и добавление токена в куки')
+        secure=secure,
+        path='/',
+        domain=None)  # Явно указываем domain=None для работы через прокси
+    logger.info(f'Создание и добавление токена в куки (key={COOKIES_SESSION_ID_KEY}, secure={secure}, domain=None)')
     return token
 
 
 async def get_token(request: Request):
     '''Поиск токена в куках'''
 
+    # Логируем все доступные cookies для отладки
+    all_cookies = request.cookies
+    logger.debug(f'Все cookies в запросе: {list(all_cookies.keys())}')
+    logger.debug(f'Ищем cookie с ключом: {COOKIES_SESSION_ID_KEY}')
+    
     token = request.cookies.get(COOKIES_SESSION_ID_KEY)
     if not token:
+        logger.warning(f'Токен не найден в cookies. Доступные cookies: {list(all_cookies.keys())}')
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
                             detail='User not authenticated')
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[SECRET_ALGORITHM])
+        logger.debug(f'Токен успешно декодирован для пользователя: {payload.get("sub")}')
         return payload
     except JWTError as e:
-        logger.error(e)
+        logger.error(f'Ошибка декодирования токена: {e}')
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token"
         )
 
 
+async def get_token_optional(request: Request):
+    '''Поиск токена в куках (опционально, не выбрасывает исключение если токена нет)'''
+    
+    token = request.cookies.get(COOKIES_SESSION_ID_KEY)
+    if not token:
+        logger.debug('Токен не найден в cookies (опциональный запрос)')
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[SECRET_ALGORITHM])
+        logger.debug(f'Токен успешно декодирован для пользователя: {payload.get("sub")}')
+        return payload
+    except JWTError as e:
+        logger.debug(f'Ошибка декодирования токена (опциональный запрос): {e}')
+        return None
+
+
 async def delete_token(response: Response):
     '''Удалить токен из куков'''
 
-    response.delete_cookie(COOKIES_SESSION_ID_KEY, path='/')
-    logger.info('Удаление токена из куков')
+    # Определяем secure так же, как при установке cookie
+    secure_cookies_env = getenv('SECURE_COOKIES', 'false').lower()
+    secure = secure_cookies_env == 'true'
+    
+    # Важно: указываем те же параметры, что и при установке cookie
+    # включая domain=None для правильной работы через прокси
+    response.delete_cookie(
+        COOKIES_SESSION_ID_KEY, 
+        path='/',
+        samesite='lax',
+        secure=secure,
+        domain=None  # Явно указываем domain=None, как при установке cookie
+    )
+    logger.info(f'Удаление токена из куков (key={COOKIES_SESSION_ID_KEY}, secure={secure}, domain=None)')
     return 'user logout'
 
 

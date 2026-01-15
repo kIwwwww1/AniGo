@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { animeAPI, userAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
+import { parseMentions } from '../utils/parseMentions'
 import VideoPlayer from '../components/VideoPlayer'
 import AnimeCard from '../components/AnimeCard'
 import './WatchPage.css'
@@ -128,12 +129,7 @@ function WatchPageSearch() {
               }
             } catch (retryErr) {
               console.error('Ошибка повторного запроса:', retryErr)
-              if (retryErr.response?.status === 401) {
-                setAuthError(true)
-                setError('Для просмотра аниме необходимо войти в аккаунт')
-              } else {
-                setError('Аниме не найдено')
-              }
+              setError('Аниме не найдено')
             }
           } else {
             setError('Аниме не найдено')
@@ -181,49 +177,39 @@ function WatchPageSearch() {
       }
       setError(null)
     } catch (err) {
-      if (err.response?.status === 401) {
-        setAuthError(true)
-        setError('Для просмотра аниме необходимо войти в аккаунт')
-      } else {
-        // Если ошибка и еще не делали повторный запрос
-        if (!retryAttempted) {
-          setRetryAttempted(true)
-          try {
-            const retryResponse = await animeAPI.getAnimeBySearchName(animeName)
-            if (retryResponse.message) {
-              const retryAnimeData = retryResponse.message
-              if (Array.isArray(retryAnimeData) && retryAnimeData.length > 0) {
-                const firstAnime = retryAnimeData[0]
-                if (firstAnime.id && firstAnime.players && firstAnime.players.length > 0) {
-                  navigate(`/watch/${firstAnime.id}`)
-                  return
-                }
-                setAnime(firstAnime)
-              } else if (retryAnimeData && typeof retryAnimeData === 'object' && retryAnimeData.id) {
-                if (retryAnimeData.players && retryAnimeData.players.length > 0) {
-                  navigate(`/watch/${retryAnimeData.id}`)
-                  return
-                }
-                setAnime(retryAnimeData)
-              } else {
-                setError('Аниме не найдено')
+      // Если ошибка и еще не делали повторный запрос
+      if (!retryAttempted) {
+        setRetryAttempted(true)
+        try {
+          const retryResponse = await animeAPI.getAnimeBySearchName(animeName)
+          if (retryResponse.message) {
+            const retryAnimeData = retryResponse.message
+            if (Array.isArray(retryAnimeData) && retryAnimeData.length > 0) {
+              const firstAnime = retryAnimeData[0]
+              if (firstAnime.id && firstAnime.players && firstAnime.players.length > 0) {
+                navigate(`/watch/${firstAnime.id}`)
+                return
               }
+              setAnime(firstAnime)
+            } else if (retryAnimeData && typeof retryAnimeData === 'object' && retryAnimeData.id) {
+              if (retryAnimeData.players && retryAnimeData.players.length > 0) {
+                navigate(`/watch/${retryAnimeData.id}`)
+                return
+              }
+              setAnime(retryAnimeData)
             } else {
               setError('Аниме не найдено')
             }
-          } catch (retryErr) {
-            console.error('Ошибка повторного запроса:', retryErr)
-            if (retryErr.response?.status === 401) {
-              setAuthError(true)
-              setError('Для просмотра аниме необходимо войти в аккаунт')
-            } else {
-              setError('Аниме не найдено')
-            }
+          } else {
+            setError('Аниме не найдено')
           }
-        } else {
+        } catch (retryErr) {
+          console.error('Ошибка повторного запроса:', retryErr)
           setError('Аниме не найдено')
-          console.error(err)
         }
+      } else {
+        setError('Аниме не найдено')
+        console.error(err)
       }
     } finally {
       setLoading(false)
@@ -514,7 +500,7 @@ function WatchPageSearch() {
                         </div>
                         <span className="comment-date">{formatDate(comment.created_at)}</span>
                       </div>
-                      <p className="comment-text">{comment.text}</p>
+                      <p className="comment-text">{parseMentions(comment.text)}</p>
                     </div>
                   ))
                 ) : (
