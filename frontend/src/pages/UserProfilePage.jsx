@@ -89,7 +89,6 @@ function UserProfilePage() {
     const handleBackgroundImageUpdated = (event) => {
       const { username: updatedUsername, backgroundImageUrl: newUrl, settings } = event.detail
       if (updatedUsername === username) {
-        console.log('🔄 Обновление фонового изображения для профиля:', newUrl)
         // Если newUrl равен null или undefined, удаляем фоновое изображение
         setBackgroundImageUrl(newUrl || null)
         if (settings) {
@@ -119,7 +118,6 @@ function UserProfilePage() {
       
       // Проверяем, относится ли обновление к текущему профилю
       if (updatedUsername === username) {
-        console.log('🔄 Обновление аватарки для профиля:', newAvatarUrl)
         
         // Сбрасываем ошибку аватарки
         setAvatarError(false)
@@ -136,7 +134,6 @@ function UserProfilePage() {
         try {
           const data = JSON.parse(e.newValue)
           if (data.username === username && data.avatarUrl) {
-            console.log('🔄 Обновление аватарки из localStorage для профиля:', data.avatarUrl)
             setAvatarError(false)
             clearUserProfileCache(username)
             loadUserProfile(true)
@@ -156,7 +153,6 @@ function UserProfilePage() {
         if (stored) {
           const data = JSON.parse(stored)
           if (data.username === username && data.avatarUrl && data.timestamp && Date.now() - data.timestamp < 5 * 60 * 1000) {
-            console.log('🔄 Обновление аватарки из localStorage при монтировании:', data.avatarUrl)
             setAvatarError(false)
             clearUserProfileCache(username)
             loadUserProfile(true)
@@ -260,15 +256,9 @@ function UserProfilePage() {
   // Отладка: проверяем применение стилей фона и доступность изображения
   useEffect(() => {
     if (backgroundImageUrl) {
-      console.log('🎨 Background image state updated:', {
-        url: backgroundImageUrl,
-        settings: backgroundSettings
-      })
-      
       // Проверяем доступность изображения
       const img = new Image()
       img.onload = () => {
-        console.log('✅ Background image loaded successfully')
       }
       img.onerror = () => {
         console.error('❌ Background image failed to load (404 or other error):', backgroundImageUrl)
@@ -284,7 +274,6 @@ function UserProfilePage() {
           // Проверяем псевдоэлемент ::before
           const beforeStyle = getComputedStyle(headerElement, '::before')
           
-          console.log('🔍 DOM element styles (.profile-header):', {
             inlineStyle: {
               bgImage: headerElement.style.getPropertyValue('--bg-image'),
               bgSize: headerElement.style.getPropertyValue('--bg-size'),
@@ -317,7 +306,6 @@ function UserProfilePage() {
             console.warn('Проверьте, что CSS переменные применяются правильно')
             console.warn('CSS переменная --bg-image:', headerStyle.getPropertyValue('--bg-image'))
           } else {
-            console.log('✅ Фоновое изображение найдено в псевдоэлементе ::before:', beforeStyle.backgroundImage)
           }
         }
       }, 200)
@@ -685,18 +673,10 @@ function UserProfilePage() {
         setUser(response.message)
         
         // Загружаем URL фонового изображения из user
-        console.log('🖼️ Background Image URL from API:', response.message.background_image_url)
         if (response.message.background_image_url) {
           setBackgroundImageUrl(response.message.background_image_url)
-          console.log('✅ Background image URL установлен:', response.message.background_image_url)
-          console.log('📐 Background settings:', {
-            scale: backgroundSettings.scale,
-            positionX: backgroundSettings.positionX,
-            positionY: backgroundSettings.positionY
-          })
         } else {
           setBackgroundImageUrl(null)
-          console.log('❌ Background image URL не найден')
         }
       }
     } catch (err) {

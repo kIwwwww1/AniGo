@@ -277,7 +277,6 @@ const TopUsersSection = memo(function TopUsersSection() {
           if (hasUsersWithAvatars || cachedData.length === 0) {
             // Если нужно обновить градиенты или их нет в кэше, загружаем из API
             if (updateGradients || !hasUsersWithGradients) {
-              console.log('🔄 Градиенты отсутствуют в кэше или требуется обновление, загружаем из API...')
               // Очищаем кэш и продолжаем загрузку из API
               removeFromCache(CACHE_KEY)
               // Продолжаем выполнение, чтобы загрузить данные из API
@@ -314,7 +313,6 @@ const TopUsersSection = memo(function TopUsersSection() {
           } else {
             // Данные в кэше выглядят устаревшими (все пользователи без аватарок)
             // Очищаем кэш и загружаем свежие данные
-            console.log('⚠️ Обнаружены устаревшие данные в кэше, очищаем и загружаем свежие данные...')
             removeFromCache(CACHE_KEY)
             skipCache = true
           }
@@ -435,7 +433,6 @@ const TopUsersSection = memo(function TopUsersSection() {
         removedKey?.includes('users')
       
       if (keyMatches && loadTopUsersRef.current) {
-        console.log(`🔄 Кэш "${removedKey}" удален, перезагружаем данные топ пользователей...`)
         
         // Если удален другой ключ (не CACHE_KEY), также удаляем кэш компонента
         if (removedKey !== CACHE_KEY) {
@@ -443,7 +440,6 @@ const TopUsersSection = memo(function TopUsersSection() {
           try {
             const cacheKey = `anigo_cache_${CACHE_KEY}`
             localStorage.removeItem(cacheKey)
-            console.log(`🗑️ Дополнительно удален кэш компонента: ${CACHE_KEY}`)
           } catch (err) {
             console.warn('Ошибка при удалении кэша компонента:', err)
           }
@@ -463,11 +459,9 @@ const TopUsersSection = memo(function TopUsersSection() {
   // Функция для обновления аватарки пользователя
   const updateUserAvatar = useCallback(async (username, newAvatarUrl) => {
     if (!username || !newAvatarUrl) {
-      console.log('⚠️ Username или newAvatarUrl отсутствует')
       return
     }
 
-    console.log(`👤 Обновление аватарки для пользователя: ${username}, новый URL: ${newAvatarUrl}`)
 
     // Сбрасываем ошибку аватарки для этого пользователя
     setAvatarErrors(prev => {
@@ -479,17 +473,13 @@ const TopUsersSection = memo(function TopUsersSection() {
     setUsers(prevUsers => {
       // Проверяем, есть ли пользователь в списке
       const userExists = prevUsers.some(u => u.username === username)
-      console.log(`🔍 Пользователь ${username} в списке: ${userExists}`)
-      console.log('📋 Текущий список пользователей:', prevUsers.map(u => u.username))
       
       if (!userExists) {
-        console.log(`⚠️ Пользователь ${username} не найден в списке топ пользователей`)
         return prevUsers
       }
       
       const updatedUsers = prevUsers.map(user => {
         if (user.username === username) {
-          console.log(`✅ Найден пользователь ${username}, обновляем аватарку с ${user.avatar_url} на ${newAvatarUrl}`)
           // Обновляем только avatar_url, остальные данные не трогаем
           return {
             ...user,
@@ -498,27 +488,22 @@ const TopUsersSection = memo(function TopUsersSection() {
         }
         return user
       })
-      console.log('📝 Обновленный список пользователей:', updatedUsers)
       usersRef.current = updatedUsers // Обновляем ref
       return updatedUsers
     })
-    console.log(`✅ Аватарка пользователя ${username} обновлена в блоке "Топ коллекционеров"`)
   }, [])
 
   // Функция для обновления градиента пользователя
   const updateUserGradient = useCallback(async (username) => {
     if (!username) {
-      console.log('⚠️ Username отсутствует')
       return
     }
 
-    console.log(`🎨 Обновление градиента для пользователя: ${username}`)
 
     try {
       // Получаем настройки профиля пользователя из API
       const settingsResponse = await userAPI.getUserProfileSettings(username)
       if (!settingsResponse || !settingsResponse.message) {
-        console.log(`⚠️ Не удалось получить настройки профиля для ${username}`)
         return
       }
 
@@ -539,14 +524,12 @@ const TopUsersSection = memo(function TopUsersSection() {
         // Проверяем, есть ли пользователь в списке
         const userExists = prevUsers.some(u => u.username === username)
         if (!userExists) {
-          console.log(`⚠️ Пользователь ${username} не найден в списке топ пользователей`)
           return prevUsers
         }
         
         // Обрабатываем данные пользователя с новыми настройками градиента
       const updatedUsers = prevUsers.map(user => {
         if (user.username === username) {
-          console.log(`✅ Найден пользователь ${username}, обновляем градиент`)
           
           // Используем настройки профиля из API
           const isPremium = settings.is_premium_profile !== undefined 
@@ -602,12 +585,10 @@ const TopUsersSection = memo(function TopUsersSection() {
         return user
       })
         
-        console.log('📝 Обновленный список пользователей с градиентами:', updatedUsers)
         usersRef.current = updatedUsers // Обновляем ref
         return updatedUsers
       })
       
-      console.log(`✅ Градиент пользователя ${username} обновлен в блоке "Топ коллекционеров"`)
     } catch (err) {
       console.error(`Ошибка обновления градиента для ${username}:`, err)
     }
@@ -619,17 +600,14 @@ const TopUsersSection = memo(function TopUsersSection() {
   // Функция для обновления фонового изображения пользователя
   const updateUserBackgroundImage = useCallback(async (username) => {
     if (!username) {
-      console.log('⚠️ Username отсутствует')
       return
     }
 
-    console.log(`🖼️ Обновление фонового изображения для пользователя: ${username}`)
 
     try {
       // Получаем профиль пользователя для получения фонового изображения
       const profileResponse = await userAPI.getUserProfile(username)
       if (!profileResponse || !profileResponse.message) {
-        console.log(`⚠️ Не удалось получить профиль пользователя ${username}`)
         return
       }
 
@@ -644,13 +622,11 @@ const TopUsersSection = memo(function TopUsersSection() {
         // Проверяем, есть ли пользователь в списке
         const userExists = prevUsers.some(u => u.username === username)
         if (!userExists) {
-          console.log(`⚠️ Пользователь ${username} не найден в списке топ пользователей`)
           return prevUsers
         }
         
         const updatedUsers = prevUsers.map(user => {
           if (user.username === username) {
-            console.log(`✅ Найден пользователь ${username}, обновляем фоновое изображение`)
             
             return {
               ...user,
@@ -664,12 +640,10 @@ const TopUsersSection = memo(function TopUsersSection() {
           return user
         })
         
-        console.log('📝 Обновленный список пользователей с фоновым изображением:', updatedUsers)
         usersRef.current = updatedUsers // Обновляем ref
         return updatedUsers
       })
       
-      console.log(`✅ Фоновое изображение пользователя ${username} обновлено в блоке "Топ коллекционеров"`)
     } catch (err) {
       console.error(`Ошибка обновления фонового изображения для ${username}:`, err)
     }

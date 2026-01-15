@@ -38,10 +38,8 @@ def convert_anime_to_dict(anime):
         # Если это строка (неправильная сериализация из старого кэша)
         # Проверяем, не является ли это строковым представлением объекта
         if 'object at 0x' in anime or 'AnimeModel' in anime:
-            logger.debug(f"Пропускаем некорректные данные из старого кэша: {anime[:100] if len(anime) > 100 else anime}")
             return None
         # Если это обычная строка (не объект), тоже пропускаем
-        logger.debug(f"Пропускаем строковое значение: {anime[:100] if len(anime) > 100 else anime}")
         return None
     elif hasattr(anime, '__table__'):
         # Если это объект SQLAlchemy, конвертируем в словарь
@@ -122,8 +120,6 @@ async def watch_anime_by_id(anime_id: int, session: SessionDep, background_tasks
     
     # Конвертируем в Pydantic схему
     try:
-        logger.info(f'Начало конвертации аниме {anime_id}')
-        
         # Конвертируем genres
         genres = []
         try:
@@ -133,7 +129,6 @@ async def watch_anime_by_id(anime_id: int, session: SessionDep, background_tasks
                         'id': genre.id,
                         'name': genre.name
                     })
-            logger.info(f'Конвертировано жанров: {len(genres)}')
         except Exception as e:
             logger.error(f'Ошибка при конвертации жанров: {e}', exc_info=True)
         
@@ -148,7 +143,6 @@ async def watch_anime_by_id(anime_id: int, session: SessionDep, background_tasks
                         'translator': player.translator,
                         'quality': player.quality
                     })
-            logger.info(f'Конвертировано плееров: {len(players)}')
         except Exception as e:
             logger.error(f'Ошибка при конвертации плееров: {e}', exc_info=True)
         
@@ -206,7 +200,6 @@ async def watch_anime_by_id(anime_id: int, session: SessionDep, background_tasks
                     except Exception as e:
                         logger.error(f'Ошибка при конвертации комментария {getattr(comment, "id", "unknown")}: {e}', exc_info=True)
                         continue
-            logger.info(f'Конвертировано комментариев: {len(comments)}')
         except Exception as e:
             logger.error(f'Ошибка при конвертации комментариев: {e}', exc_info=True)
         
@@ -229,7 +222,6 @@ async def watch_anime_by_id(anime_id: int, session: SessionDep, background_tasks
                 'players': players,
                 'comments': comments
             }
-            logger.info(f'Успешно создан словарь для аниме {anime_id}')
             return {'message': anime_dict}
         except Exception as e:
             logger.error(f'Ошибка при создании словаря аниме: {e}', exc_info=True)
@@ -247,12 +239,9 @@ async def get_popular_anime_data(
 ):
     '''Получить популярные аниме с пагинацией'''
     
-    logger.info(f'Запрос популярных аниме: limit={limit}, offset={offset}')
-    
     try:
         paginator_data = PaginatorData(limit=limit, offset=offset)
         resp = await get_popular_anime(paginator_data, session)
-        logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
         # Конвертируем SQLAlchemy модели в Pydantic схемы
         # Используем from_attributes=True для правильной работы с SQLAlchemy
         anime_list = []
@@ -267,7 +256,6 @@ async def get_popular_anime_data(
                     anime_dict['title'] = 'Не определено'
                 if anime_dict.get('title_original') is None:
                     anime_dict['title_original'] = 'Не определено'
-                logger.debug(f'Обработка аниме: id={anime_dict.get("id")}, title={anime_dict.get("title")}, poster_url={anime_dict.get("poster_url")}')
                 anime_list.append(AnimeResponse(**anime_dict))
             except Exception as err:
                 # Безопасное получение ID для логирования
@@ -278,7 +266,6 @@ async def get_popular_anime_data(
                     anime_id = anime.id
                 logger.error(f'Ошибка при конвертации одного аниме: {err}, anime_id={anime_id}, type={type(anime)}', exc_info=True)
                 continue
-        logger.info(f'Успешно конвертировано аниме: {len(anime_list)}')
         return {'message': anime_list}
     except Exception as e:
         logger.error(f'Ошибка при получении популярных аниме: {e}', exc_info=True)
@@ -291,11 +278,9 @@ async def get_random_anime_data(
     session: SessionDep = None
 ):
     '''Получить случайные аниме'''
-    logger.info(f'Запрос случайных аниме: limit={limit}')
     
     try:
         resp = await get_random_anime(limit, session)
-        logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
         # Конвертируем SQLAlchemy модели в Pydantic схемы
         anime_list = []
         for anime in resp:
@@ -336,12 +321,9 @@ async def get_all_popular_anime(limit: int = 12, offset: int = 0,
                                 session: SessionDep = None):
     '''Получить по 12 популярных аниме'''
     
-    logger.info(f'Запрос всех популярных аниме: limit={limit}, offset={offset}')
-    
     try:
         paginator_data = PaginatorData(limit=limit, offset=offset)
         resp = await get_popular_anime(paginator_data, session)
-        logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
         
         # Конвертируем SQLAlchemy модели в Pydantic схемы
         anime_list = []
@@ -372,12 +354,9 @@ async def get_all_anime(limit: int = 12, offset: int = 0,
                         session: SessionDep = None):
     '''Получить все аниме с пагинацией'''
     
-    logger.info(f'Запрос всех аниме: limit={limit}, offset={offset}')
-    
     try:
         paginator_data = PaginatorData(limit=limit, offset=offset)
         resp = await pagination_get_anime(paginator_data, session)
-        logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
         
         # Конвертируем SQLAlchemy модели в Pydantic схемы
         anime_list = []
@@ -443,11 +422,8 @@ async def get_comments_paginator(anime_id: int, limit: int = 4,
                                 offset: int = 0, session: SessionDep = None):
     '''Получить комментарии к аниме с пагинацией'''
     
-    logger.info(f'Запрос комментариев для аниме {anime_id}: limit={limit}, offset={offset}')
-    
     try:
         comments = await comments_paginator(limit, offset, anime_id, session)
-        logger.info(f'Найдено комментариев: {len(comments) if comments else 0}')
         
         # Конвертируем SQLAlchemy модели в словари
         comments_list = []
@@ -516,11 +492,8 @@ async def get_anime_by_rating(limit: int = 12, offset: int = 0,
            'desc' - по убыванию (от высокой к низкой)
     '''
     
-    logger.info(f'Запрос аниме отсортированных по оценке: order={order}, limit={limit}, offset={offset}')
-    
     try:
         resp = await get_anime_sorted_by_score(limit, offset, order, session)
-        logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
         
         # Конвертируем SQLAlchemy модели в Pydantic схемы
         anime_list = []
@@ -552,11 +525,8 @@ async def get_anime_by_studio(studio_name: str, limit: int = 12,
            'desc' - по оценке по убыванию
     '''
     
-    logger.info(f'Запрос аниме по студии: studio={studio_name}, limit={limit}, offset={offset}, order={order}')
-    
     try:
         resp = await get_anime_sorted_by_studio(studio_name, limit, offset, order, session)
-        logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
         
         # Конвертируем SQLAlchemy модели в Pydantic схемы
         anime_list = []
@@ -590,11 +560,8 @@ async def get_anime_by_genre(genre: str, limit: int = 12,
            'desc' - по оценке по убыванию
     '''
     
-    logger.info(f'Запрос аниме по жанру: genre={genre}, limit={limit}, offset={offset}, order={order}')
-    
     try:
         resp = await get_anime_sorted_by_genre(genre, limit, offset, order, session)
-        logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
         
         # Конвертируем SQLAlchemy модели в Pydantic схемы
         anime_list = []
@@ -624,11 +591,8 @@ async def get_best_anime_by_score(limit: int = 12, offset: int = 0,
                                   order: str = 'desc', session: SessionDep = None):
     '''Получить аниме с высшей оценкой (отсортированные по оценке по убыванию)'''
     
-    logger.info(f'Запрос аниме с высшей оценкой: limit={limit}, offset={offset}, order={order}')
-    
     try:
         resp = await get_anime_sorted_by_score(limit, offset, order, session)
-        logger.info(f'Найдено аниме: {len(resp) if resp else 0}')
         
         # Конвертируем SQLAlchemy модели в Pydantic схемы
         anime_list = []

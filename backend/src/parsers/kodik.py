@@ -10,7 +10,6 @@ from src.models.anime import AnimeModel
 parser_kodik = KodikParserAsync()
 
 
-<<<<<<< HEAD
 
 async def get_anime_by_title(anime_name: str, strict: bool = False, limit: int = None):
     '''Поиск аниме по названию на сайте kodik
@@ -25,10 +24,8 @@ async def get_anime_by_title(anime_name: str, strict: bool = False, limit: int =
             only_anime=True,  # Только аниме
             limit=limit  # Ограничение количества результатов
         )
-        logger.info(f"Найдено {len(results) if results else 0} результатов для '{anime_name}' (strict={strict})")
         return results if results else []
     except (ServiceError, NoResults):
-        logger.info(f"Аниме не найдено для '{anime_name}'")
         return []  # Возвращаем пустой список вместо исключения
     except Exception as e:
         logger.error(f"Ошибка при поиске в Kodik: {e}")
@@ -78,7 +75,7 @@ async def get_id_and_players(animes: list[dict]):
             continue
     
     return id_and_players
-=======
+
 async def get_anime_by_shikimori_id(shikimori_id: int):
     """
     Поиск аниме на kodik по shikimori_id
@@ -98,7 +95,6 @@ async def get_anime_by_shikimori_id(shikimori_id: int):
         if results and len(results) > 0:
             # Возвращаем первый результат (обычно он один)
             kodik_data = results[0]
-            logger.info(f"✅ Найдено на kodik для shikimori_id {shikimori_id}: {kodik_data.get('title', 'Без названия')}")
             return kodik_data
         else:
             logger.warning(f"⚠️ Не найдено на kodik для shikimori_id {shikimori_id}")
@@ -110,4 +106,3 @@ async def get_anime_by_shikimori_id(shikimori_id: int):
     except Exception as e:
         logger.error(f"❌ Неожиданная ошибка при поиске на kodik для shikimori_id {shikimori_id}: {e}")
         return None
->>>>>>> orig_one

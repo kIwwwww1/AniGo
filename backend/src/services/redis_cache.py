@@ -37,8 +37,6 @@ async def get_redis_client() -> redis.Redis | None:
             redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
         else:
             redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
-        
-        logger.debug(f"Собран Redis URL из отдельных переменных: redis://{redis_host}:{redis_port}/{redis_db}")
     
     if not redis_url:
         logger.warning("REDIS_URL не установлен и отдельные переменные Redis не найдены, Redis кэширование отключено")
@@ -47,7 +45,6 @@ async def get_redis_client() -> redis.Redis | None:
     try:
         _redis_client = redis.from_url(redis_url, decode_responses=True)
         await _redis_client.ping()
-        logger.info("✅ Подключение к Redis установлено")
         return _redis_client
     except Exception as e:
         logger.error(f"❌ Ошибка подключения к Redis: {e}")
@@ -60,7 +57,6 @@ async def close_redis_client():
     if _redis_client:
         await _redis_client.close()
         _redis_client = None
-        logger.info("✅ Соединение с Redis закрыто")
 
 
 async def clear_cache_pattern(pattern: str):
@@ -74,7 +70,6 @@ async def clear_cache_pattern(pattern: str):
             
             if keys:
                 await redis.delete(*keys)
-                logger.info(f"Cleared {len(keys)} cache keys matching: {pattern}")
         except Exception as e:
             logger.error(f"Failed to clear cache pattern {pattern}: {e}")
 
@@ -85,7 +80,6 @@ async def clear_all_cache():
     if redis:
         try:
             await redis.flushdb()
-            logger.info("✅ All cache cleared")
         except Exception as e:
             logger.error(f"Failed to clear all cache: {e}")
 
@@ -124,7 +118,6 @@ async def clear_user_profile_cache(username: str, user_id: int = None):
     """
     redis = await get_redis_client()
     if not redis:
-        logger.debug(f"Redis недоступен, пропускаем очистку кэша для {username}")
         return 0
     
     try:
@@ -147,7 +140,6 @@ async def clear_user_profile_cache(username: str, user_id: int = None):
         if keys_username:
             deleted_count = await redis.delete(*keys_username)
             total_deleted += deleted_count
-            logger.debug(f"🗑️ Cleared {deleted_count} additional cache keys for user: {username}")
         
         # Также очищаем кэш настроек профиля
         settings_pattern = f"user_profile_settings:*{username}*"
@@ -197,11 +189,8 @@ async def clear_most_favorited_cache():
             async for key in redis.scan_iter(match=pattern):
                 keys.append(key)
             
-            if keys:
-                await redis.delete(*keys)
-                logger.info(f"🗑️ Очищен кэш Redis для топ коллекционеров: {len(keys)} ключей")
-            else:
-                logger.debug("Кэш для топ коллекционеров не найден")
+                if keys:
+                    await redis.delete(*keys)
         except Exception as e:
             logger.error(f"Ошибка при очистке кэша топ коллекционеров: {e}")
 
@@ -246,7 +235,6 @@ def serialize_sqlalchemy_obj(obj):
         return obj
     else:
         # Для неизвестных типов возвращаем строковое представление
-        logger.debug(f"Неизвестный тип для сериализации: {type(obj)}, значение: {str(obj)[:100]}")
         return str(obj)
 
 
@@ -351,16 +339,12 @@ def redis_cached(prefix: str, ttl: int = 300):
                             await redis_client.delete(cache_key)
                             # Продолжаем выполнение функции для получения свежих данных (не возвращаем)
                         else:
-                            # Получаем TTL ключа для информации
-                            remaining_ttl = await redis_client.ttl(cache_key)
-                            logger.debug(f"🎯 Cache HIT: {func.__name__} (key: {cache_key}, TTL remaining: {remaining_ttl}s)")
                             return deserialized
                     except json.JSONDecodeError as e:
                         logger.warning(f"⚠️ Ошибка десериализации кэша для {func.__name__}: {e}, очищаем ключ: {cache_key}")
                         await redis_client.delete(cache_key)
                 
                 # Кэш промах - выполняем функцию
-                logger.info(f"💨 Cache MISS: {func.__name__} (key: {cache_key}) - выполняется запрос к БД")
                 result = await func(*args, **kwargs)
                 
                 # Сохраняем результат в кэш
@@ -368,9 +352,7 @@ def redis_cached(prefix: str, ttl: int = 300):
                     # Сериализуем SQLAlchemy объекты в словари перед сохранением
                     serializable_result = serialize_for_cache(result)
                     serialized_result = json.dumps(serializable_result, default=str)
-                    result_size = len(serialized_result.encode('utf-8'))
                     await redis_client.setex(cache_key, ttl, serialized_result)
-                    logger.info(f"💾 Cached {func.__name__} (TTL: {ttl}s, key: {cache_key}, size: {result_size} bytes)")
                 except Exception as e:
                     logger.warning(f"⚠️ Failed to cache result for {func.__name__}: {e}")
                 
@@ -515,9 +497,6 @@ def redis_cached_limited(prefix: str, ttl: int = 300, max_cache_items: int = 18)
                                 # Продолжаем выполнение функции для получения свежих данных (не возвращаем)
                             else:
                                 remaining_ttl = await redis_client.ttl(cache_key)
-                                # Формируем информативное сообщение с параметрами
-                                params_info = f"offset={offset}, limit={limit}" if limit is not None else f"offset={offset}"
-                                logger.debug(f"🎯 Cache HIT: {func.__name__} (key: {cache_key}, {params_info}, TTL remaining: {remaining_ttl}s)")
                                 # Если запрошено меньше элементов, чем в кэше, обрезаем
                                 if isinstance(cached_result, list) and limit is not None and limit < len(cached_result):
                                     return cached_result[:limit]
@@ -527,13 +506,6 @@ def redis_cached_limited(prefix: str, ttl: int = 300, max_cache_items: int = 18)
                             await redis_client.delete(cache_key)
                 
                 # Кэш промах или не должны кэшировать - выполняем функцию
-                if not should_cache:
-                    params_info = f"offset={offset}, limit={limit}" if limit is not None else f"offset={offset}"
-                    logger.debug(f"⏭️ Skip cache: {func.__name__} ({params_info}, max_cache={max_cache_items})")
-                else:
-                    params_info = f"offset={offset}, limit={limit}" if limit is not None else f"offset={offset}"
-                    logger.info(f"💨 Cache MISS: {func.__name__} (key: {cache_key}, {params_info}) - выполняется запрос к БД")
-                
                 result = await func(*args, **kwargs)
                 
                 # Сохраняем в кэш только если должны кэшировать и результат - список
@@ -546,9 +518,7 @@ def redis_cached_limited(prefix: str, ttl: int = 300, max_cache_items: int = 18)
                         # Сериализуем SQLAlchemy объекты в словари перед сохранением
                         serializable_cache_data = serialize_for_cache(cache_data)
                         serialized_result = json.dumps(serializable_cache_data, default=str)
-                        result_size = len(serialized_result.encode('utf-8'))
                         await redis_client.setex(cache_key, ttl, serialized_result)
-                        logger.info(f"💾 Cached {func.__name__} (TTL: {ttl}s, key: {cache_key}, cached_items: {len(cache_data)}, total_items: {len(result)}, size: {result_size} bytes)")
                     except Exception as e:
                         logger.warning(f"⚠️ Failed to cache result for {func.__name__}: {e}")
                 

@@ -96,7 +96,6 @@ async def update_anime_data_from_shikimori(anime_id: int, shikimori_id: int):
                     anime.themes.append(theme)
             
             await session.commit()
-            logger.info(f"✅ Обновлены данные для аниме {anime.id} ({anime.title})")
             return True
         except Exception as e:
             logger.error(f"Ошибка при обновлении данных аниме {anime_id}: {e}", exc_info=True)
@@ -112,7 +111,6 @@ async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession, background
     from src.models.users import UserModel
     
     try:
-        logger.info(f'Загрузка аниме {anime_id} с relationships')
         anime = (await session.execute(
             select(AnimeModel)
                 .options(
@@ -165,11 +163,7 @@ async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession, background
             
             # Запускаем обновление в фоне через BackgroundTasks (если нужно)
             if should_update and shikimori_id and background_tasks:
-                logger.info(f"🔄 Запуск обновления данных для аниме {anime_id} (shikimori_id: {shikimori_id})")
                 background_tasks.add_task(update_anime_data_from_shikimori, anime_id, shikimori_id)
-            
-            # Используем сохраненные значения для лога
-            logger.info(f'Аниме {anime_id} загружено. Players: {players_count}, Genres: {genres_count}, Comments: {comments_count}, Request count: {anime.request_count}')
             
             # Возвращаем объект БЕЗ коммита - коммит будет выполнен в endpoint после сериализации
             # Это предотвращает проблемы с доступом к relationships после коммита
@@ -225,9 +219,7 @@ async def get_popular_anime(paginator_data: PaginatorData, session: AsyncSession
         AnimeModel.id.desc()  # Потом по ID (новые -> старые)
     ).limit(paginator_data.limit).offset(paginator_data.offset)
     
-    logger.info(f'Выполняется запрос популярных аниме с фильтрами: score >= 7.5, comments >= 6, last_updated за последние 2 недели')
     animes = (await session.execute(query)).scalars().all()
-    logger.info(f'Найдено аниме: {len(animes) if animes else 0}')
 
     # Возвращаем пустой список вместо ошибки, если ничего не найдено
     return animes if animes else []

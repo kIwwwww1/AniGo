@@ -157,7 +157,6 @@ async def get_anime_by_title_db(anime_name: str, session: AsyncSession):
                             detail='Аниме не найдено')
 
 
-<<<<<<< HEAD
 def _get_studio_name_from_material_data(material_data: dict) -> str | None:
     """Безопасно извлекает название студии из material_data"""
     studios = material_data.get('studios')
@@ -310,7 +309,6 @@ async def parse_anime_from_kodik_material_data(kodik_result: dict, session: Asyn
         await session.flush()
         await session.commit()
         added_anime_ids.add(sh_id_str)
-        logger.info(f"✅ Добавлено новое аниме из material_data: {title}")
         return new_anime
     except (DBAPIError, SQLAlchemyError) as e:
         logger.error(f"Ошибка при добавлении аниме из material_data {title}: {e}")
@@ -392,7 +390,6 @@ async def parse_and_add_anime_from_kodik_results(animes_dict: dict, kodik_result
                 new_anime = await parse_anime_from_kodik_material_data(kodik_result, session, added_anime_ids)
                 if new_anime:
                     added_animes.append(new_anime)
-                    logger.info(f"📥 Использованы данные из material_data для ID {sh_id_str}: {new_anime.title}")
                     # Продолжаем к добавлению плееров
                 else:
                     # Если material_data не сработал, запрашиваем Shikimori
@@ -404,9 +401,7 @@ async def parse_and_add_anime_from_kodik_results(animes_dict: dict, kodik_result
             try:
                 anime = await parser_shikimori.anime_info(shikimori_link=f"{base_get_url}{sh_id_str}")
                 # Проверяем, что anime является словарем
-                if anime and isinstance(anime, dict):
-                    logger.info(f"📥 Получено аниме из Shikimori: {anime.get('title', 'Без названия')}")
-                else:
+                if not (anime and isinstance(anime, dict)):
                     anime = None  # Если не словарь, сбрасываем
             except ServiceError as e:
                 logger.warning(
@@ -414,12 +409,9 @@ async def parse_and_add_anime_from_kodik_results(animes_dict: dict, kodik_result
                 )
                 # Пробуем альтернативный URL
                 try:
-                    logger.info(f"🔄 Пробуем альтернативный URL для ID {sh_id_str}")
                     anime = await parser_shikimori.anime_info(shikimori_link=f"{new_base_get_url}{sh_id_str}")
                     # Проверяем, что anime является словарем
-                    if anime and isinstance(anime, dict):
-                        logger.info(f"✅ Получено аниме через альтернативный URL: {anime.get('title', 'Без названия')}")
-                    else:
+                    if not (anime and isinstance(anime, dict)):
                         anime = None  # Если не словарь, сбрасываем
                 except ServiceError as e2:
                     logger.warning(
@@ -431,8 +423,6 @@ async def parse_and_add_anime_from_kodik_results(animes_dict: dict, kodik_result
             if not anime or not isinstance(anime, dict):
                 logger.warning(f"⚠️ Не удалось получить данные для ID {sh_id_str}, пропускаем")
                 continue
-
-            logger.info(f"📥 Получено аниме: {anime.get('title')}")
 
             # Проверяем, существует ли уже аниме с таким title_original
             try:
@@ -529,7 +519,6 @@ async def parse_and_add_anime_from_kodik_results(animes_dict: dict, kodik_result
                     await session.commit()
                     added_anime_ids.add(sh_id_str)  # Помечаем как обработанное
                     added_animes.append(new_anime)
-                    logger.info(f"✅ Добавлено новое аниме: {anime.get('title')}")
                 except (DBAPIError, SQLAlchemyError) as e:
                     logger.error(f"Ошибка при добавлении аниме {anime.get('title')}: {e}")
                     await session.rollback()
@@ -615,8 +604,6 @@ async def parse_and_add_anime_from_kodik_results(animes_dict: dict, kodik_result
                 try:
                     session.add(anime_player)
                     await session.commit()
-                    anime_title = new_anime.title if hasattr(new_anime, 'title') else 'Неизвестное аниме'
-                    logger.info(f"✅ Добавлена связь аниме-плеер для: {anime_title}")
                 except (DBAPIError, SQLAlchemyError) as e:
                     logger.error(f"Ошибка при добавлении связи аниме-плеер: {e}")
                     await session.rollback()
@@ -652,7 +639,6 @@ async def search_anime_by_progressive_words(anime_name: str, session: AsyncSessi
     
     # Сначала ищем по полному запросу с strict=False для максимального охвата
     full_query = " ".join(words)
-    logger.info(f"🔍 Поиск по полному запросу: '{full_query}' (strict=False)")
     
     try:
         # Используем strict=False для поиска всех похожих вариантов
@@ -668,13 +654,11 @@ async def search_anime_by_progressive_words(anime_name: str, session: AsyncSessi
                 if not isinstance(animes_dict, dict):
                     logger.warning(f"get_id_and_players вернул не словарь для '{full_query}': {type(animes_dict)}, значение: {animes_dict}")
                 else:
-                    logger.debug(f"Получен animes_dict для '{full_query}': {len(animes_dict)} элементов")
                     # Фильтруем только новые аниме (которые еще не были добавлены)
                     new_animes_dict = {sh_id: player_urls for sh_id, player_urls in animes_dict.items() 
                                       if str(sh_id) not in added_anime_ids}
                     
                     if new_animes_dict:
-                        logger.info(f"Найдено {len(new_animes_dict)} уникальных результатов для '{full_query}'")
                         # Парсим и добавляем новые аниме, передаем kodik_results для использования material_data
                         added_batch = await parse_and_add_anime_from_kodik_results(new_animes_dict, kodik_results, session, added_anime_ids)
                         all_added_animes.extend(added_batch)
@@ -687,7 +671,6 @@ async def search_anime_by_progressive_words(anime_name: str, session: AsyncSessi
     # Затем ищем по нарастающим комбинациям слов для более широкого поиска
     for word_count in range(1, len(words)):
         search_query = " ".join(words[:word_count])
-        logger.info(f"🔍 Дополнительный поиск по запросу: '{search_query}' ({word_count} слово/слов, strict=False)")
         
         try:
             # Используем strict=False для поиска всех похожих вариантов
@@ -695,7 +678,6 @@ async def search_anime_by_progressive_words(anime_name: str, session: AsyncSessi
             
             # Проверяем, что kodik_results является списком и не пустой
             if not kodik_results or not isinstance(kodik_results, list):
-                logger.info(f"Не найдено результатов для '{search_query}'")
                 continue
             
             # Получаем уникальные sh_id
@@ -706,18 +688,13 @@ async def search_anime_by_progressive_words(anime_name: str, session: AsyncSessi
                 logger.warning(f"get_id_and_players вернул не словарь для '{search_query}': {type(animes_dict)}, значение: {animes_dict}")
                 continue
             
-            logger.debug(f"Получен animes_dict для '{search_query}': {len(animes_dict)} элементов")
-            
             # Фильтруем только новые аниме (которые еще не были добавлены)
             # Используем только added_anime_ids, так как processed_sh_ids может содержать недобавленные аниме
             new_animes_dict = {sh_id: player_urls for sh_id, player_urls in animes_dict.items() 
                               if str(sh_id) not in added_anime_ids}
             
             if not new_animes_dict:
-                logger.info(f"Все аниме из '{search_query}' уже были найдены ранее")
                 continue
-            
-            logger.info(f"Добавляем {len(new_animes_dict)} новых аниме из '{search_query}'")
             
             # Парсим и добавляем новые аниме, передаем kodik_results для использования material_data
             added_batch = await parse_and_add_anime_from_kodik_results(new_animes_dict, kodik_results, session, added_anime_ids)
@@ -727,9 +704,7 @@ async def search_anime_by_progressive_words(anime_name: str, session: AsyncSessi
             logger.error(f"Ошибка при поиске для '{search_query}': {e}", exc_info=True)
             continue
     
-    logger.info(f"✅ Всего найдено и добавлено {len(all_added_animes)} уникальных аниме")
     return all_added_animes
-=======
 async def background_search_and_add_anime(anime_name: str):
     """
     Фоновая функция для поиска аниме на shikimori/kodik и добавления в БД
@@ -739,8 +714,6 @@ async def background_search_and_add_anime(anime_name: str):
     4. Добавляем в БД, если аниме еще нет
     """
     from src.db.database import new_session
-    
-    logger.info(f"🔄 Запуск фонового поиска аниме: {anime_name}")
     
     async with new_session() as session:
         try:
@@ -754,7 +727,6 @@ async def background_search_and_add_anime(anime_name: str):
                 shikimori_results = await safe_shikimori_search(anime_name)
                 
                 if shikimori_results:
-                    logger.info(f"📋 Найдено {len(shikimori_results)} аниме на shikimori для '{anime_name}'")
                     shikimori_animes = shikimori_results
                 else:
                     logger.warning(f"⚠️ Аниме '{anime_name}' не найдено на shikimori")
@@ -786,17 +758,12 @@ async def background_search_and_add_anime(anime_name: str):
                     anime = None
                     try:
                         anime = await safe_shikimori_anime_info(f"{base_get_url}{shikimori_id}")
-                        if anime:
-                            logger.info(f"📥 Получено аниме из shikimori: {anime.get('title', 'Без названия')}")
                     except ServiceError as e:
                         logger.warning(f"❌ Shikimori вернул ошибку для ID {shikimori_id} на основном URL: {e}")
                         # Пробуем альтернативный URL
                         try:
                             await asyncio.sleep(1.0)
-                            logger.info(f"🔄 Пробуем альтернативный URL для ID {shikimori_id}")
                             anime = await parser_shikimori.anime_info(shikimori_link=f"{new_base_get_url}{shikimori_id}")
-                            if anime:
-                                logger.info(f"✅ Получено аниме через альтернативный URL: {anime.get('title', 'Без названия')}")
                         except ServiceError as e2:
                             logger.warning(f"❌ Shikimori вернул ошибку для ID {shikimori_id} на альтернативном URL: {e2}")
                             continue
@@ -845,7 +812,6 @@ async def background_search_and_add_anime(anime_name: str):
 
                     if existing_anime:
                         # Аниме уже есть в БД, пропускаем
-                        logger.info(f"⏭️ Аниме '{anime.get('title')}' уже есть в БД, пропускаем")
                         skipped_count += 1
                         # Но проверяем, есть ли связь с плеером
                         new_anime = existing_anime
@@ -912,7 +878,6 @@ async def background_search_and_add_anime(anime_name: str):
                                         new_anime = existing_anime
                                         anime_id = existing_anime.id
                                         anime_found_after_error = True
-                                        logger.info(f"⏭️ Найдено существующее аниме: {anime.get('title')}, используем его")
                                         skipped_count += 1
                                     else:
                                         logger.error(f"❌ Не удалось найти аниме после ошибки уникальности: {anime.get('title')}")
@@ -976,7 +941,6 @@ async def background_search_and_add_anime(anime_name: str):
                                 
                                 await session.commit()
                                 added_count += 1
-                                logger.info(f"✅ Добавлено новое аниме: {anime.get('title')}")
                             except IntegrityError as e:
                                 # Обработка ошибки уникальности (race condition)
                                 await session.rollback()
@@ -999,7 +963,6 @@ async def background_search_and_add_anime(anime_name: str):
                                         if existing_anime:
                                             new_anime = existing_anime
                                             anime_id = existing_anime.id
-                                            logger.info(f"⏭️ Найдено существующее аниме: {anime.get('title')}, используем его")
                                             skipped_count += 1
                                         else:
                                             logger.error(f"❌ Не удалось найти аниме после ошибки уникальности: {anime.get('title')}")
@@ -1065,8 +1028,6 @@ async def background_search_and_add_anime(anime_name: str):
                                     if not existing_player:
                                         logger.error(f"❌ Не удалось найти плеер после ошибки уникальности: {player_url}")
                                         continue
-                                    else:
-                                        logger.info(f"⏭️ Найден существующий плеер, используем его")
                                 except Exception as lookup_error:
                                     logger.error(f"❌ Ошибка при поиске существующего плеера: {lookup_error}")
                                     continue
@@ -1134,7 +1095,6 @@ async def background_search_and_add_anime(anime_name: str):
                         try:
                             session.add(anime_player)
                             await session.commit()
-                            logger.info(f"✅ Добавлена связь аниме-плеер для: {anime.get('title')}")
                         except (DBAPIError, SQLAlchemyError) as e:
                             logger.error(f"Ошибка при добавлении связи аниме-плеер: {e}")
                             await session.rollback()
@@ -1155,12 +1115,9 @@ async def background_search_and_add_anime(anime_name: str):
                     logger.error(f"❌ Ошибка при обработке аниме с shikimori_id {shikimori_id}: {e}", exc_info=True)
                     await session.rollback()
                     continue
-
-            logger.info(f"✅ Фоновый поиск завершен для '{anime_name}': добавлено {added_count}, пропущено {skipped_count}")
             
         except Exception as e:
             logger.error(f"❌ Критическая ошибка в фоновом поиске аниме '{anime_name}': {e}", exc_info=True)
->>>>>>> orig_one
 
 
 async def shikimori_get_anime(anime_name: str, session: AsyncSession):
@@ -1173,7 +1130,6 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
     # Проверяем наличие аниме в БД
     try:
         resp = await get_anime_by_title_db(anime_name, session)
-        logger.info(f"Найдено {len(resp)} аниме в БД")
         return resp
     
     except HTTPException:
@@ -1197,13 +1153,11 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
             pass
         # Продолжаем парсинг
     
-<<<<<<< HEAD
     # Используем поиск по нарастающим комбинациям слов
     try:
         added_animes = await search_anime_by_progressive_words(anime_name, session)
     except Exception as e:
         logger.error(f"Ошибка при поиске по нарастающим словам: {e}", exc_info=True)
-=======
     # Шаг 1: Ищем на shikimori по названию
     shikimori_animes = []
     try:
@@ -1214,7 +1168,6 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
         shikimori_results = await safe_shikimori_search(anime_name)
         
         if shikimori_results:
-            logger.info(f"📋 Найдено {len(shikimori_results)} аниме на shikimori для '{anime_name}'")
             shikimori_animes = shikimori_results
         else:
             logger.warning(f"⚠️ Аниме '{anime_name}' не найдено на shikimori")
@@ -1233,13 +1186,11 @@ async def shikimori_get_anime(anime_name: str, session: AsyncSession):
         )
     except Exception as e:
         logger.error(f"❌ Неожиданная ошибка при поиске на shikimori: {e}")
->>>>>>> orig_one
         raise HTTPException(
             status_code=500,
             detail="Ошибка при парсинге аниме"
         )
 
-<<<<<<< HEAD
     if not added_animes:
         raise HTTPException(
             status_code=404,
@@ -1263,7 +1214,6 @@ async def shikimori_get_anime_background(anime_name: str):
             # Проверяем, не найдено ли уже в БД (может быть добавлено пока парсили)
             try:
                 resp = await get_anime_by_title_db(anime_name, session)
-                logger.info(f"[Фон] Аниме уже найдено в БД при фоновом поиске: {len(resp)} результатов")
                 # Продолжаем парсинг, чтобы найти дополнительные результаты
             except HTTPException:
                 # Аниме не найдено - продолжаем парсинг
@@ -1274,12 +1224,10 @@ async def shikimori_get_anime_background(anime_name: str):
             # Используем поиск по нарастающим комбинациям слов
             try:
                 added_animes = await search_anime_by_progressive_words(anime_name, session)
-                logger.info(f"[Фон] Фоновый парсинг завершен для '{anime_name}'. Добавлено аниме: {len(added_animes)}")
             except Exception as e:
                 logger.error(f"[Фон] Ошибка при фоновом поиске по нарастающим словам: {e}", exc_info=True)
         except Exception as e:
             logger.error(f"❌ [Фон] Критическая ошибка при фоновом парсинге '{anime_name}': {e}", exc_info=True)
-=======
     # Шаг 2: Для каждого найденного аниме ищем на kodik и добавляем в БД
     added_animes = []
     for shikimori_anime in shikimori_animes:
@@ -1297,17 +1245,12 @@ async def shikimori_get_anime_background(anime_name: str):
             anime = None
             try:
                 anime = await safe_shikimori_anime_info(f"{base_get_url}{shikimori_id}")
-                if anime:
-                    logger.info(f"📥 Получено аниме из shikimori: {anime.get('title', 'Без названия')}")
             except ServiceError as e:
                 logger.warning(f"❌ Shikimori вернул ошибку для ID {shikimori_id} на основном URL: {e}")
                 # Пробуем альтернативный URL
                 try:
                     await asyncio.sleep(1.0)
-                    logger.info(f"🔄 Пробуем альтернативный URL для ID {shikimori_id}")
                     anime = await parser_shikimori.anime_info(shikimori_link=f"{new_base_get_url}{shikimori_id}")
-                    if anime:
-                        logger.info(f"✅ Получено аниме через альтернативный URL: {anime.get('title', 'Без названия')}")
                 except ServiceError as e2:
                     logger.warning(f"❌ Shikimori вернул ошибку для ID {shikimori_id} на альтернативном URL: {e2}")
                     continue
@@ -1328,8 +1271,6 @@ async def shikimori_get_anime_background(anime_name: str):
             if not player_url:
                 logger.warning(f"⚠️ У аниме с shikimori_id {shikimori_id} нет плеера на kodik, пропускаем")
                 continue
-
-            logger.info(f"📥 Получено аниме: {anime.get('title')}")
 
             #  Проверяем, существует ли уже аниме с таким title_original ПЕРЕД парсингом
             try:
@@ -1418,7 +1359,6 @@ async def shikimori_get_anime_background(anime_name: str):
                                 new_anime = existing_anime
                                 anime_id = existing_anime.id
                                 anime_found_after_error = True
-                                logger.info(f"⏭️ Найдено существующее аниме: {anime.get('title')}, используем его")
                                 added_animes.append(new_anime)
                             else:
                                 logger.error(f"❌ Не удалось найти аниме после ошибки уникальности: {anime.get('title')}")
@@ -1483,7 +1423,6 @@ async def shikimori_get_anime_background(anime_name: str):
                         
                         await session.commit()
                         added_animes.append(new_anime)
-                        logger.info(f"✅ Добавлено новое аниме: {anime.get('title')}")
                     except IntegrityError as e:
                         # Обработка ошибки уникальности (race condition)
                         await session.rollback()
@@ -1506,7 +1445,6 @@ async def shikimori_get_anime_background(anime_name: str):
                                 if existing_anime:
                                     new_anime = existing_anime
                                     anime_id = existing_anime.id
-                                    logger.info(f"⏭️ Найдено существующее аниме: {anime.get('title')}, используем его")
                                     added_animes.append(new_anime)
                                 else:
                                     logger.error(f"❌ Не удалось найти аниме после ошибки уникальности: {anime.get('title')}")
@@ -1573,8 +1511,6 @@ async def shikimori_get_anime_background(anime_name: str):
                             if not existing_player:
                                 logger.error(f"❌ Не удалось найти плеер после ошибки уникальности: {player_url}")
                                 continue
-                            else:
-                                logger.info(f"⏭️ Найден существующий плеер, используем его")
                         except Exception as lookup_error:
                             logger.error(f"❌ Ошибка при поиске существующего плеера: {lookup_error}")
                             continue
@@ -1639,7 +1575,6 @@ async def shikimori_get_anime_background(anime_name: str):
                 try:
                     session.add(anime_player)
                     await session.commit()
-                    logger.info(f"✅ Добавлена связь аниме-плеер для: {anime.get('title')}")
                 except (DBAPIError, SQLAlchemyError) as e:
                     logger.error(f"Ошибка при добавлении связи аниме-плеер: {e}")
                     await session.rollback()
@@ -1674,4 +1609,3 @@ async def shikimori_get_anime_background(anime_name: str):
                 status_code=404,
                 detail="Аниме не найдено"
             )
->>>>>>> orig_one

@@ -39,10 +39,7 @@ async def lifespan(app: FastAPI):
     # Инициализируем Redis
     try:
         redis = await get_redis_client()
-        if redis:
-            cache_info = await get_cache_info()
-            logger.info(f"📊 Redis stats: {cache_info}")
-        else:
+        if not redis:
             logger.warning("⚠️ Redis not available, will work without cache")
     except Exception as e:
         logger.error(f"❌ Redis startup error: {e}")
@@ -120,8 +117,6 @@ async def get_avatar(filename: str):
     safe_filename = Path(filename).name
     avatar_path = base_path / safe_filename
     
-    logger.info(f"Requested avatar: {filename}, safe filename: {safe_filename}, full path: {avatar_path}")
-    
     # Проверяем, что путь не выходит за пределы базовой директории (безопасность)
     try:
         avatar_path.resolve().relative_to(base_path.resolve())
@@ -139,7 +134,6 @@ async def get_avatar(filename: str):
         logger.error(f"Invalid file type: {avatar_path.suffix}")
         raise HTTPException(status_code=400, detail="Invalid file type")
     
-    logger.info(f"Serving avatar: {avatar_path}")
     # Определяем media_type на основе расширения файла
     media_type_map = {
         '.jpg': 'image/jpeg',
