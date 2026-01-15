@@ -5,31 +5,148 @@
   min-height: calc(100vh - 200px);
 }
 
-.hero {
+.hero-banner {
+  position: relative;
+  max-width: 1340px;
+  width: 100%;
+  height: 50vh;
+  min-height: 350px;
+  margin: 0 auto 5rem auto;
+  padding: 0 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 16px;
+  cursor: pointer;
+  box-shadow: 
+    0 10px 30px rgba(0, 0, 0, 0.3),
+    0 1px 8px rgba(0, 0, 0, 0.2);
+}
+
+.hero-banner-bg {
+  position: absolute;
+  top: -5%;
+  left: -5%;
+  right: -5%;
+  bottom: -5%;
+  width: 110%;
+  height: 110%;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: opacity 1.5s ease-in-out;
+  z-index: 0;
+  will-change: transform;
+}
+
+.hero-banner-bg.active {
+  opacity: 1;
+}
+
+.hero-banner-bg.inactive {
+  opacity: 0;
+}
+
+.hero-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.3) 0%,
+    rgba(0, 0, 0, 0.5) 50%,
+    rgba(0, 0, 0, 0.7) 100%
+  );
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hero-overlay {
+  position: relative;
+  z-index: 2;
   text-align: center;
-  padding: 4rem 0;
-  margin-bottom: 3rem;
+  padding: 2rem;
+  margin-top: 10vh;
+  will-change: transform;
 }
 
 .hero-title {
-  font-size: 3rem;
-  font-weight: 700;
-  margin-bottom: 1rem;
-  background: var(--user-gradient-text, linear-gradient(135deg, var(--accent), #ff6b6b));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  transition: background 0.3s ease;
-  text-shadow: 0 0 30px var(--user-accent-color-shadow, rgba(229, 9, 20, 0.2));
+  font-size: 3.5rem;
+  font-weight: 900;
+  font-family: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  margin-bottom: 1.5rem;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  text-shadow: 
+    0 2px 10px rgba(0, 0, 0, 0.8),
+    0 4px 20px rgba(229, 9, 20, 0.4);
+  margin: 0 0 1.5rem 0;
+  cursor: default;
+  animation: fadeInUp 1s ease-out;
 }
 
 .hero-subtitle {
-  font-size: 1.25rem;
-  color: var(--text-secondary);
+  font-size: 1.5rem;
+  color: #ffffff;
+  font-weight: 400;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  animation: fadeInUp 1.2s ease-out;
+}
+
+.support-button {
+  position: absolute;
+  bottom: 1.5rem;
+  right: 2rem;
+  z-index: 3;
+  background: var(--user-accent-color, #e50914);
+  color: #ffffff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    0 2px 6px rgba(229, 9, 20, 0.4);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  animation: fadeInUp 1.4s ease-out;
+}
+
+.support-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 6px 16px rgba(0, 0, 0, 0.4),
+    0 4px 8px rgba(229, 9, 20, 0.5);
+  background: var(--user-accent-color, #ff1744);
+}
+
+.support-button:active {
+  transform: translateY(0);
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 1px 4px rgba(229, 9, 20, 0.4);
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .anime-section {
-  margin-bottom: 4rem;
+  margin-bottom: 0.5rem;
   padding: 2rem 0;
   width: 100%;
 }
@@ -177,7 +294,17 @@
   text-align: center;
 }
 
-@media (max-width: 900px) {
+/* Медиа-запросы для адаптивности */
+
+/* Большие мониторы (1400px+) */
+@media (min-width: 1401px) {
+  .hero-banner {
+    max-width: 1500px;
+  }
+}
+
+/* Планшеты в горизонтальной ориентации (901px - 1024px) */
+@media (min-width: 901px) and (max-width: 1024px) {
   .section-header {
     flex-direction: column;
     align-items: flex-start;
@@ -188,26 +315,296 @@
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .hero-title {
+    font-size: 3rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1.3rem;
   }
 }
 
-@media (max-width: 600px) {
+/* Планшеты (769px - 900px) */
+@media (min-width: 769px) and (max-width: 900px) {
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .carousel-controls {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .section-title {
+    font-size: 2rem;
+  }
+
+  .hero-banner {
+    height: 45vh;
+    min-height: 320px;
+    padding: 0 1.5rem;
+    border-radius: 12px;
+    margin-bottom: 4rem;
+  }
+
+  .hero-overlay {
+    margin-top: 6vh;
+    padding: 1.75rem;
+  }
+
+  .hero-title {
+    font-size: 2.75rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1.2rem;
+  }
+
+  .support-button {
+    bottom: 1.25rem;
+    right: 1.5rem;
+    padding: 0.7rem 1.4rem;
+    font-size: 0.95rem;
+  }
+}
+
+/* Мобильные устройства в горизонтальной ориентации (601px - 768px) */
+@media (min-width: 601px) and (max-width: 768px) {
+  .home-page {
+    min-height: calc(100vh - 180px);
+  }
+
+  .hero-banner {
+    height: 42vh;
+    min-height: 300px;
+    padding: 0 1rem;
+    border-radius: 12px;
+    margin-bottom: 3rem;
+  }
+
+  .hero-overlay {
+    margin-top: 5vh;
+    padding: 1.5rem;
+  }
+
+  .hero-title {
+    font-size: 2.25rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1.1rem;
+  }
+
+  .support-button {
+    bottom: 1rem;
+    right: 1rem;
+    padding: 0.625rem 1.25rem;
+    font-size: 0.9rem;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
   .section-title {
     font-size: 1.75rem;
   }
-  
+
   .section-title::before {
     width: 50px;
     height: 3px;
   }
+  
+  .carousel-controls {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .anime-section {
+    padding: 1.5rem 0;
+  }
 }
 
-@media (max-width: 768px) {
+/* Мобильные устройства (481px - 600px) */
+@media (min-width: 481px) and (max-width: 600px) {
+  .home-page {
+    min-height: calc(100vh - 180px);
+  }
+
+  .hero-banner {
+    height: 40vh;
+    min-height: 280px;
+    padding: 0 1rem;
+    border-radius: 10px;
+    margin-bottom: 2.5rem;
+  }
+
+  .hero-overlay {
+    margin-top: 4vh;
+    padding: 1.25rem;
+  }
+
   .hero-title {
     font-size: 2rem;
+    margin-bottom: 1rem;
   }
 
   .hero-subtitle {
     font-size: 1rem;
+  }
+
+  .support-button {
+    bottom: 0.875rem;
+    right: 0.875rem;
+    padding: 0.575rem 1.15rem;
+    font-size: 0.875rem;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+  }
+
+  .section-title::before {
+    width: 45px;
+    height: 3px;
+  }
+  
+  .carousel-controls {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .anime-section {
+    padding: 1.25rem 0;
+  }
+}
+
+/* Маленькие мобильные устройства (до 480px) */
+@media (max-width: 480px) {
+  .home-page {
+    min-height: calc(100vh - 160px);
+  }
+
+  .hero-banner {
+    height: 38vh;
+    min-height: 260px;
+    padding: 0 0.75rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+  }
+
+  .hero-overlay {
+    margin-top: 3vh;
+    padding: 1rem;
+  }
+
+  .hero-title {
+    font-size: 1.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .hero-subtitle {
+    font-size: 0.95rem;
+  }
+
+  .support-button {
+    bottom: 0.75rem;
+    right: 0.75rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+  }
+
+  .section-title::before {
+    width: 40px;
+    height: 3px;
+  }
+  
+  .carousel-controls {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: 100%;
+    justify-content: flex-end;
+    gap: 0.4rem;
+  }
+
+  .carousel-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .carousel-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .anime-section {
+    padding: 1rem 0;
+  }
+}
+
+/* Очень маленькие экраны (до 360px) */
+@media (max-width: 360px) {
+  .hero-banner {
+    height: 35vh;
+    min-height: 240px;
+    padding: 0 0.5rem;
+  }
+
+  .hero-overlay {
+    padding: 0.875rem;
+  }
+
+  .hero-title {
+    font-size: 1.5rem;
+  }
+
+  .hero-subtitle {
+    font-size: 0.85rem;
+  }
+
+  .support-button {
+    bottom: 0.625rem;
+    right: 0.625rem;
+    padding: 0.45rem 0.875rem;
+    font-size: 0.8rem;
+  }
+
+  .section-title {
+    font-size: 1.25rem;
   }
 }

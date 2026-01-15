@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, memo } from 'react'
 import { Link } from 'react-router-dom'
+import LazyImage from './LazyImage'
 import './AnimeCardGrid.css'
+import './LazyImage.css'
 
-function AnimeGrid({ 
+const AnimeGrid = memo(function AnimeGrid({ 
   title, 
   animeList = [], 
   itemsPerPage = 6, 
@@ -14,7 +16,8 @@ function AnimeGrid({
   totalCount = null, // Общее количество элементов (если известно)
   onExpand,
   onPageChange,
-  className = ''
+  className = '',
+  sortCriteria = null // Описание критерия сортировки для tooltip
 }) {
   const [currentPage, setCurrentPage] = useState(0)
   const [showAll, setShowAll] = useState(false)
@@ -54,11 +57,33 @@ function AnimeGrid({
     if (carouselRef.current && !isScrolling) {
       setIsScrolling(true)
       const scrollAmount = page * 100
-      carouselRef.current.style.transform = `translate3d(-${scrollAmount}%, 0, 0)`
-      // Сбрасываем флаг после завершения анимации
-      setTimeout(() => {
-        setIsScrolling(false)
-      }, 500) // Время анимации из CSS
+      
+      // Принудительная перерисовка для предотвращения наложения элементов на мобильных
+      if (carouselRef.current) {
+        // Принудительно вызываем перерисовку перед изменением transform
+        carouselRef.current.style.willChange = 'transform'
+        carouselRef.current.style.transform = 'translateZ(0)'
+        
+        // Используем requestAnimationFrame для плавной анимации
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (carouselRef.current) {
+              carouselRef.current.style.transform = `translate3d(-${scrollAmount}%, 0, 0)`
+              // Принудительная перерисовка после изменения transform
+              carouselRef.current.offsetHeight
+              
+              // Сбрасываем флаг после завершения анимации
+              setTimeout(() => {
+                setIsScrolling(false)
+                // Убираем will-change после завершения анимации для оптимизации
+                if (carouselRef.current) {
+                  carouselRef.current.style.willChange = 'auto'
+                }
+              }, 500) // Время анимации из CSS
+            }
+          })
+        })
+      }
     }
   }
 
@@ -108,11 +133,19 @@ function AnimeGrid({
     return (
       <section className={`anime-card-grid-section ${className}`}>
         <div className="section-header">
-          {title && (
-            <div className="section-title-wrapper">
-              <h2 className="section-title">{title}</h2>
-            </div>
-          )}
+        {title && (
+          <div className="section-title-wrapper">
+            {sortCriteria && (
+              <div className="sort-info-tooltip">
+                <span className="tooltip-icon">?</span>
+                <div className="tooltip-content">
+                  {sortCriteria}
+                </div>
+              </div>
+            )}
+            <h2 className="section-title">{title}</h2>
+          </div>
+        )}
         </div>
         <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
           {emptyMessage}
@@ -126,6 +159,14 @@ function AnimeGrid({
       <div className="section-header">
         {title && (
           <div className="section-title-wrapper">
+            {sortCriteria && (
+              <div className="sort-info-tooltip">
+                <span className="tooltip-icon">?</span>
+                <div className="tooltip-content">
+                  {sortCriteria}
+                </div>
+              </div>
+            )}
             <h2 className="section-title">{title}</h2>
             {showExpandButton && (
               <button 
@@ -181,7 +222,7 @@ function AnimeGrid({
               const globalIndex = startIndex + itemIndex
               
               // Если есть реальное аниме на этой позиции
-              if (globalIndex < animeList.length) {
+              if (globalIndex < animeList.length && animeList[globalIndex] && !animeList[globalIndex].isPlaceholder) {
                 return animeList[globalIndex]
               }
               
@@ -198,8 +239,24 @@ function AnimeGrid({
               return null
             }).filter(item => item !== null)
             
+            // Если страница пустая и это не первая страница, не рендерим её
+            // Но только если мы не ожидаем больше данных
+            if (pageItems.length === 0 && pageIndex > 0 && !hasMoreExpected) {
+              return null
+            }
+            
+            // Если страница пустая, но ожидаются данные, показываем skeleton
+            if (pageItems.length === 0 && hasMoreExpected && pageIndex < displayPages) {
+              // Создаем skeleton для всей страницы
+              pageItems.push(...Array.from({ length: itemsPerPage }, (_, itemIndex) => ({
+                id: `skeleton-page-${pageIndex}-${itemIndex}`,
+                isSkeleton: true,
+                isPlaceholder: true
+              })))
+            }
+            
             return (
-              <div key={pageIndex} className="anime-card-grid-page">
+              <div key={`page-${pageIndex}`} className="anime-card-grid-page">
                 {pageItems.map((anime, itemIndex) => {
                   const isSkeleton = anime.isPlaceholder === true || anime.isSkeleton === true || (!anime.poster_url && !anime.title && anime.id?.startsWith('skeleton-'))
                   const score = anime.score ? parseFloat(anime.score) : null
@@ -228,10 +285,10 @@ function AnimeGrid({
                         className="anime-card-grid-card"
                       >
                         <div className="anime-card-poster">
-                          <img 
+                          <LazyImage 
                             src={anime.poster_url || '/placeholder.jpg'} 
                             alt={anime.title}
-                            loading="lazy"
+                            className="lazy-image"
                           />
                           {score && (
                             <div className={`anime-card-score ${scoreClass}`}>
@@ -272,7 +329,7 @@ function AnimeGrid({
       )}
     </section>
   )
-}
+})
 
 export default AnimeGrid
 

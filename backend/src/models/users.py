@@ -11,11 +11,15 @@ class UserModel(Base):
     email: Mapped[str] = mapped_column(unique=True)
     password_hash: Mapped[str] = mapped_column(nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(nullable=True)
-    role: Mapped[str] = mapped_column(default='user')
+    background_image_url: Mapped[str | None] = mapped_column(nullable=True)  # URL фонового изображения под аватаркой
     type_account: Mapped[str] = mapped_column(default='base', nullable=False)
     email_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
     email_verification_token: Mapped[str | None] = mapped_column(nullable=True)
     email_verification_token_expires: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    is_blocked: Mapped[bool] = mapped_column(default=False, nullable=False)
+    premium_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -29,3 +33,4 @@ class UserModel(Base):
     comments: Mapped[list['CommentModel']] = relationship(back_populates="user", lazy='selectin')
     watch_history: Mapped[list['WatchHistoryModel']] = relationship(back_populates="user", lazy='selectin')
     best_anime: Mapped[list['BestUserAnimeModel']] = relationship(back_populates='user', lazy='selectin')
+    profile_settings: Mapped['UserProfileSettingsModel | None'] = relationship(back_populates='user', lazy='selectin', cascade='all, delete-orphan', uselist=False)

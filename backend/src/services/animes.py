@@ -4,12 +4,14 @@ from sqlalchemy import select, func, and_, exists
 from datetime import datetime, timedelta
 from loguru import logger
 from sqlalchemy.orm import noload
+
 # 
 from src.models.anime import AnimeModel
 from src.models.users import UserModel
 from src.schemas.anime import PaginatorData
 from src.models.ratings import RatingModel
 from src.models.comments import CommentModel
+from src.services.redis_cache import redis_cached, redis_cached_limited
 
 
 async def update_anime_data_from_shikimori(anime_id: int, shikimori_id: int):
@@ -107,6 +109,7 @@ async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession, background
 
     from sqlalchemy.orm import selectinload
     from src.models.comments import CommentModel
+    from src.models.users import UserModel
     
     try:
         logger.info(f'Загрузка аниме {anime_id} с relationships')
@@ -115,7 +118,7 @@ async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession, background
                 .options(
                     selectinload(AnimeModel.players),
                     selectinload(AnimeModel.genres),
-                    selectinload(AnimeModel.comments).selectinload(CommentModel.user),  # Загружаем пользователя для комментариев
+                    selectinload(AnimeModel.comments).selectinload(CommentModel.user).selectinload(UserModel.profile_settings),  # Загружаем пользователя и его profile_settings для комментариев
                 )
                 .filter_by(id=anime_id)
             )).scalar_one_or_none()
@@ -180,6 +183,7 @@ async def get_anime_in_db_by_id(anime_id: int, session: AsyncSession, background
         raise HTTPException(status_code=500, detail=f'Ошибка при загрузке аниме: {str(e)}')
 
 
+@redis_cached(prefix="popular", ttl=900)  # 15 минут
 async def get_popular_anime(paginator_data: PaginatorData, session: AsyncSession):
     '''Получить популярное аниме (все аниме из базы, отсортированные по популярности)'''
 
@@ -211,7 +215,7 @@ async def get_popular_anime(paginator_data: PaginatorData, session: AsyncSession
             # Оценка аниме не ниже 7.5
             AnimeModel.score >= 7.5,
             # Комментариев минимум 6
-            comments_subquery >= 6,
+            # comments_subquery >= 6,
             # Дата последнего обновления за последние 2 недели
             AnimeModel.last_updated >= two_weeks_ago,
             AnimeModel.last_updated <= now,
@@ -229,6 +233,7 @@ async def get_popular_anime(paginator_data: PaginatorData, session: AsyncSession
     return animes if animes else []
 
 
+@redis_cached_limited(prefix="anime_paginated", ttl=300, max_cache_items=18)  # 5 минут, кэшируем только первые 18 элементов
 async def pagination_get_anime(paginator_data: PaginatorData, session: AsyncSession):
     '''Получить конкретное количество аниме (Пагинация, без фильтров)'''
     
@@ -289,6 +294,7 @@ async def get_random_anime(limit: int = 3, session: AsyncSession = None):
     return animes if animes else []
 
 
+@redis_cached(prefix="anime_count", ttl=1800)  # 30 минут
 async def get_anime_total_count(session: AsyncSession):
     '''Получить общее количество аниме в базе'''
     count = (await session.execute(
@@ -308,7 +314,7 @@ async def comments_paginator(limit: int, offset: int,
     comments = (await session.execute(
         select(CommentModel)
             .options(
-                selectinload(CommentModel.user)  # Загружаем пользователя для каждого комментария
+                selectinload(CommentModel.user).selectinload(UserModel.profile_settings)  # Загружаем пользователя и его profile_settings для каждого комментария
             )
             .where(CommentModel.anime_id == anime_id)
             .order_by(CommentModel.created_at.desc())  # Сортируем от новых к старым
@@ -317,3 +323,122 @@ async def comments_paginator(limit: int, offset: int,
     )).scalars().all()
     
     return comments if comments else []
+
+async def sort_anime_by_rating(score: int | float, limit: int, 
+                               offset: int, session: AsyncSession):
+    sorted_animes = (await session.execute(
+        select(AnimeModel)
+        .where(AnimeModel.score >= score)
+        .order_by(AnimeModel.score.asc())
+        .limit(limit)
+        .offset(offset)
+        )).scalars().all()
+    return sorted_animes if sorted_animes else []
+
+
+@redis_cached_limited(prefix="anime_by_score", ttl=300, max_cache_items=18)  # 5 минут, кэшируем только первые 18 элементов
+async def get_anime_sorted_by_score(limit: int, offset: int, 
+                                     order: str = 'asc', session: AsyncSession = None):
+    '''Получить все аниме отсортированные по оценке (score)
+    order: 'asc' - по возрастанию (от низкой к высокой)
+           'desc' - по убыванию (от высокой к низкой)
+    '''
+    
+    query = select(AnimeModel).options(
+        noload(AnimeModel.players),
+        noload(AnimeModel.episodes),
+        noload(AnimeModel.favorites),
+        noload(AnimeModel.ratings),
+        noload(AnimeModel.comments),
+        noload(AnimeModel.watch_history),
+        noload(AnimeModel.genres),
+        noload(AnimeModel.themes),
+    )
+    
+    # Сортируем по score
+    if order.lower() == 'desc':
+        # По убыванию (высокая → низкая), NULL значения в конце
+        query = query.order_by(AnimeModel.score.desc().nullslast())
+    else:
+        # По возрастанию (низкая → высокая), NULL значения в конце
+        query = query.order_by(AnimeModel.score.asc().nullslast())
+    
+    query = query.limit(limit).offset(offset)
+    
+    animes = (await session.execute(query)).scalars().all()
+    return animes if animes else []
+
+
+async def get_anime_sorted_by_studio(studio_name: str, limit: int = 12, 
+                                     offset: int = 0, order: str = 'none', session: AsyncSession = None):
+    '''Получить все аниме от конкретной студии
+    order: 'none' - без сортировки
+           'asc' - по оценке по возрастанию (низкая → высокая)
+           'desc' - по оценке по убыванию (высокая → низкая)
+    '''
+    query = select(AnimeModel).options(
+        noload(AnimeModel.players),
+        noload(AnimeModel.episodes),
+        noload(AnimeModel.favorites),
+        noload(AnimeModel.ratings),
+        noload(AnimeModel.comments),
+        noload(AnimeModel.watch_history),
+        noload(AnimeModel.genres),
+        noload(AnimeModel.themes),
+    )
+    # Используем ilike для регистронезависимого поиска
+    from sqlalchemy import func
+    query = query.where(func.lower(AnimeModel.studio) == func.lower(studio_name))
+    
+    # Применяем сортировку по оценке если нужно
+    if order.lower() == 'desc':
+        # По убыванию (высокая → низкая), NULL значения в конце
+        query = query.order_by(AnimeModel.score.desc().nullslast())
+    elif order.lower() == 'asc':
+        # По возрастанию (низкая → высокая), NULL значения в конце
+        query = query.order_by(AnimeModel.score.asc().nullslast())
+    
+    animes = (await session.execute(
+        query.limit(limit).offset(offset)
+    )).scalars().all()
+    return animes if animes else []
+
+
+async def get_anime_sorted_by_genre(genre: str, limit: int = 12, 
+                                     offset: int = 0, order: str = 'none', session: AsyncSession = None):
+    '''Получить все аниме по конкретному жанру
+    order: 'none' - без сортировки
+           'asc' - по оценке по возрастанию (низкая → высокая)
+           'desc' - по оценке по убыванию (высокая → низкая)
+    '''
+    from src.models.genres import GenreModel, anime_genres
+    
+    query = select(AnimeModel).options(
+        noload(AnimeModel.players),
+        noload(AnimeModel.episodes),
+        noload(AnimeModel.favorites),
+        noload(AnimeModel.ratings),
+        noload(AnimeModel.comments),
+        noload(AnimeModel.watch_history),
+        noload(AnimeModel.genres),
+        noload(AnimeModel.themes),
+    ).join(
+        anime_genres
+    ).join(
+        GenreModel
+    ).where(
+        func.lower(GenreModel.name) == func.lower(genre)
+    ).distinct()
+    
+    # Применяем сортировку по оценке если нужно
+    if order.lower() == 'desc':
+        # По убыванию (высокая → низкая), NULL значения в конце
+        query = query.order_by(AnimeModel.score.desc().nullslast())
+    elif order.lower() == 'asc':
+        # По возрастанию (низкая → высокая), NULL значения в конце
+        query = query.order_by(AnimeModel.score.asc().nullslast())
+    
+    animes = (await session.execute(
+        query.limit(limit).offset(offset)
+    )).scalars().all()
+    return animes if animes else []

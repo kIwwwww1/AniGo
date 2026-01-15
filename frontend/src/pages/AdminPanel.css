@@ -1,0 +1,386 @@
+.admin-panel {
+  min-height: 100vh;
+  padding: 2rem 0;
+  background: var(--bg-color, #0a0a0a);
+  color: var(--text-color, #ffffff);
+}
+
+.admin-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.admin-header {
+  margin-bottom: 2rem;
+}
+
+.admin-header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--admin-accent-color, #e50914) !important;
+}
+
+.admin-subtitle {
+  color: var(--text-secondary, #888);
+  font-size: 1.1rem;
+}
+
+.admin-loading,
+.admin-error {
+  text-align: center;
+  padding: 2rem;
+  font-size: 1.2rem;
+}
+
+.admin-error {
+  color: #ff4444;
+  background: rgba(255, 68, 68, 0.1);
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.admin-controls {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.admin-controls-buttons {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.admin-search {
+  flex: 1;
+  max-width: 400px;
+}
+
+.admin-search-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--card-bg, #1a1a1a);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 8px;
+  color: var(--text-color, #ffffff);
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.admin-search-input:focus {
+  outline: none;
+  border-color: var(--admin-accent-color, #e50914);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--admin-accent-color, #e50914) 10%, transparent);
+}
+
+.admin-refresh-btn {
+  padding: 0.75rem 1.5rem;
+  background: var(--admin-accent-color, #e50914);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.admin-refresh-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--admin-accent-color, #e50914) 90%, white);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--admin-accent-color, #e50914) 30%, transparent);
+}
+
+.admin-refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-delete-test-btn {
+  padding: 0.75rem 1.5rem;
+  background: #ff4444;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.admin-delete-test-btn:hover:not(:disabled) {
+  background: #ff6666;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 68, 68, 0.3);
+}
+
+.admin-delete-test-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-users-table {
+  background: var(--card-bg, #1a1a1a);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.admin-users-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-users-table thead {
+  background: var(--header-bg, #2a2a2a);
+}
+
+.admin-users-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--admin-accent-color, #ffffff);
+  border-bottom: 2px solid var(--admin-accent-color, #333);
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.admin-users-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color, #333);
+  color: var(--text-color, #ffffff);
+}
+
+.admin-username-link {
+  color: var(--admin-accent-color, #e50914);
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.admin-username-link:hover {
+  color: color-mix(in srgb, var(--admin-accent-color, #e50914) 90%, white);
+  text-decoration: underline;
+}
+
+.admin-users-table tbody tr:hover {
+  background: var(--hover-bg, #252525);
+}
+
+.admin-users-table tbody tr.user-blocked {
+  opacity: 0.6;
+}
+
+.admin-users-table tbody tr.user-blocked:hover {
+  opacity: 0.8;
+}
+
+.admin-empty {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-secondary, #888);
+  font-size: 1.1rem;
+}
+
+.account-type-badge {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.account-type-base {
+  background: rgba(136, 136, 136, 0.2);
+  color: #888;
+}
+
+.account-type-admin {
+  background: rgba(0, 102, 255, 0.2);
+  color: #0066ff;
+}
+
+.account-type-owner {
+  background: rgba(255, 215, 0, 0.2);
+  color: #ffd700;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.status-active {
+  background: rgba(0, 204, 0, 0.2);
+  color: #00cc00;
+}
+
+.status-blocked {
+  background: rgba(255, 68, 68, 0.2);
+  color: #ff4444;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.admin-btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.admin-btn-block {
+  background: var(--admin-accent-color, #ff4444);
+  color: white;
+}
+
+.admin-btn-block:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--admin-accent-color, #ff4444) 90%, white);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--admin-accent-color, #ff4444) 30%, transparent);
+}
+
+.admin-btn-unblock {
+  background: #00cc00;
+  color: white;
+}
+
+.admin-btn-unblock:hover:not(:disabled) {
+  background: #00ff00;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 204, 0, 0.3);
+}
+
+.admin-btn-make-admin {
+  background: #0066ff;
+  color: white;
+}
+
+.admin-btn-make-admin:hover:not(:disabled) {
+  background: #3385ff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 102, 255, 0.3);
+}
+
+.admin-btn-remove-admin {
+  background: #ff8800;
+  color: white;
+}
+
+.admin-btn-remove-admin:hover:not(:disabled) {
+  background: #ff9933;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(255, 136, 0, 0.3);
+}
+
+.admin-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-no-action {
+  color: var(--text-secondary, #888);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+/* Пагинация */
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border-color, #333);
+}
+
+.admin-pagination-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background-color: var(--card-bg, #1a1a1a);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 12px;
+  color: var(--text-color, #ffffff);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
+.admin-pagination-btn:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--admin-accent-color, #e50914) 10%, transparent);
+  border-color: var(--admin-accent-color, #e50914);
+  color: var(--admin-accent-color, #e50914);
+  transform: translateY(-2px);
+}
+
+.admin-pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.admin-page-info {
+  color: var(--text-secondary, #888);
+  font-size: 0.875rem;
+  font-weight: 500;
+  min-width: 100px;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .admin-container {
+    padding: 0 1rem;
+  }
+
+  .admin-header h1 {
+    font-size: 2rem;
+  }
+
+  .admin-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-search {
+    max-width: 100%;
+  }
+
+  .admin-users-table {
+    overflow-x: auto;
+  }
+
+  .admin-users-table table {
+    min-width: 800px;
+  }
+
+  .admin-pagination {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .admin-pagination-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+  }
+}
+

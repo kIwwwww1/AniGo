@@ -22,25 +22,30 @@ function PopularAnimePage() {
     try {
       const response = await userAPI.getCurrentUser()
       if (response && response.message && response.message.username) {
-        const username = response.message.username
-        const savedColor = localStorage.getItem(`user_${username}_avatar_border_color`)
-        const availableColors = ['#ffffff', '#000000', '#808080', '#c4c4af', '#0066ff', '#00cc00', '#ff0000', '#ff69b4', '#ffd700', '#9932cc']
-        
-        if (savedColor && availableColors.includes(savedColor)) {
-          // Устанавливаем CSS переменную
-          document.documentElement.style.setProperty('--user-accent-color', savedColor)
+        // Загружаем настройки профиля из API
+        const settingsResponse = await userAPI.getProfileSettings()
+        if (settingsResponse.message && settingsResponse.message.avatar_border_color) {
+          const savedColor = settingsResponse.message.avatar_border_color
+          const availableColors = ['#ffffff', '#000000', '#808080', '#c4c4af', '#0066ff', '#00cc00', '#ff0000', '#ff69b4', '#ffd700', '#9932cc']
           
-          // Создаем rgba версию для hover эффектов
-          const hex = savedColor.replace('#', '')
-          const r = parseInt(hex.slice(0, 2), 16)
-          const g = parseInt(hex.slice(2, 4), 16)
-          const b = parseInt(hex.slice(4, 6), 16)
-          const rgba = `rgba(${r}, ${g}, ${b}, 0.1)`
-          document.documentElement.style.setProperty('--user-accent-color-rgba', rgba)
-          
-          // Создаем тень для box-shadow
-          const shadowRgba = `rgba(${r}, ${g}, ${b}, 0.4)`
-          document.documentElement.style.setProperty('--user-accent-color-shadow', shadowRgba)
+          if (availableColors.includes(savedColor)) {
+            // Сохраняем цвет в localStorage для быстрой загрузки при следующем открытии
+            localStorage.setItem('user-avatar-border-color', savedColor)
+            // Устанавливаем CSS переменную
+            document.documentElement.style.setProperty('--user-accent-color', savedColor)
+            
+            // Создаем rgba версию для hover эффектов
+            const hex = savedColor.replace('#', '')
+            const r = parseInt(hex.slice(0, 2), 16)
+            const g = parseInt(hex.slice(2, 4), 16)
+            const b = parseInt(hex.slice(4, 6), 16)
+            const rgba = `rgba(${r}, ${g}, ${b}, 0.1)`
+            document.documentElement.style.setProperty('--user-accent-color-rgba', rgba)
+            
+            // Создаем тень для box-shadow
+            const shadowRgba = `rgba(${r}, ${g}, ${b}, 0.4)`
+            document.documentElement.style.setProperty('--user-accent-color-shadow', shadowRgba)
+          }
         }
       }
     } catch (err) {

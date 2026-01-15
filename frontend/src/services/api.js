@@ -106,10 +106,42 @@ export const animeAPI = {
     return response.data
   },
 
+  // Получить аниме отсортированные по оценке
+  getAnimeByScore: async (order = 'asc', limit = 12, offset = 0) => {
+    const response = await api.get('/anime/all/anime/score', {
+      params: { order, limit, offset },
+    })
+    return response.data
+  },
+
   // Получить комментарии к аниме с пагинацией
   getCommentsPaginated: async (animeId, limit = 4, offset = 0) => {
     const response = await api.get('/anime/comment/paginator', {
       params: { anime_id: animeId, limit, offset },
+    })
+    return response.data
+  },
+
+  // Получить аниме по студии
+  getAnimeByStudio: async (studioName, limit = 12, offset = 0, order = 'none') => {
+    const response = await api.get('/anime/all/anime/studio', {
+      params: { studio_name: studioName, limit, offset, order },
+    })
+    return response.data
+  },
+
+  // Получить аниме по жанру
+  getAnimeByGenre: async (genreName, limit = 12, offset = 0, order = 'none') => {
+    const response = await api.get('/anime/all/anime/genre', {
+      params: { genre: genreName, limit, offset, order },
+    })
+    return response.data
+  },
+
+  // Получить аниме с высшей оценкой
+  getHighestScoreAnime: async (limit = 12, offset = 0, order = 'desc') => {
+    const response = await api.get('/anime/get/highest-score', {
+      params: { limit, offset, order },
     })
     return response.data
   },
@@ -202,6 +234,208 @@ export const userAPI = {
   // Получить профиль пользователя по username
   getUserProfile: async (username) => {
     const response = await api.get(`/user/profile/${encodeURIComponent(username)}`)
+    return response.data
+  },
+
+  // Получить настройки пользователя по username
+  getUserSettings: async (username) => {
+    const response = await api.get(`/user/settings/${encodeURIComponent(username)}`)
+    return response.data
+  },
+
+  // Изменить имя пользователя
+  changeUsername: async (newUsername) => {
+    const response = await api.patch('/user/change/name', {
+      username: newUsername,
+    })
+    return response.data
+  },
+
+  // Изменить пароль
+  changePassword: async (oldPassword, oneNewPassword, twoNewPassword) => {
+    const response = await api.patch('/user/change/password', {
+      old_password: oldPassword,
+      one_new_password: oneNewPassword,
+      two_new_password: twoNewPassword,
+    })
+    return response.data
+  },
+
+  // Установить аниме на место в топ-3
+  setBestAnime: async (animeId, place) => {
+    const response = await api.post('/user/best-anime', {
+      anime_id: animeId,
+      place: place,
+    })
+    return response.data
+  },
+
+  // Получить топ-3 аниме текущего пользователя
+  getBestAnime: async () => {
+    const response = await api.get('/user/best-anime')
+    return response.data
+  },
+
+  // Удалить аниме с места в топ-3
+  removeBestAnime: async (place) => {
+    const response = await api.delete(`/user/best-anime/${place}`)
+    return response.data
+  },
+
+  // Загрузить аватар пользователя
+  uploadAvatar: async (file) => {
+    const formData = new FormData()
+    formData.append('photo', file)
+    const response = await api.patch('/user/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  },
+
+  // Загрузить фоновое изображение под аватаркой
+  uploadBackgroundImage: async (file, settings = {}) => {
+    const formData = new FormData()
+    formData.append('photo', file)
+    
+    // Добавляем параметры отображения в query string
+    const params = new URLSearchParams()
+    if (settings.scale !== undefined) params.append('scale', settings.scale)
+    if (settings.positionX !== undefined) params.append('position_x', settings.positionX)
+    if (settings.positionY !== undefined) params.append('position_y', settings.positionY)
+    
+    const queryString = params.toString()
+    const url = queryString ? `/user/background-image?${queryString}` : '/user/background-image'
+    
+    const response = await api.patch(url, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  },
+
+  // Удалить фоновое изображение
+  deleteBackgroundImage: async () => {
+    const response = await api.delete('/user/background-image')
+    return response.data
+  },
+
+  // Получить пользователей с наибольшим количеством избранного
+  getMostFavoritedUsers: async (limit = 6, offset = 0) => {
+    const response = await api.get('/user/most-favorited', {
+      params: { limit, offset },
+    })
+    return response.data
+  },
+
+  // Получить настройки профиля текущего пользователя
+  getProfileSettings: async () => {
+    const response = await api.get('/user/profile-settings')
+    return response.data
+  },
+
+  // Получить настройки профиля пользователя по username
+  getUserProfileSettings: async (username) => {
+    const response = await api.get(`/user/profile-settings/${encodeURIComponent(username)}`)
+    return response.data
+  },
+
+  // Обновить настройки профиля текущего пользователя
+  updateProfileSettings: async (settings) => {
+    const response = await api.patch('/user/profile-settings', settings)
+    return response.data
+  },
+
+  // Активировать премиум подписку
+  activatePremium: async (days) => {
+    const response = await api.post('/user/premium/activate', {
+      days: days,
+    })
+    return response.data
+  },
+
+  // Получить статус премиум подписки
+  getPremiumStatus: async () => {
+    const response = await api.get('/user/premium/status')
+    return response.data
+  },
+
+}
+
+export const adminAPI = {
+  // Получить всех пользователей с пагинацией
+  getAllUsers: async (limit = 10, offset = 0) => {
+    const response = await api.get('/admin/all-users', {
+      params: { limit, offset },
+    })
+    return response.data
+  },
+
+  // Заблокировать пользователя
+  blockUser: async (userId) => {
+    const response = await api.patch('/admin/block-user', null, {
+      params: { user_id: userId },
+    })
+    return response.data
+  },
+
+  // Разблокировать пользователя
+  unblockUser: async (userId) => {
+    const response = await api.delete('/admin/unblock-user', {
+      params: { user_id: userId },
+    })
+    return response.data
+  },
+
+  // Назначить пользователя админом (только для владельца)
+  makeAdmin: async (userId) => {
+    const response = await api.patch('/admin/make-admin', null, {
+      params: { user_id: userId },
+    })
+    return response.data
+  },
+
+  // Снять права администратора у пользователя (только для владельца)
+  removeAdmin: async (userId) => {
+    const response = await api.patch('/admin/remove-admin', null, {
+      params: { user_id: userId },
+    })
+    return response.data
+  },
+
+  // Удалить тестовые данные
+  deleteTestData: async () => {
+    const response = await api.delete('/admin/delete-test-data')
+    return response.data
+  },
+
+  // Очистить кэш Redis
+  clearCache: async () => {
+    const response = await api.delete('/admin/clear-cache')
+    return response.data
+  },
+
+  // Удалить комментарий (для админов/владельцев или владельца комментария)
+  deleteComment: async (commentId) => {
+    const response = await api.delete('/admin/delete-user-comment', {
+      params: { comment_id: commentId },
+    })
+    return response.data
+  },
+}
+
+export const documentsAPI = {
+  // Получить политику конфиденциальности
+  getPrivacyPolicy: async () => {
+    const response = await api.get('/documents/privacy-policy')
+    return response.data
+  },
+
+  // Получить условия использования
+  getTermsOfUse: async () => {
+    const response = await api.get('/documents/terms-of-use')
     return response.data
   },
 }

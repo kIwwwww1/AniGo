@@ -1,0 +1,27 @@
+# Альтернативный Dockerfile с использованием китайского зеркала npm
+# Используйте этот файл, если основной Dockerfile.dev не работает из-за проблем с сетью
+# Переименуйте его в Dockerfile.dev или используйте в docker-compose.yml
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Использование альтернативного npm registry (китайское зеркало)
+# Это может быть быстрее для некоторых регионов
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm config set fetch-timeout 300000 && \
+    npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000
+
+# Copy package files first for better caching
+COPY package*.json ./
+
+# Copy source code
+COPY . .
+
+EXPOSE 3000
+
+# Установка зависимостей и запуск dev сервера
+# Зависимости устанавливаются при запуске контейнера
+CMD sh -c "npm install --fetch-timeout=300000 --fetch-retries=5 && npm run dev -- --host 0.0.0.0"

@@ -30,7 +30,6 @@ function LoadingScreen({ isLoading }) {
     // Резервный таймер - гарантированно скрываем через 4 секунды
     const safetyTimer = setTimeout(() => {
       if (mountedRef.current) {
-        console.warn('LoadingScreen: Safety timer fired, forcing hide')
         setVisible(false)
       }
     }, 4000)
@@ -56,7 +55,7 @@ function LoadingScreen({ isLoading }) {
     >
       <div className="loading-screen-content">
         <div className="loading-logo">
-          <h1>AniGo</h1>
+          <h1>Yumivo</h1>
         </div>
         <div className="loading-spinner">
           <div className="spinner-ring"></div>

@@ -1,0 +1,115 @@
+# Шаблон конфигурации Nginx для первоначальной настройки
+# Используйте этот файл перед получением SSL сертификата
+# После получения сертификата используйте nginx.conf
+
+# Rate limiting зоны
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=100r/m;
+limit_req_zone $binary_remote_addr zone=api_burst:10m rate=10r/s;
+limit_conn_zone $binary_remote_addr zone=conn_limit:10m;
+
+# Upstream для backend
+upstream backend {
+    least_conn;
+    server backend:8000 max_fails=3 fail_timeout=30s;
+    keepalive 32;
+}
+
+# HTTP сервер (без SSL для первоначальной настройки)
+# Upstream для backend
+upstream backend {
+    least_conn;
+    server backend:8000 max_fails=3 fail_timeout=30s;
+    keepalive 32;
+}
+
+# Upstream для frontend
+upstream frontend {
+    server frontend:80;
+}
+
+server {
+    listen 80;
+    server_name yumivo.ru www.yumivo.ru;
+
+    # Для Let's Encrypt
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # Лимиты размера запроса
+    client_max_body_size 50M;
+    client_body_buffer_size 128k;
+
+    # Таймауты
+    proxy_connect_timeout 75s;
+    proxy_send_timeout 300s;
+    proxy_read_timeout 300s;
+    send_timeout 300s;
+
+    # Ограничение соединений
+    limit_conn conn_limit 20;
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json application/javascript;
+
+    # API endpoints с rate limiting
+    location /api/ {
+        # Применяем rate limiting
+        limit_req zone=api_limit burst=20 nodelay;
+        limit_req zone=api_burst burst=5 nodelay;
+
+        # Proxy настройки
+        proxy_pass http://backend/;
+        proxy_http_version 1.1;
+        
+        # Заголовки
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Статические файлы frontend (assets)
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp)$ {
+        proxy_pass http://frontend;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Frontend SPA - все остальные запросы
+    location / {
+        proxy_pass http://frontend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Health check endpoint (без rate limiting)
+    location /health {
+        access_log off;
+        proxy_pass http://backend/health;
+        proxy_set_header Host $host;
+    }
+
+    # Логирование
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log warn;
+}
+

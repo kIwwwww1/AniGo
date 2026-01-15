@@ -1,6 +1,24 @@
 
 
 services:
+  # Redis для кэширования
+  redis:
+    image: redis:7-alpine
+    container_name: anigo-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - anigo-network
+
   backend:
     build:
       context: ./backend
@@ -10,6 +28,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend/src:/app/src
+      - ./backend/migrations:/app/migrations
       - ./backend/requirements.txt:/app/requirements.txt:ro
       - ./.env:/app/.env:ro  # Монтируем .env файл из корня проекта
     environment:
@@ -19,10 +38,15 @@ services:
       - POSTGRES_DB=anigo
       - DB_HOST=db
       - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
     env_file:
       - .env  # Загружаем переменные из .env файла
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
+      redis:
+        condition: service_healthy
       db:
         condition: service_healthy
     healthcheck:
@@ -81,6 +105,8 @@ services:
 
 volumes:
   db_data:
+    driver: local
+  redis_data:
     driver: local
 
 networks:

@@ -9,6 +9,11 @@
 
 .section-header {
   margin-bottom: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .section-title-wrapper {
@@ -17,11 +22,66 @@
   gap: 0.5rem;
 }
 
+.sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.sort-label {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary, #ffffff);
+  white-space: nowrap;
+}
+
+.sort-select {
+  padding: 0.625rem 1rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary, #ffffff);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  outline: none;
+  min-width: 220px;
+}
+
+.sort-select:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.sort-select:focus {
+  border-color: var(--user-accent-color, var(--accent, #e50914));
+  box-shadow: 0 0 0 3px var(--user-accent-color-shadow, rgba(229, 9, 20, 0.2));
+}
+
+.sort-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sort-select option {
+  background: #1a1a1a;
+  color: var(--text-primary, #ffffff);
+  padding: 0.5rem;
+}
+
 .section-title {
   font-size: 2rem;
-  font-weight: 700;
-  color: var(--text-primary, #ffffff);
+  font-weight: 900;
+  font-family: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--user-gradient-text, linear-gradient(135deg, #e50914 0%, #ff6b6b 50%, #ffd700 100%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+  text-shadow: 0 0 30px var(--user-accent-color-shadow, rgba(229, 9, 20, 0.3));
   margin: 0;
+  cursor: default;
 }
 
 .all-anime-grid {
@@ -115,6 +175,22 @@
 
   .section-title {
     font-size: 1.5rem;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .sort-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .sort-select {
+    width: 100%;
+    min-width: auto;
   }
 
   .load-more-btn {

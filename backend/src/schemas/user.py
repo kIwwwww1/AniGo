@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Literal
+from datetime import datetime
 
 AccountTypes = Literal['base', 'premium', 'admin', 'owner']
 
@@ -18,6 +19,11 @@ class CreateNewUser(LoginUser, UserEmail):
 class UserTypeAccount(BaseModel):
     type_account: AccountTypes
     
+class ChangeUserPassword(BaseModel):
+    old_password: str = Field(min_length=8)
+    one_new_password: str = Field(min_length=8)
+    two_new_password: str = Field(min_length=8)
+
 
 class CreateUserComment(BaseModel):
     text: str = Field(min_length=1, max_length=100)
@@ -74,3 +80,76 @@ class CreateUserFavorite(BaseModel):
                 return int(v)
             raise ValueError('anime_id должен быть целым числом, не дробным')
         return v
+
+class CreateBestUserAnime(BaseModel):
+    anime_id: int = Field(gt=0)
+    place: int = Field(ge=1, le=3)  # Место от 1 до 3
+    
+    @field_validator('anime_id', mode='before')
+    @classmethod
+    def validate_anime_id(cls, v):
+        """Конвертируем anime_id в целое число, если это возможно"""
+        if isinstance(v, str):
+            try:
+                return int(v)
+            except ValueError:
+                raise ValueError('anime_id должен быть целым числом')
+        if isinstance(v, float):
+            if v.is_integer():
+                return int(v)
+            raise ValueError('anime_id должен быть целым числом, не дробным')
+        return v
+    
+    @field_validator('place', mode='before')
+    @classmethod
+    def validate_place(cls, v):
+        """Конвертируем place в целое число, если это возможно"""
+        if isinstance(v, str):
+            try:
+                return int(v)
+            except ValueError:
+                raise ValueError('place должен быть целым числом от 1 до 3')
+        if isinstance(v, float):
+            if v.is_integer():
+                return int(v)
+            raise ValueError('place должен быть целым числом, не дробным')
+        return v
+
+
+# Схемы для настроек профиля
+class UserProfileSettingsBase(BaseModel):
+    username_color: str | None = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$', description='Hex цвет имени пользователя')
+    avatar_border_color: str | None = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$', description='Hex цвет обводки аватарки')
+    background_scale: int | None = Field(None, ge=50, le=200, description='Масштаб фонового изображения (50-200%)')
+    background_position_x: int | None = Field(None, ge=0, le=100, description='Позиция X фонового изображения (0-100%)')
+    background_position_y: int | None = Field(None, ge=0, le=100, description='Позиция Y фонового изображения (0-100%)')
+    hide_age_restriction_warning: bool | None = Field(None, description='Скрыть предупреждение о возрастных ограничениях')
+
+
+class UserProfileSettingsUpdate(UserProfileSettingsBase):
+    """Схема для обновления настроек профиля (все поля опциональны)"""
+    pass
+
+
+class UserProfileSettingsResponse(UserProfileSettingsBase):
+    """Схема для ответа с настройками профиля"""
+    user_id: int
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+# Схемы для премиум подписки
+class ActivatePremiumRequest(BaseModel):
+    """Схема для активации премиум подписки"""
+    days: int = Field(ge=1, le=365, description='Количество дней подписки (от 1 до 365)')
+
+
+class PremiumStatusResponse(BaseModel):
+    """Схема для ответа со статусом премиум подписки"""
+    is_premium: bool
+    expires_at: str | None
+    days_remaining: int | None
+    type_account: str

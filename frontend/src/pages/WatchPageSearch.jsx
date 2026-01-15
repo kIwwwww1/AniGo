@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { animeAPI, userAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
+import { parseMentions } from '../utils/parseMentions'
 import VideoPlayer from '../components/VideoPlayer'
 import AnimeCard from '../components/AnimeCard'
 import './WatchPage.css'
@@ -19,12 +20,18 @@ function WatchPageSearch() {
   const [commentText, setCommentText] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
   const [avatarErrors, setAvatarErrors] = useState({}) // Ошибки загрузки аватарок комментариев
+  const [lastCommentTime, setLastCommentTime] = useState(null) // Время последнего комментария
+  const [commentCooldown, setCommentCooldown] = useState(0) // Осталось секунд до следующего комментария
+  const COMMENT_COOLDOWN_SECONDS = 60 // Время между комментариями в секундах
+  const cooldownIntervalRef = useRef(null)
 
   useEffect(() => {
     if (animeName) {
       // Прокручиваем страницу вверх при переходе на страницу аниме
       window.scrollTo(0, 0)
       setRetryAttempted(false) // Сбрасываем флаг при изменении animeName
+      setLastCommentTime(null) // Сбрасываем время последнего комментария
+      setCommentCooldown(0) // Сбрасываем кулдаун
       loadAnime()
       loadRandomAnime()
     }
@@ -42,6 +49,31 @@ function WatchPageSearch() {
       }
     }
   }, [anime])
+
+  // Обратный отсчет для кулдауна комментариев
+  useEffect(() => {
+    if (commentCooldown > 0) {
+      cooldownIntervalRef.current = setInterval(() => {
+        setCommentCooldown((prev) => {
+          if (prev <= 1) {
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    } else {
+      if (cooldownIntervalRef.current) {
+        clearInterval(cooldownIntervalRef.current)
+        cooldownIntervalRef.current = null
+      }
+    }
+
+    return () => {
+      if (cooldownIntervalRef.current) {
+        clearInterval(cooldownIntervalRef.current)
+      }
+    }
+  }, [commentCooldown])
 
   const loadAnime = async () => {
     try {
@@ -97,12 +129,7 @@ function WatchPageSearch() {
               }
             } catch (retryErr) {
               console.error('Ошибка повторного запроса:', retryErr)
-              if (retryErr.response?.status === 401) {
-                setAuthError(true)
-                setError('Для просмотра аниме необходимо войти в аккаунт')
-              } else {
-                setError('Аниме не найдено')
-              }
+              setError('Аниме не найдено')
             }
           } else {
             setError('Аниме не найдено')
@@ -150,49 +177,39 @@ function WatchPageSearch() {
       }
       setError(null)
     } catch (err) {
-      if (err.response?.status === 401) {
-        setAuthError(true)
-        setError('Для просмотра аниме необходимо войти в аккаунт')
-      } else {
-        // Если ошибка и еще не делали повторный запрос
-        if (!retryAttempted) {
-          setRetryAttempted(true)
-          try {
-            const retryResponse = await animeAPI.getAnimeBySearchName(animeName)
-            if (retryResponse.message) {
-              const retryAnimeData = retryResponse.message
-              if (Array.isArray(retryAnimeData) && retryAnimeData.length > 0) {
-                const firstAnime = retryAnimeData[0]
-                if (firstAnime.id && firstAnime.players && firstAnime.players.length > 0) {
-                  navigate(`/watch/${firstAnime.id}`)
-                  return
-                }
-                setAnime(firstAnime)
-              } else if (retryAnimeData && typeof retryAnimeData === 'object' && retryAnimeData.id) {
-                if (retryAnimeData.players && retryAnimeData.players.length > 0) {
-                  navigate(`/watch/${retryAnimeData.id}`)
-                  return
-                }
-                setAnime(retryAnimeData)
-              } else {
-                setError('Аниме не найдено')
+      // Если ошибка и еще не делали повторный запрос
+      if (!retryAttempted) {
+        setRetryAttempted(true)
+        try {
+          const retryResponse = await animeAPI.getAnimeBySearchName(animeName)
+          if (retryResponse.message) {
+            const retryAnimeData = retryResponse.message
+            if (Array.isArray(retryAnimeData) && retryAnimeData.length > 0) {
+              const firstAnime = retryAnimeData[0]
+              if (firstAnime.id && firstAnime.players && firstAnime.players.length > 0) {
+                navigate(`/watch/${firstAnime.id}`)
+                return
               }
+              setAnime(firstAnime)
+            } else if (retryAnimeData && typeof retryAnimeData === 'object' && retryAnimeData.id) {
+              if (retryAnimeData.players && retryAnimeData.players.length > 0) {
+                navigate(`/watch/${retryAnimeData.id}`)
+                return
+              }
+              setAnime(retryAnimeData)
             } else {
               setError('Аниме не найдено')
             }
-          } catch (retryErr) {
-            console.error('Ошибка повторного запроса:', retryErr)
-            if (retryErr.response?.status === 401) {
-              setAuthError(true)
-              setError('Для просмотра аниме необходимо войти в аккаунт')
-            } else {
-              setError('Аниме не найдено')
-            }
+          } else {
+            setError('Аниме не найдено')
           }
-        } else {
+        } catch (retryErr) {
+          console.error('Ошибка повторного запроса:', retryErr)
           setError('Аниме не найдено')
-          console.error(err)
         }
+      } else {
+        setError('Аниме не найдено')
+        console.error(err)
       }
     } finally {
       setLoading(false)
@@ -212,17 +229,32 @@ function WatchPageSearch() {
 
   const handleSubmitComment = async (e) => {
     e.preventDefault()
-    if (!commentText.trim() || !anime) return
+    if (!commentText.trim() || !anime || commentCooldown > 0) return
 
     try {
       setSubmittingComment(true)
       await userAPI.createComment(anime.id, commentText)
       setCommentText('')
+      // Сохраняем время отправки комментария
+      setLastCommentTime(Date.now())
+      setCommentCooldown(COMMENT_COOLDOWN_SECONDS)
+      // Инвалидируем кэш аниме после создания комментария
+      const { invalidateAnimeRelatedCache } = await import('../utils/cache')
+      invalidateAnimeRelatedCache()
       // Перезагружаем аниме, чтобы получить обновленные комментарии
       await loadAnime()
     } catch (err) {
       console.error('Ошибка при отправке комментария:', err)
-      alert('Ошибка при отправке комментария')
+      if (err.response?.status === 429) {
+        // Ошибка защиты от спама
+        const errorMessage = err.response?.data?.detail || 'Вы отправляете комментарии слишком часто. Подождите немного.'
+        alert(errorMessage)
+        // Устанавливаем кулдаун из ответа сервера, если возможно
+        setLastCommentTime(Date.now())
+        setCommentCooldown(COMMENT_COOLDOWN_SECONDS)
+      } else {
+        alert('Ошибка при отправке комментария')
+      }
     } finally {
       setSubmittingComment(false)
     }
@@ -303,6 +335,23 @@ function WatchPageSearch() {
             )}
             
             <div className="anime-details-grid">
+              {(anime.studio || (anime.genres && anime.genres.length > 0)) && (
+                <div className="sort-info-tooltip details-grid-tooltip">
+                  <span className="tooltip-icon">?</span>
+                      <div className="tooltip-content">
+                        {anime.studio && (
+                          <div>Нажмите на название студии, чтобы увидеть все аниме от этой студии</div>
+                        )}
+                        {anime.studio && anime.genres && anime.genres.length > 0 && (
+                          <div className="tooltip-divider"></div>
+                        )}
+                        {anime.genres && anime.genres.length > 0 && (
+                          <div>Нажмите на название жанра, чтобы увидеть все аниме с этим жанром</div>
+                        )}
+                      </div>
+                </div>
+              )}
+              
               {anime.status && (
                 <div className="detail-row">
                   <span className="detail-label">Статус:</span>
@@ -315,9 +364,13 @@ function WatchPageSearch() {
                   <span className="detail-label">Жанры:</span>
                   <div className="genres-tags">
                     {anime.genres.map((genre) => (
-                      <span key={genre.id} className="genre-tag">
+                      <Link
+                        key={genre.id}
+                        to={`/anime/all/anime?genre=${encodeURIComponent(genre.name)}`}
+                        className="genre-tag genre-link"
+                      >
                         {genre.name}
-                      </span>
+                      </Link>
                     ))}
                   </div>
                 </div>
@@ -326,7 +379,12 @@ function WatchPageSearch() {
               {anime.studio && (
                 <div className="detail-row">
                   <span className="detail-label">Студия:</span>
-                  <span className="detail-value">{anime.studio}</span>
+                  <Link 
+                    to={`/anime/all/anime?studio=${encodeURIComponent(anime.studio)}`}
+                    className="detail-value studio-link"
+                  >
+                    {anime.studio}
+                  </Link>
                 </div>
               )}
               
@@ -391,10 +449,15 @@ function WatchPageSearch() {
                 </div>
                 <button
                   type="submit"
-                  disabled={submittingComment || !commentText.trim()}
+                  disabled={submittingComment || !commentText.trim() || commentCooldown > 0}
                   className="comment-submit-btn"
+                  title={commentCooldown > 0 ? `Подождите ${commentCooldown} секунд перед отправкой следующего комментария` : ''}
                 >
-                  {submittingComment ? 'Отправка...' : 'Отправить'}
+                  {submittingComment 
+                    ? 'Отправка...' 
+                    : commentCooldown > 0 
+                    ? `Подождите ${commentCooldown}с`
+                    : 'Отправить'}
                 </button>
               </form>
 
@@ -414,7 +477,11 @@ function WatchPageSearch() {
                                   src={avatarUrl}
                                   alt={comment.user?.username || 'User'}
                                   className="comment-avatar"
-                                  onError={() => setAvatarErrors(prev => ({ ...prev, [comment.id]: true }))}
+                                  onError={(e) => {
+                                    // Останавливаем повторные попытки загрузки
+                                    e.target.src = ''
+                                    setAvatarErrors(prev => ({ ...prev, [comment.id]: true }))
+                                  }}
                                   onLoad={() => setAvatarErrors(prev => {
                                     const newErrors = { ...prev }
                                     delete newErrors[comment.id]
@@ -425,7 +492,7 @@ function WatchPageSearch() {
                             }
                             return (
                               <div className="comment-avatar avatar-fallback" style={{ backgroundColor: '#000000' }}>
-                                <span style={{ fontSize: '1.5rem', lineHeight: '1' }}>🐱</span>
+                                <span>🐱</span>
                               </div>
                             )
                           })()}
@@ -433,7 +500,7 @@ function WatchPageSearch() {
                         </div>
                         <span className="comment-date">{formatDate(comment.created_at)}</span>
                       </div>
-                      <p className="comment-text">{comment.text}</p>
+                      <p className="comment-text">{parseMentions(comment.text)}</p>
                     </div>
                   ))
                 ) : (

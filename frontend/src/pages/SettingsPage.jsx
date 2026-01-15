@@ -1,0 +1,1589 @@
+import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { userAPI } from '../services/api'
+import { normalizeAvatarUrl } from '../utils/avatarUtils'
+import CrownIcon from '../components/CrownIcon'
+import ImageEditor from '../components/ImageEditor'
+import './SettingsPage.css'
+import '../pages/UserProfilePage.css'
+
+const AVAILABLE_COLORS = [
+  { name: 'Белый', value: '#ffffff' },
+  { name: 'Черный', value: '#000000' },
+  { name: 'Серый', value: '#808080' },
+  { name: 'Бежевый', value: '#c4c4af' },
+  { name: 'Синий', value: '#0066ff' },
+  { name: 'Зеленый', value: '#00cc00' },
+  { name: 'Красный', value: '#ff0000' },
+  { name: 'Розовый', value: '#ff69b4' },
+  { name: 'Желтый', value: '#ffd700' },
+  { name: 'Фиолетовый', value: '#9932cc' }
+]
+
+function SettingsPage() {
+  const { username } = useParams()
+  const navigate = useNavigate()
+  const [user, setUser] = useState(null)
+  const [currentUser, setCurrentUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [avatarError, setAvatarError] = useState(false)
+  const [usernameColor, setUsernameColor] = useState('#ffffff')
+  // Загружаем цвет обводки аватарки из localStorage для избежания красной обводки при загрузке
+  const getInitialAvatarBorderColor = () => {
+    const savedColor = localStorage.getItem('user-avatar-border-color')
+    const availableColorValues = AVAILABLE_COLORS.map(c => c.value)
+    if (savedColor && availableColorValues.includes(savedColor)) {
+      return savedColor
+    }
+    return '#ff0000' // Значение по умолчанию
+  }
+  const [avatarBorderColor, setAvatarBorderColor] = useState(getInitialAvatarBorderColor())
+  const [themeColor1, setThemeColor1] = useState(null)
+  const [themeColor2, setThemeColor2] = useState(null)
+  const [gradientDirection, setGradientDirection] = useState('diagonal-right')
+  const [showChangeUsernameModal, setShowChangeUsernameModal] = useState(false)
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false)
+  const [newUsername, setNewUsername] = useState('')
+  const [usernameError, setUsernameError] = useState('')
+  const [usernameLoading, setUsernameLoading] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordLoading, setPasswordLoading] = useState(false)
+  const [badges, setBadges] = useState([])
+  const [draggedBadge, setDraggedBadge] = useState(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarHover, setAvatarHover] = useState(false)
+  const [bestAnime, setBestAnime] = useState([])
+  const [hideAgeRestrictionWarning, setHideAgeRestrictionWarning] = useState(false)
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false)
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState(null)
+  const [backgroundUploading, setBackgroundUploading] = useState(false)
+  const [showImageEditor, setShowImageEditor] = useState(false)
+  const [selectedImageFile, setSelectedImageFile] = useState(null)
+  const [backgroundSettings, setBackgroundSettings] = useState({
+    scale: 100,
+    positionX: 50,
+    positionY: 50
+  })
+  const [settingsIconHover, setSettingsIconHover] = useState(false)
+
+  useEffect(() => {
+    setAvatarError(false)
+    const initializeSettings = async () => {
+      await loadUserSettings() // Сначала загружаем user (включая background_image_url)
+      loadUserColors() // Потом загружаем настройки отображения
+    }
+    initializeSettings()
+    loadCurrentUser()
+    loadThemeColor()
+    loadBestAnime()
+  }, [username])
+
+  useEffect(() => {
+    if (user && username) {
+      loadBadges()
+    }
+  }, [user, username, bestAnime])
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showSettingsPanel && !event.target.closest('.profile-settings-panel') && !event.target.closest('.profile-settings-icon')) {
+        setShowSettingsPanel(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showSettingsPanel])
+
+  // Синхронизируем backgroundImageUrl с user.background_image_url
+  useEffect(() => {
+    if (user?.background_image_url) {
+      const bgUrl = user.background_image_url
+      if (bgUrl && typeof bgUrl === 'string' && bgUrl.trim() !== '') {
+        if (bgUrl !== backgroundImageUrl) {
+          console.log('🔄 Синхронизация backgroundImageUrl из user:', bgUrl)
+          setBackgroundImageUrl(bgUrl)
+        }
+      }
+    } else if (user && !user.background_image_url && backgroundImageUrl) {
+      // Если у user нет изображения, но в state есть - синхронизируем
+      console.log('🔄 Очистка backgroundImageUrl, так как у user нет изображения')
+      setBackgroundImageUrl(null)
+    }
+  }, [user?.background_image_url, user])
+
+  const formatDate = (dateString) => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    return date.toLocaleDateString('ru-RU', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+  }
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    return date.toLocaleDateString('ru-RU', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+
+  const getFavoritesBadge = (favoritesCount) => {
+    if (favoritesCount >= 500) {
+      return {
+        id: 'favorites-500',
+        level: 5,
+        label: '500 избранных',
+        className: 'favorites-badge-level-5',
+        type: 'favorites'
+      }
+    } else if (favoritesCount >= 250) {
+      return {
+        id: 'favorites-250',
+        level: 4,
+        label: '250 избранных',
+        className: 'favorites-badge-level-4',
+        type: 'favorites'
+      }
+    } else if (favoritesCount >= 100) {
+      return {
+        id: 'favorites-100',
+        level: 3,
+        label: '100 избранных',
+        className: 'favorites-badge-level-3',
+        type: 'favorites'
+      }
+    } else if (favoritesCount >= 50) {
+      return {
+        id: 'favorites-50',
+        level: 2,
+        label: '50 избранных',
+        className: 'favorites-badge-level-2',
+        type: 'favorites'
+      }
+    } else if (favoritesCount >= 10) {
+      return {
+        id: 'favorites-10',
+        level: 1,
+        label: '10 избранных',
+        className: 'favorites-badge-level-1',
+        type: 'favorites'
+      }
+    }
+    return null
+  }
+
+  const getAvailableBadges = () => {
+    if (!user) return []
+    
+    const availableBadges = []
+    
+    // Бэдж роли (admin/owner/base/premium)
+    if (user.type_account && (user.type_account === 'owner' || user.type_account === 'admin')) {
+      availableBadges.push({
+        id: 'role',
+        type: 'role',
+        label: user.type_account === 'admin' ? 'Администратор' : 'Владелец',
+        className: `role-${user.type_account}`,
+        defaultVisible: true
+      })
+    } else if (user.type_account && (user.type_account !== 'owner' && user.type_account !== 'admin')) {
+      availableBadges.push({
+        id: 'role',
+        type: 'role',
+        label: user.type_account === 'base' ? 'Базовый' : 
+               user.type_account,
+        className: `role-${user.type_account}`,
+        defaultVisible: true
+      })
+    }
+    
+    // Бэдж "Один из 5"
+    if (user.id <= 5) {
+      availableBadges.push({
+        id: 'premium',
+        type: 'premium',
+        label: 'Один из 5',
+        className: 'profile-premium-badge',
+        defaultVisible: true
+      })
+    }
+    
+    // Бэдж даты регистрации
+    if (user.created_at) {
+      availableBadges.push({
+        id: 'joined',
+        type: 'joined',
+        label: formatDate(user.created_at),
+        className: 'profile-joined-badge',
+        defaultVisible: true
+      })
+    }
+    
+    // Бэйдж за избранные аниме (показываем только самый высокий уровень)
+    const favoritesCount = user.stats?.favorites_count || 0
+    const favoritesBadge = getFavoritesBadge(favoritesCount)
+    if (favoritesBadge) {
+      availableBadges.push({
+        ...favoritesBadge,
+        defaultVisible: true
+      })
+    }
+    
+    // Бэйдж с топ-1 аниме пользователя
+    const topAnime = bestAnime.find(anime => anime.place === 1)
+    if (topAnime && topAnime.title) {
+      availableBadges.push({
+        id: 'top-anime',
+        type: 'top-anime',
+        label: topAnime.title,
+        className: 'profile-top-anime-badge',
+        defaultVisible: true
+      })
+    }
+    
+    return availableBadges
+  }
+
+  const loadBadges = () => {
+    if (!user || !username) return
+    
+    const availableBadges = getAvailableBadges()
+    const savedBadges = localStorage.getItem(`user_${username}_badges_config`)
+    
+    if (savedBadges) {
+      try {
+        const config = JSON.parse(savedBadges)
+        
+        // Удаляем старые бэйджи за избранные из конфигурации, если они есть
+        const favoritesBadgeIds = ['favorites-10', 'favorites-50', 'favorites-100', 'favorites-250', 'favorites-500']
+        const currentFavoritesBadge = availableBadges.find(b => b.type === 'favorites')
+        
+        // Очищаем старые бэйджи за избранные из порядка
+        const cleanedOrder = config.order.filter(id => !favoritesBadgeIds.includes(id))
+        const cleanedVisibility = { ...config.visibility }
+        favoritesBadgeIds.forEach(id => {
+          delete cleanedVisibility[id]
+        })
+        
+        // Восстанавливаем порядок и видимость из сохраненных данных
+        const orderedBadges = cleanedOrder
+          .map(badgeId => {
+            const badge = availableBadges.find(b => b.id === badgeId)
+            if (badge) {
+              return {
+                ...badge,
+                visible: cleanedVisibility[badgeId] !== undefined ? cleanedVisibility[badgeId] : badge.defaultVisible
+              }
+            }
+            return null
+          })
+          .filter(Boolean)
+        
+        // Добавляем текущий бэйдж за избранные (если есть)
+        if (currentFavoritesBadge) {
+          const existingIndex = orderedBadges.findIndex(b => b.type === 'favorites')
+          if (existingIndex >= 0) {
+            // Заменяем старый бэйдж за избранные на новый
+            orderedBadges[existingIndex] = {
+              ...currentFavoritesBadge,
+              visible: cleanedVisibility[currentFavoritesBadge.id] !== undefined ? cleanedVisibility[currentFavoritesBadge.id] : currentFavoritesBadge.defaultVisible
+            }
+          } else {
+            // Добавляем новый бэйдж за избранные
+            orderedBadges.push({
+              ...currentFavoritesBadge,
+              visible: cleanedVisibility[currentFavoritesBadge.id] !== undefined ? cleanedVisibility[currentFavoritesBadge.id] : currentFavoritesBadge.defaultVisible
+            })
+          }
+        }
+        
+        // Добавляем другие новые бэйджи, которых нет в сохраненных
+        availableBadges.forEach(badge => {
+          if (badge.type !== 'favorites' && !orderedBadges.find(b => b.id === badge.id)) {
+            orderedBadges.push({
+              ...badge,
+              visible: cleanedVisibility[badge.id] !== undefined ? cleanedVisibility[badge.id] : badge.defaultVisible
+            })
+          }
+        })
+        
+        setBadges(orderedBadges)
+        // Сохраняем обновленную конфигурацию
+        saveBadgesConfig(orderedBadges)
+      } catch (err) {
+        console.error('Ошибка загрузки конфигурации бэджей:', err)
+        setBadges(availableBadges)
+      }
+    } else {
+      setBadges(availableBadges)
+    }
+  }
+
+  const saveBadgesConfig = (badgesToSave) => {
+    if (!username) return
+    
+    const config = {
+      order: badgesToSave.map(b => b.id),
+      visibility: {}
+    }
+    
+    badgesToSave.forEach(badge => {
+      config.visibility[badge.id] = badge.visible
+    })
+    
+    localStorage.setItem(`user_${username}_badges_config`, JSON.stringify(config))
+  }
+
+  const handleBadgeDragStart = (e, index) => {
+    setDraggedBadge(index)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleBadgeDragOver = (e) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleBadgeDrop = (e, dropIndex) => {
+    e.preventDefault()
+    if (draggedBadge === null || draggedBadge === dropIndex) return
+    
+    const newBadges = [...badges]
+    const draggedItem = newBadges[draggedBadge]
+    newBadges.splice(draggedBadge, 1)
+    newBadges.splice(dropIndex, 0, draggedItem)
+    
+    setBadges(newBadges)
+    saveBadgesConfig(newBadges)
+    setDraggedBadge(null)
+  }
+
+  const handleBadgeToggleVisibility = (badgeId) => {
+    const newBadges = badges.map(badge => 
+      badge.id === badgeId ? { ...badge, visible: !badge.visible } : badge
+    )
+    setBadges(newBadges)
+    saveBadgesConfig(newBadges)
+  }
+
+  const handleAvatarFileSelect = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Валидация типа файла
+    if (!file.type.startsWith('image/')) {
+      alert('Файл должен быть изображением')
+      return
+    }
+
+    // Валидация размера файла (максимум 2 МБ)
+    const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2 МБ
+    if (file.size > MAX_FILE_SIZE) {
+      alert(`Размер файла не должен превышать 2 МБ. Текущий размер: ${(file.size / 1024 / 1024).toFixed(2)} МБ`)
+      return
+    }
+
+    // Валидация размеров изображения
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+    
+    img.onload = async () => {
+      const MAX_DIMENSION = 2000 // Максимальный размер в пикселях
+      if (img.width > MAX_DIMENSION || img.height > MAX_DIMENSION) {
+        URL.revokeObjectURL(objectUrl)
+        alert(`Размер изображения не должен превышать ${MAX_DIMENSION}x${MAX_DIMENSION} пикселей. Текущий размер: ${img.width}x${img.height}`)
+        return
+      }
+
+      // Загружаем файл
+      try {
+        setAvatarUploading(true)
+        const response = await userAPI.uploadAvatar(file)
+        if (response) {
+          // Обновляем аватар в состоянии пользователя
+          // avatar_url находится на верхнем уровне ответа, а не в message
+          const newAvatarUrl = response.avatar_url || (response.message && response.message.avatar_url)
+          if (newAvatarUrl) {
+            // Обновляем аватар сразу в состоянии
+            setUser({ ...user, avatar_url: newAvatarUrl })
+            setAvatarError(false) // Сбрасываем ошибку аватара
+            // Отправляем событие для обновления аватара в Layout и TopUsersSection
+            console.log('📤 Отправляем событие avatarUpdated с URL:', newAvatarUrl)
+            window.dispatchEvent(new CustomEvent('avatarUpdated', { 
+              detail: { avatarUrl: newAvatarUrl, username: user?.username } 
+            }))
+            
+            // Также сохраняем в localStorage для надежности
+            if (user?.username) {
+              localStorage.setItem('avatarUpdated', JSON.stringify({
+                username: user.username,
+                avatarUrl: newAvatarUrl,
+                timestamp: Date.now()
+              }))
+              console.log('💾 Сохранено в localStorage:', { username: user.username, avatarUrl: newAvatarUrl })
+            }
+            // Перезагружаем настройки пользователя для получения актуальных данных
+            await loadUserSettings()
+          } else {
+            alert('Аватар загружен, но URL не получен. Попробуйте обновить страницу.')
+            await loadUserSettings()
+          }
+        }
+      } catch (err) {
+        console.error('Ошибка загрузки аватара:', err)
+        alert(err.response?.data?.detail || 'Ошибка при загрузке аватара')
+      } finally {
+        setAvatarUploading(false)
+        URL.revokeObjectURL(objectUrl)
+        // Сбрасываем input
+        e.target.value = ''
+      }
+    }
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      alert('Ошибка при загрузке изображения')
+      e.target.value = ''
+    }
+
+    img.src = objectUrl
+  }
+
+  // Слушаем изменения цветов и темы
+  useEffect(() => {
+    const handleColorUpdate = () => {
+      loadUserColors()
+    }
+    
+    const handleThemeUpdate = () => {
+      loadThemeColor()
+    }
+    
+    // Слушаем кастомные события для обновления настроек
+    const handleAvatarBorderColorUpdate = () => {
+      loadUserColors()
+    }
+    
+    const handleProfileSettingsUpdate = () => {
+      loadUserColors()
+    }
+    
+    window.addEventListener('avatarBorderColorUpdated', handleColorUpdate)
+    window.addEventListener('userAccentColorUpdated', handleColorUpdate)
+    window.addEventListener('siteThemeUpdated', handleThemeUpdate)    
+    window.addEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
+    window.addEventListener('profileSettingsUpdated', handleProfileSettingsUpdate)
+    
+    return () => {
+      window.removeEventListener('avatarBorderColorUpdated', handleColorUpdate)
+      window.removeEventListener('userAccentColorUpdated', handleColorUpdate)
+      window.removeEventListener('siteThemeUpdated', handleThemeUpdate)
+      window.removeEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
+      window.removeEventListener('profileSettingsUpdated', handleProfileSettingsUpdate)
+    }
+  }, [username, user])
+
+  const loadCurrentUser = async () => {
+    try {
+      const response = await userAPI.getCurrentUser()
+      if (response && response.message) {
+        setCurrentUser({
+          username: response.message.username,
+          id: response.message.id
+        })
+      } else {
+        setCurrentUser(null)
+      }
+    } catch (err) {
+      setCurrentUser(null)
+    }
+  }
+
+  const loadUserSettings = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await userAPI.getUserSettings(username)
+      if (response && response.message) {
+        const updatedUser = response.message
+        setUser(updatedUser)
+        
+        // Загружаем URL фонового изображения из user
+        const bgUrl = updatedUser.background_image_url
+        if (bgUrl && bgUrl.trim() !== '') {
+          setBackgroundImageUrl(bgUrl)
+        } else {
+          setBackgroundImageUrl(null)
+        }
+      } else {
+        setError('Пользователь не найден')
+      }
+      // Загружаем настройки профиля для получения параметров отображения
+      await loadProfileSettings()
+    } catch (err) {
+      console.error('Ошибка загрузки настроек:', err)
+      if (err.response?.status === 403) {
+        setError('Ваш аккаунт заблокирован. Доступ к настройкам ограничен.')
+      } else {
+        setError('Ошибка при загрузке настроек')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadProfileSettings = async () => {
+    try {
+      // Загружаем настройки профиля (параметры отображения)
+      const response = await userAPI.getUserProfileSettings(username)
+      if (response && response.message) {
+        const settings = response.message
+        setBackgroundSettings({
+          scale: settings.background_scale || 100,
+          positionX: settings.background_position_x || 50,
+          positionY: settings.background_position_y || 50
+        })
+      }
+    } catch (err) {
+      console.error('Ошибка загрузки настроек профиля:', err)
+    }
+  }
+
+  const handleBackgroundImageSelect = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Проверка премиум статуса
+    if (!user?.premium_status?.is_premium) {
+      alert('Фоновое изображение доступно только для пользователей с премиум подпиской')
+      e.target.value = ''
+      return
+    }
+
+    // Валидация типа файла
+    if (!file.type.startsWith('image/')) {
+      alert('Файл должен быть изображением')
+      return
+    }
+
+    // Валидация размера файла (максимум 1 МБ)
+    const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 МБ
+    if (file.size > MAX_FILE_SIZE) {
+      alert(`Размер файла не должен превышать 5 МБ. Текущий размер: ${(file.size / 1024 / 1024).toFixed(2)} МБ`)
+      e.target.value = ''
+      return
+    }
+
+    // Валидация размеров изображения
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+    
+    img.onload = async () => {
+      const REQUIRED_WIDTH = 1200
+      const REQUIRED_HEIGHT = 350
+      
+      if (img.width !== REQUIRED_WIDTH || img.height !== REQUIRED_HEIGHT) {
+        URL.revokeObjectURL(objectUrl)
+        alert(`Размер изображения должен быть точно ${REQUIRED_WIDTH}x${REQUIRED_HEIGHT} пикселей. Текущий размер: ${img.width}x${img.height}`)
+        e.target.value = ''
+        return
+      }
+
+      URL.revokeObjectURL(objectUrl)
+      
+      // Открываем редактор изображения
+      setSelectedImageFile(file)
+      setShowImageEditor(true)
+      e.target.value = ''
+    }
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      alert('Ошибка при загрузке изображения')
+      e.target.value = ''
+    }
+
+    img.src = objectUrl
+  }
+
+  const handleImageEditorConfirm = async ({ file, settings }) => {
+    setShowImageEditor(false)
+    setBackgroundUploading(true)
+
+    try {
+      const response = await userAPI.uploadBackgroundImage(file, settings)
+      if (response && response.background_image_url) {
+        // Сразу устанавливаем URL и настройки
+        setBackgroundImageUrl(response.background_image_url)
+        setBackgroundSettings({
+          scale: response.background_scale || 100,
+          positionX: response.background_position_x || 50,
+          positionY: response.background_position_y || 50
+        })
+        
+        // Обновляем объект user с новым background_image_url
+        setUser(prevUser => ({
+          ...prevUser,
+          background_image_url: response.background_image_url
+        }))
+        
+        // Отправляем событие для обновления профиля на других страницах
+        if (user?.username) {
+          console.log('📤 Отправляем событие backgroundImageUpdated с URL:', response.background_image_url)
+          window.dispatchEvent(new CustomEvent('backgroundImageUpdated', { 
+            detail: { 
+              backgroundImageUrl: response.background_image_url,
+              username: user.username,
+              settings: {
+                scale: response.background_scale || 100,
+                positionX: response.background_position_x || 50,
+                positionY: response.background_position_y || 50
+              }
+            } 
+          }))
+          
+          // Очищаем кэш профиля для принудительной перезагрузки
+          const { clearUserProfileCache } = await import('../utils/cache')
+          clearUserProfileCache(user.username)
+          console.log('🗑️ Кэш профиля очищен для пользователя:', user.username)
+        }
+        
+        // Перезагружаем настройки пользователя для получения актуальных данных
+        await loadUserSettings()
+        alert('Фоновое изображение успешно загружено')
+      } else {
+        alert('Фоновое изображение загружено, но URL не получен. Попробуйте обновить страницу.')
+        await loadUserSettings()
+      }
+    } catch (err) {
+      console.error('Ошибка загрузки фонового изображения:', err)
+      alert(err.response?.data?.detail || 'Ошибка при загрузке фонового изображения')
+    } finally {
+      setBackgroundUploading(false)
+      setSelectedImageFile(null)
+    }
+  }
+
+  const handleImageEditorCancel = () => {
+    setShowImageEditor(false)
+    setSelectedImageFile(null)
+  }
+
+  const loadBestAnime = async () => {
+    try {
+      const response = await userAPI.getUserProfile(username)
+      if (response && response.message && response.message.best_anime) {
+        setBestAnime(response.message.best_anime || [])
+      }
+    } catch (err) {
+      console.error('Ошибка загрузки топ-3 аниме:', err)
+      setBestAnime([])
+    }
+  }
+
+  const loadUserColors = async () => {
+    if (username) {
+      try {
+        const response = await userAPI.getUserProfileSettings(username)
+        if (response.message) {
+          const settings = response.message
+          const availableColorValues = AVAILABLE_COLORS.map(c => c.value)
+          
+          if (settings.username_color && availableColorValues.includes(settings.username_color)) {
+            setUsernameColor(settings.username_color)
+          }
+          if (settings.avatar_border_color && availableColorValues.includes(settings.avatar_border_color)) {
+            setAvatarBorderColor(settings.avatar_border_color)
+            // Сохраняем цвет в localStorage для быстрой загрузки при следующем открытии
+            localStorage.setItem('user-avatar-border-color', settings.avatar_border_color)
+          }
+          // Загружаем настройку предупреждения о возрастных ограничениях
+          if (settings.hide_age_restriction_warning !== undefined) {
+            setHideAgeRestrictionWarning(settings.hide_age_restriction_warning)
+          }
+          // Загружаем параметры отображения фонового изображения
+          setBackgroundSettings({
+            scale: settings.background_scale || 100,
+            positionX: settings.background_position_x || 50,
+            positionY: settings.background_position_y || 50
+          })
+        }
+      } catch (err) {
+        // Игнорируем ошибки, если настройки не найдены
+      }
+    }
+  }
+
+  const loadThemeColor = () => {
+    const savedThemeColor1 = localStorage.getItem('site-theme-color-1')
+    const savedThemeColor2 = localStorage.getItem('site-theme-color-2')
+    const savedGradientDirection = localStorage.getItem('site-gradient-direction') || 'diagonal-right'
+    
+    if (savedThemeColor1 && AVAILABLE_COLORS.some(c => c.value === savedThemeColor1)) {
+      setThemeColor1(savedThemeColor1)
+      if (savedThemeColor2 && AVAILABLE_COLORS.some(c => c.value === savedThemeColor2)) {
+        setThemeColor2(savedThemeColor2)
+        setGradientDirection(savedGradientDirection)
+        if (window.applyCustomTheme) {
+          window.applyCustomTheme(savedThemeColor1, savedThemeColor2, savedGradientDirection)
+        }
+      } else {
+        setThemeColor2(savedThemeColor1)
+        setGradientDirection(savedGradientDirection)
+        if (window.applyCustomTheme) {
+          window.applyCustomTheme(savedThemeColor1, savedThemeColor1, savedGradientDirection)
+        }
+      }
+    }
+  }
+
+  const hexToRgba = (hex, alpha) => {
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  }
+
+  const lightenColor = (hex, percent) => {
+    const num = parseInt(hex.replace('#', ''), 16)
+    const r = Math.min(255, Math.floor((num >> 16) + (255 - (num >> 16)) * percent))
+    const g = Math.min(255, Math.floor(((num >> 8) & 0x00FF) + (255 - ((num >> 8) & 0x00FF)) * percent))
+    const b = Math.min(255, Math.floor((num & 0x0000FF) + (255 - (num & 0x0000FF)) * percent))
+    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+  }
+
+  const createGradientFromColor = (color) => {
+    // Функции для работы с цветом
+    const lightenColor = (hex, percent) => {
+      const num = parseInt(hex.replace('#', ''), 16)
+      const r = Math.min(255, Math.floor((num >> 16) + (255 - (num >> 16)) * percent))
+      const g = Math.min(255, Math.floor(((num >> 8) & 0x00FF) + (255 - ((num >> 8) & 0x00FF)) * percent))
+      const b = Math.min(255, Math.floor((num & 0x0000FF) + (255 - (num & 0x0000FF)) * percent))
+      return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+    }
+    
+    const darkenColor = (hex, percent) => {
+      const num = parseInt(hex.replace('#', ''), 16)
+      const r = Math.floor((num >> 16) * (1 - percent))
+      const g = Math.floor(((num >> 8) & 0x00FF) * (1 - percent))
+      const b = Math.floor((num & 0x0000FF) * (1 - percent))
+      return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+    }
+    
+    const lightColor = lightenColor(color, 0.3)
+    const mediumColor = color
+    const darkColor = darkenColor(color, 0.2)
+    
+    // Создаем градиент с вариациями цвета
+    return `linear-gradient(135deg, ${darkColor} 0%, ${mediumColor} 25%, ${lightColor} 50%, ${mediumColor} 75%, ${darkColor} 100%)`
+  }
+
+  const getBadgeStyle = (badge) => {
+    if (badge.type === 'top-anime') {
+      const badgeGradient = createGradientFromColor(avatarBorderColor)
+      const badgeShadow = hexToRgba(avatarBorderColor, 0.5)
+      const badgeShadowLight = hexToRgba(avatarBorderColor, 0.3)
+      const badgeTextShadow = hexToRgba(avatarBorderColor, 0.6)
+      
+      return {
+        background: `linear-gradient(135deg, rgba(26, 26, 26, 0.8) 0%, rgba(20, 20, 20, 0.8) 100%) padding-box, ${badgeGradient} border-box`,
+        borderColor: 'transparent',
+        color: avatarBorderColor,
+        boxShadow: `0 4px 16px ${badgeShadow}, 0 0 24px ${badgeShadowLight}, 0 0 40px ${badgeShadowLight}`,
+        textShadow: `0 0 8px ${badgeTextShadow}, 0 0 16px ${badgeShadow}`
+      }
+    }
+    return {}
+  }
+
+  // Проверяем, является ли текущий пользователь владельцем настроек
+  const isOwner = currentUser && user && currentUser.username === user.username
+
+  const handleChangeUsername = async (e) => {
+    e.preventDefault()
+    setUsernameError('')
+    
+    if (!newUsername || newUsername.trim().length < 3 || newUsername.trim().length > 15) {
+      setUsernameError('Имя пользователя должно быть от 3 до 15 символов')
+      return
+    }
+
+    if (newUsername.trim() === user.username) {
+      setUsernameError('Новое имя должно отличаться от текущего')
+      return
+    }
+
+    try {
+      setUsernameLoading(true)
+      await userAPI.changeUsername(newUsername.trim())
+      setShowChangeUsernameModal(false)
+      setNewUsername('')
+      // Перезагружаем страницу после успешной смены имени
+      window.location.reload()
+    } catch (err) {
+      setUsernameError(err.response?.data?.detail || 'Ошибка при изменении имени')
+      setUsernameLoading(false)
+    }
+  }
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault()
+    setPasswordError('')
+    
+    if (!passwordForm.oldPassword || passwordForm.oldPassword.length < 8) {
+      setPasswordError('Текущий пароль должен быть не менее 8 символов')
+      return
+    }
+
+    if (!passwordForm.newPassword || passwordForm.newPassword.length < 8) {
+      setPasswordError('Новый пароль должен быть не менее 8 символов')
+      return
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('Новые пароли не совпадают')
+      return
+    }
+
+    if (passwordForm.oldPassword === passwordForm.newPassword) {
+      setPasswordError('Новый пароль должен отличаться от текущего')
+      return
+    }
+
+    try {
+      setPasswordLoading(true)
+      await userAPI.changePassword(
+        passwordForm.oldPassword,
+        passwordForm.newPassword,
+        passwordForm.confirmPassword
+      )
+      // Удаляем сессию через API logout (удаляет куку на сервере)
+      try {
+        await userAPI.logout()
+      } catch (logoutErr) {
+        // Игнорируем ошибки logout, так как главное - пароль уже изменен
+        console.log('Logout после смены пароля:', logoutErr)
+      }
+      // Перезагружаем страницу, чтобы пользователь зашел заново
+      window.location.reload()
+    } catch (err) {
+      setPasswordError(err.response?.data?.detail || 'Ошибка при изменении пароля')
+      setPasswordLoading(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      await userAPI.logout()
+      // Перенаправляем на главную страницу
+      navigate('/')
+      // Перезагружаем страницу для очистки состояния
+      window.location.reload()
+    } catch (err) {
+      console.error('Ошибка при выходе:', err)
+      // Все равно перенаправляем на главную
+      navigate('/')
+      window.location.reload()
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="settings-page">
+        <div className="container">
+          <div className="loading-container">
+            <div className="loading-cat">
+              <span className="cat-emoji">🐱</span>
+            </div>
+            <div className="loading-text">Загрузка...</div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="settings-page">
+        <div className="container">
+          <div className="error-container">
+            <h2>Ошибка</h2>
+            <p>{error}</p>
+            <button onClick={() => navigate('/')} className="back-btn">
+              Вернуться на главную
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="settings-page">
+        <div className="container">
+          <div className="error-container">
+            <h2>Пользователь не найден</h2>
+            <button onClick={() => navigate('/')} className="back-btn">
+              Вернуться на главную
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isOwner) {
+    return (
+      <div className="settings-page">
+        <div className="container">
+          <div className="error-container">
+            <h2>Доступ запрещен</h2>
+            <p>Вы можете просматривать только свои настройки</p>
+            <button onClick={() => navigate('/')} className="back-btn">
+              Вернуться на главную
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="settings-page">
+      <div className="container">
+        <div className="settings-content">
+          <div className="settings-user-section-wrapper">
+            <div 
+              className={`settings-avatar ${avatarHover ? 'avatar-hover' : ''}`}
+              style={{
+                borderColor: avatarBorderColor,
+                boxShadow: `0 2px 8px ${hexToRgba(avatarBorderColor, 0.4)}`
+              }}
+              onMouseEnter={() => setAvatarHover(true)}
+              onMouseLeave={() => setAvatarHover(false)}
+            >
+              <input
+                type="file"
+                accept="image/*"
+                id="avatar-upload"
+                style={{ display: 'none' }}
+                onChange={handleAvatarFileSelect}
+                disabled={avatarUploading}
+              />
+              {(() => {
+                const avatarUrl = normalizeAvatarUrl(user.avatar_url)
+                if (avatarUrl && !avatarError) {
+                  return (
+                    <>
+                      <img 
+                        key={user.avatar_url}
+                        src={avatarUrl} 
+                        alt={user.username}
+                        onError={(e) => {
+                          e.target.src = ''
+                          setAvatarError(true)
+                        }}
+                        onLoad={() => setAvatarError(false)}
+                      />
+                      {avatarHover && !avatarUploading && (
+                        <div 
+                          className="avatar-overlay"
+                          onClick={() => document.getElementById('avatar-upload')?.click()}
+                        >
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                          </svg>
+                          <span>Загрузить фото</span>
+                        </div>
+                      )}
+                      {avatarUploading && (
+                        <div className="avatar-uploading">
+                          <div className="avatar-uploading-spinner"></div>
+                          <span>Загрузка...</span>
+                        </div>
+                      )}
+                    </>
+                  )
+                }
+                return (
+                  <>
+                    <div className="avatar-fallback" style={{ backgroundColor: '#000000' }}>
+                      <span style={{ fontSize: '2rem', lineHeight: '1' }}>🐱</span>
+                    </div>
+                    {avatarHover && !avatarUploading && (
+                      <div 
+                        className="avatar-overlay"
+                        onClick={() => document.getElementById('avatar-upload')?.click()}
+                      >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                          <polyline points="17 8 12 3 7 8"></polyline>
+                          <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <span>Загрузить фото</span>
+                      </div>
+                    )}
+                    {avatarUploading && (
+                      <div className="avatar-uploading">
+                        <div className="avatar-uploading-spinner"></div>
+                        <span>Загрузка...</span>
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
+            </div>
+            <div 
+              className="settings-section settings-user-section"
+              style={{
+                background: 'var(--theme-gradient, linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%))',
+                borderColor: avatarBorderColor,
+                boxShadow: `0 8px 48px ${hexToRgba(avatarBorderColor, 0.4)}, 0 0 0 1px ${avatarBorderColor}`
+              }}
+            >
+              {isOwner && (
+                <>
+                  <div 
+                    className="profile-settings-icon" 
+                    onClick={() => setShowSettingsPanel(!showSettingsPanel)}
+                    onMouseEnter={() => setSettingsIconHover(true)}
+                    onMouseLeave={() => setSettingsIconHover(false)}
+                    style={{
+                      color: settingsIconHover ? avatarBorderColor : 'var(--text-secondary)'
+                    }}
+                  >
+                    <svg 
+                      width="24" 
+                      height="24" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="1.5" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path>
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                  </div>
+
+                  {showSettingsPanel && (() => {
+                    // Вычисляем наличие изображения вне JSX для правильной работы React
+                    const bgUrlFromState = backgroundImageUrl
+                    const bgUrlFromUser = user?.background_image_url
+                    const currentBgUrl = bgUrlFromState || bgUrlFromUser
+                    
+                    // Проверяем, что URL существует и не пустой
+                    const hasImage = Boolean(
+                      currentBgUrl && 
+                      typeof currentBgUrl === 'string' && 
+                      currentBgUrl.trim() !== '' &&
+                      currentBgUrl !== 'null' &&
+                      currentBgUrl !== 'undefined'
+                    )
+                    
+                    // Отладочная информация
+                    console.log('🔍 Проверка кнопки удаления:', {
+                      backgroundImageUrl: bgUrlFromState,
+                      userBgUrl: bgUrlFromUser,
+                      currentBgUrl,
+                      hasImage,
+                      backgroundUploading,
+                      userLoaded: !!user,
+                      disabled: !hasImage || backgroundUploading
+                    })
+                    
+                    return (
+                      <div className="profile-settings-panel">
+                        <div className="settings-panel-header">
+                          <h3>Настройки профиля</h3>
+                          <button className="settings-close-btn" onClick={() => setShowSettingsPanel(false)}>×</button>
+                        </div>
+                        <div className="settings-panel-content">
+                          <div className="background-image-group">
+                            <label>Фоновое изображение под аватаркой:</label>
+                            {user?.premium_status?.is_premium ? (
+                              <>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  id="background-image-upload"
+                                  style={{ display: 'none' }}
+                                  onChange={handleBackgroundImageSelect}
+                                  disabled={backgroundUploading}
+                                />
+                                <div className="background-image-controls">
+                                  <button
+                                    className="upload-background-btn"
+                                    onClick={() => document.getElementById('background-image-upload')?.click()}
+                                    disabled={backgroundUploading}
+                                    style={{
+                                      background: avatarBorderColor,
+                                      boxShadow: `0 2px 8px ${hexToRgba(avatarBorderColor, 0.3)}`
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      if (!backgroundUploading) {
+                                        e.target.style.background = lightenColor(avatarBorderColor, 0.15)
+                                        e.target.style.boxShadow = `0 4px 12px ${hexToRgba(avatarBorderColor, 0.4)}`
+                                      }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.target.style.background = avatarBorderColor
+                                      e.target.style.boxShadow = `0 2px 8px ${hexToRgba(avatarBorderColor, 0.3)}`
+                                    }}
+                                  >
+                                    {backgroundUploading ? 'Загрузка...' : 'Загрузить изображение'}
+                                  </button>
+                                  <button
+                                    className="remove-background-btn"
+                                    onClick={async () => {
+                                      // Повторная проверка на случай если состояние изменилось
+                                      const finalBgUrl = backgroundImageUrl || user?.background_image_url
+                                      console.log('🔘 Клик по кнопке удаления:', {
+                                        backgroundImageUrl,
+                                        userBgUrl: user?.background_image_url,
+                                        finalBgUrl,
+                                        hasImage
+                                      })
+                                      if (!finalBgUrl || typeof finalBgUrl !== 'string' || finalBgUrl.trim() === '') {
+                                        console.warn('⚠️ Попытка удаления при отсутствии изображения')
+                                        return
+                                      }
+                                      try {
+                                        console.log('🗑️ Удаление фонового изображения...', finalBgUrl)
+                                        await userAPI.deleteBackgroundImage()
+                                        setBackgroundImageUrl(null)
+                                        setBackgroundSettings({
+                                          scale: 100,
+                                          positionX: 50,
+                                          positionY: 50
+                                        })
+                                        
+                                        // Обновляем объект user с удаленным background_image_url
+                                        setUser(prevUser => ({
+                                          ...prevUser,
+                                          background_image_url: null
+                                        }))
+                                        
+                                        // Отправляем событие для обновления профиля на других страницах
+                                        if (user?.username) {
+                                          console.log('📤 Отправляем событие backgroundImageUpdated с null для удаления фона')
+                                          window.dispatchEvent(new CustomEvent('backgroundImageUpdated', { 
+                                            detail: { 
+                                              backgroundImageUrl: null,
+                                              username: user.username,
+                                              settings: {
+                                                scale: 100,
+                                                positionX: 50,
+                                                positionY: 50
+                                              }
+                                            } 
+                                          }))
+                                          
+                                          // Очищаем кэш профиля для принудительной перезагрузки
+                                          const { clearUserProfileCache } = await import('../utils/cache')
+                                          clearUserProfileCache(user.username)
+                                          console.log('🗑️ Кэш профиля очищен для пользователя:', user.username)
+                                        }
+                                        
+                                        await loadUserSettings()
+                                        await loadProfileSettings()
+                                        alert('Фоновое изображение удалено')
+                                      } catch (err) {
+                                        console.error('Ошибка удаления фонового изображения:', err)
+                                        alert('Ошибка при удалении фонового изображения')
+                                      }
+                                    }}
+                                    disabled={!hasImage || backgroundUploading}
+                                    style={{
+                                      opacity: hasImage ? 1 : 0.5,
+                                      cursor: hasImage && !backgroundUploading ? 'pointer' : 'not-allowed'
+                                    }}
+                                  >
+                                    Удалить изображение
+                                  </button>
+                                </div>
+                                {backgroundImageUrl && (
+                                  <div className="background-image-preview">
+                                    <img src={backgroundImageUrl} alt="Фоновое изображение" />
+                                  </div>
+                                )}
+                                <p className="background-image-hint">
+                                  Максимальный размер: 5 МБ. Разрешение: точно 1200x350 пикселей.
+                                </p>
+                              </>
+                            ) : (
+                              <div className="premium-required-message" style={{
+                                padding: '1rem',
+                                backgroundColor: 'var(--bg-secondary, rgba(255, 215, 0, 0.1))',
+                                border: '1px solid var(--accent, #ffd700)',
+                                borderRadius: '8px',
+                                color: 'var(--text-primary, #ffffff)',
+                                textAlign: 'center',
+                                marginTop: '0.5rem'
+                              }}>
+                                <p style={{ margin: 0, fontSize: '0.9rem' }}>
+                                  Доступно только с премиум-подпиской
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </>
+              )}
+              <div className="settings-user-info">
+              <h2 
+                className="settings-username"
+                style={{ 
+                  color: usernameColor
+                }}
+              >
+                {user.username}
+                {(user?.premium_status?.is_premium || user.type_account === 'admin' || user.type_account === 'owner') && (
+                  <span className="crown-icon-small">
+                    <CrownIcon size={16} />
+                  </span>
+                )}
+                <button 
+                  className="edit-icon-btn"
+                  onClick={() => {
+                    setNewUsername(user.username)
+                    setShowChangeUsernameModal(true)
+                  }}
+                  title="Изменить имя пользователя"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                </button>
+              </h2>
+
+              {/* Управление бэйджами */}
+              {badges.length > 0 && (
+                <div className="settings-badges-section">
+                  <div className="settings-badges-list">
+                    {badges.map((badge, index) => (
+                      <div
+                        key={badge.id}
+                        className={`settings-badge-item ${draggedBadge === index ? 'dragging' : ''}`}
+                        draggable
+                        onDragStart={(e) => handleBadgeDragStart(e, index)}
+                        onDragOver={handleBadgeDragOver}
+                        onDrop={(e) => handleBadgeDrop(e, index)}
+                      >
+                        <div className="badge-drag-handle">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="9" cy="12" r="1"></circle>
+                            <circle cx="9" cy="5" r="1"></circle>
+                            <circle cx="9" cy="19" r="1"></circle>
+                            <circle cx="15" cy="12" r="1"></circle>
+                            <circle cx="15" cy="5" r="1"></circle>
+                            <circle cx="15" cy="19" r="1"></circle>
+                          </svg>
+                        </div>
+                        <span 
+                          className={`profile-role ${badge.className}`}
+                          style={getBadgeStyle(badge)}
+                        >
+                          {badge.label}
+                        </span>
+                        <button
+                          className={`badge-visibility-toggle ${badge.visible ? 'visible' : 'hidden'}`}
+                          onClick={() => handleBadgeToggleVisibility(badge.id)}
+                          title={badge.visible ? 'Скрыть бэдж' : 'Показать бэдж'}
+                        >
+                          {badge.visible ? (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                              <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                          ) : (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                              <line x1="1" y1="1" x2="23" y2="23"></line>
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+          {/* Основная информация */}
+          <div className="settings-section settings-main-info-section">
+            <h3 className="settings-section-title">Основная информация</h3>
+            <p className="settings-main-info-text">
+              Вы - единственный, кто может видеть и менять свой пароль и электронную почту
+            </p>
+            <div className="settings-main-info-divider"></div>
+            <div className="settings-user-details">
+              <p className="settings-email">
+                <span className="settings-label">Электронная почта</span>
+                <span className="settings-value">{user.email}</span>
+              </p>
+              <p className="settings-password">
+                <span className="settings-label">Пароль</span>
+                <span className="settings-value">
+                  <span className="password-masked">Пароль для входа в аккаунт</span>
+                  <button 
+                    className="edit-icon-btn"
+                    onClick={() => {
+                      setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' })
+                      setShowChangePasswordModal(true)
+                    }}
+                    title="Изменить пароль"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                  </button>
+                </span>
+              </p>
+              <p className="settings-account-type">
+                <span className="settings-label">Тип аккаунта</span>
+                <span className="settings-value">{user.type_account}</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Premium */}
+          <div className="settings-section settings-main-info-section">
+            <div className="settings-premium-header">
+              <h3 className="settings-section-title">Premium</h3>
+              <button 
+                className="premium-buy-btn"
+                onClick={() => navigate('/premium/purchase')}
+              >
+                Купить
+                <img src="/main_korona.png" alt="Корона" className="premium-crown-icon" />
+              </button>
+            </div>
+            <p className="settings-main-info-text">
+              Ваша подписка на Yumivo
+            </p>
+            <div className="settings-main-info-divider"></div>
+            <div className="settings-user-details">
+              <p className="settings-premium-status">
+                <span className="settings-label">Статус</span>
+                <span className="settings-value">
+                  {user?.premium_status?.is_premium ? 'Активен' : 'Не активен'}
+                </span>
+              </p>
+              <p className="settings-premium-expires">
+                <span className="settings-label">Дата окончания</span>
+                <span className="settings-value">
+                  {user?.type_account === 'admin' || user?.type_account === 'owner' 
+                    ? '∞' 
+                    : user?.premium_status?.expires_at 
+                      ? formatDateTime(user.premium_status.expires_at)
+                      : '—'}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <div className="settings-section settings-main-info-section">
+            <h3 className="settings-section-title">Настройки просмотра</h3>
+            <div className="settings-main-info-divider"></div>
+            <div className="settings-user-details">
+              <div className="settings-view-setting">
+                <span className="settings-label">Скрыть предупреждение о возрастных ограничениях R+ (18+)</span>
+                <span className="settings-value">
+                  <div 
+                    className={`settings-toggle-switch ${hideAgeRestrictionWarning ? 'active' : ''}`}
+                    onClick={async () => {
+                      const newValue = !hideAgeRestrictionWarning
+                      setHideAgeRestrictionWarning(newValue)
+                      try {
+                        await userAPI.updateProfileSettings({
+                          hide_age_restriction_warning: newValue
+                        })
+                        // Отправляем событие для обновления настроек в других компонентах
+                        window.dispatchEvent(new CustomEvent('profileSettingsUpdated'))
+                      } catch (err) {
+                        console.error('Ошибка при сохранении настройки:', err)
+                        // Откатываем изменение при ошибке
+                        setHideAgeRestrictionWarning(!newValue)
+                        alert('Ошибка при сохранении настройки')
+                      }
+                    }}
+                  >
+                    <div className="settings-toggle-switch-slider"></div>
+                  </div>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Блок Выход из аккаунта */}
+          <div className="settings-section settings-main-info-section">
+            <h3 className="settings-section-title">Выход из аккаунта</h3>
+            <div className="settings-main-info-divider"></div>
+            <div className="settings-user-details">
+              <div className="settings-logout-container">
+                <button 
+                  className="logout-btn"
+                  onClick={handleLogout}
+                >
+                  Выйти из аккаунта
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Модальное окно изменения имени */}
+      {showChangeUsernameModal && (
+        <div className="modal-overlay" onClick={() => setShowChangeUsernameModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button 
+              className="modal-close-btn"
+              onClick={() => setShowChangeUsernameModal(false)}
+              aria-label="Закрыть"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <h2 className="modal-title">Изменить имя пользователя</h2>
+            <form onSubmit={handleChangeUsername} className="register-form">
+              <div className="form-group">
+                <label htmlFor="new-username">Новое имя пользователя</label>
+                <input
+                  type="text"
+                  id="new-username"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  placeholder="От 3 до 15 символов"
+                  minLength={3}
+                  maxLength={15}
+                  required
+                  autoFocus
+                />
+              </div>
+              {usernameError && (
+                <div className="form-error">{usernameError}</div>
+              )}
+              <button 
+                type="submit" 
+                className="register-submit-btn"
+                disabled={usernameLoading}
+              >
+                {usernameLoading ? 'Изменение...' : 'Изменить'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно изменения пароля */}
+      {showChangePasswordModal && (
+        <div className="modal-overlay" onClick={() => setShowChangePasswordModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button 
+              className="modal-close-btn"
+              onClick={() => setShowChangePasswordModal(false)}
+              aria-label="Закрыть"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <h2 className="modal-title">Изменить пароль</h2>
+            <form onSubmit={handleChangePassword} className="register-form">
+              <div className="form-group">
+                <label htmlFor="old-password">Текущий пароль</label>
+                <input
+                  type="password"
+                  id="old-password"
+                  value={passwordForm.oldPassword}
+                  onChange={(e) => setPasswordForm({...passwordForm, oldPassword: e.target.value})}
+                  placeholder="Введите текущий пароль"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="new-password">Новый пароль</label>
+                <input
+                  type="password"
+                  id="new-password"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})}
+                  placeholder="Введите новый пароль (мин. 8 символов)"
+                  minLength={8}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="confirm-password">Подтвердите новый пароль</label>
+                <input
+                  type="password"
+                  id="confirm-password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
+                  placeholder="Повторите новый пароль"
+                  minLength={8}
+                  required
+                />
+              </div>
+              {passwordError && (
+                <div className="form-error">{passwordError}</div>
+              )}
+              <button 
+                type="submit" 
+                className="register-submit-btn"
+                disabled={passwordLoading}
+              >
+                {passwordLoading ? 'Изменение...' : 'Изменить пароль'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Редактор изображения */}
+      {showImageEditor && selectedImageFile && (
+        <ImageEditor
+          imageFile={selectedImageFile}
+          onConfirm={handleImageEditorConfirm}
+          onCancel={handleImageEditorCancel}
+        />
+      )}
+    </div>
+  )
+}
+
+export default SettingsPage
+
+

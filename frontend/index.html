@@ -9,8 +9,92 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <title>AniGo - Аниме платформа</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&family=Nunito:wght@400;500;600;700;800;900&family=Quicksand:wght@400;500;600;700&family=Comfortaa:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>Yumivo — смотри аниме онлайн</title>
+    <meta name="description" content="Yumivo — онлайн-платформа для просмотра аниме в высоком качестве. Большая библиотека сериалов и фильмов, регулярные обновления и удобный плеер. Смотри любимое аниме бесплатно">
+    <!-- Применяем цвет из localStorage ДО загрузки React, чтобы избежать мигания -->
+    <script>
+      (function() {
+        try {
+          const savedColor = localStorage.getItem('user-avatar-border-color');
+          const availableColors = ['#ffffff', '#000000', '#808080', '#c4c4af', '#0066ff', '#00cc00', '#ff0000', '#ff69b4', '#ffd700', '#9932cc'];
+          
+          if (savedColor && availableColors.includes(savedColor)) {
+            // Применяем базовые CSS переменные сразу
+            const hex = savedColor.replace('#', '');
+            const r = parseInt(hex.slice(0, 2), 16);
+            const g = parseInt(hex.slice(2, 4), 16);
+            const b = parseInt(hex.slice(4, 6), 16);
+            const rgba = 'rgba(' + r + ', ' + g + ', ' + b + ', 0.1)';
+            const shadowRgba = 'rgba(' + r + ', ' + g + ', ' + b + ', 0.2)';
+            
+            document.documentElement.style.setProperty('--user-accent-color', savedColor);
+            document.documentElement.style.setProperty('--user-accent-color-rgba', rgba);
+            document.documentElement.style.setProperty('--user-accent-color-shadow', shadowRgba);
+            
+            // Функции для работы с цветом
+            function lightenColor(hex, percent) {
+              const num = parseInt(hex.replace('#', ''), 16);
+              const r = Math.min(255, Math.floor((num >> 16) + (255 - (num >> 16)) * percent));
+              const g = Math.min(255, Math.floor(((num >> 8) & 0x00FF) + (255 - ((num >> 8) & 0x00FF)) * percent));
+              const b = Math.min(255, Math.floor((num & 0x0000FF) + (255 - (num & 0x0000FF)) * percent));
+              return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+            }
+            
+            function darkenColor(hex, percent) {
+              const num = parseInt(hex.replace('#', ''), 16);
+              const r = Math.floor((num >> 16) * (1 - percent));
+              const g = Math.floor(((num >> 8) & 0x00FF) * (1 - percent));
+              const b = Math.floor((num & 0x0000FF) * (1 - percent));
+              return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+            }
+            
+            function rgbaColor(hex, alpha) {
+              return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + alpha + ')';
+            }
+            
+            // Применяем все остальные CSS переменные
+            const lightColor = lightenColor(savedColor, 0.4);
+            const darkColor = darkenColor(savedColor, 0.2);
+            document.documentElement.style.setProperty('--user-gradient-text', 'linear-gradient(135deg, ' + lightColor + ' 0%, ' + savedColor + ' 50%, ' + darkColor + ' 100%)');
+            document.documentElement.style.setProperty('--user-gradient-underline', 'linear-gradient(90deg, ' + lightColor + ' 0%, ' + savedColor + ' 100%)');
+            
+            const lowColor = darkenColor(savedColor, 0.3);
+            const lowColorLight = lightenColor(lowColor, 0.2);
+            document.documentElement.style.setProperty('--user-accent-color-low', lowColor);
+            document.documentElement.style.setProperty('--user-accent-color-low-light', lowColorLight);
+            document.documentElement.style.setProperty('--user-accent-color-border-low', rgbaColor(savedColor, 0.4));
+            document.documentElement.style.setProperty('--user-accent-color-shadow-low', rgbaColor(savedColor, 0.3));
+            
+            const mediumColor = savedColor;
+            const mediumColorLight = lightenColor(savedColor, 0.15);
+            document.documentElement.style.setProperty('--user-accent-color-medium', mediumColor);
+            document.documentElement.style.setProperty('--user-accent-color-medium-light', mediumColorLight);
+            document.documentElement.style.setProperty('--user-accent-color-border-medium', rgbaColor(savedColor, 0.5));
+            document.documentElement.style.setProperty('--user-accent-color-shadow-medium', rgbaColor(savedColor, 0.4));
+            
+            const highColor = lightenColor(savedColor, 0.2);
+            const highColorLight = lightenColor(savedColor, 0.35);
+            document.documentElement.style.setProperty('--user-accent-color-high', highColor);
+            document.documentElement.style.setProperty('--user-accent-color-high-light', highColorLight);
+            document.documentElement.style.setProperty('--user-accent-color-border-high', rgbaColor(savedColor, 0.6));
+            document.documentElement.style.setProperty('--user-accent-color-shadow-high', rgbaColor(savedColor, 0.5));
+            
+            const perfectColor = lightenColor(savedColor, 0.4);
+            document.documentElement.style.setProperty('--user-accent-color-perfect', perfectColor);
+            document.documentElement.style.setProperty('--user-accent-color-shadow-perfect', rgbaColor(savedColor, 0.6));
+            document.documentElement.style.setProperty('--user-accent-color-shadow-perfect-light', rgbaColor(savedColor, 0.3));
+            
+            document.documentElement.style.setProperty('--user-accent-color-border', rgbaColor(savedColor, 0.3));
+            
+            const bgDark = 'rgba(' + Math.floor(r * 0.08) + ', ' + Math.floor(g * 0.08) + ', ' + Math.floor(b * 0.08) + ', 0.95)';
+            document.documentElement.style.setProperty('--user-accent-color-bg-dark', bgDark);
+          }
+        } catch (e) {
+          // Игнорируем ошибки, если localStorage недоступен
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

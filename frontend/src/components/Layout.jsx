@@ -1,8 +1,9 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { userAPI, animeAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
 import CrownIcon from './CrownIcon'
+import ScrollProgress from './ScrollProgress'
 import './Layout.css'
 
 function Layout({ children }) {
@@ -30,6 +31,7 @@ function Layout({ children }) {
   const [avatarError, setAvatarError] = useState(false)
   const [showUserDropdown, setShowUserDropdown] = useState(false)
   const [avatarBorderColor, setAvatarBorderColor] = useState('#ff0000')
+  const [premiumStatus, setPremiumStatus] = useState(null)
   const [showSearch, setShowSearch] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
@@ -39,6 +41,7 @@ function Layout({ children }) {
   const searchLinkRef = useRef(null)
   const searchResultsRef = useRef(null)
   const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
     const handleScroll = () => {
@@ -46,6 +49,26 @@ function Layout({ children }) {
     }
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  // Слушаем событие для открытия модального окна входа/регистрации
+  useEffect(() => {
+    const handleOpenAuthModal = (event) => {
+      const { type } = event.detail || {}
+      if (type === 'login') {
+        setShowLoginModal(true)
+      } else if (type === 'register') {
+        setShowRegisterModal(true)
+      } else {
+        // По умолчанию показываем окно регистрации
+        setShowRegisterModal(true)
+      }
+    }
+
+    window.addEventListener('openAuthModal', handleOpenAuthModal)
+    return () => {
+      window.removeEventListener('openAuthModal', handleOpenAuthModal)
+    }
   }, [])
 
   // Таймер для модального окна подтверждения email
@@ -73,42 +96,97 @@ function Layout({ children }) {
       await new Promise(resolve => setTimeout(resolve, 200))
       
       const response = await userAPI.getCurrentUser()
-      console.log('Auth check response:', response)
       
       if (response && response.message) {
-        console.log('Setting user:', response.message)
         const userData = {
           id: response.message.id,
           username: response.message.username,
           email: response.message.email,
           avatar: response.message.avatar_url || '/Users/kiww1/AniGo/6434d6b8c1419741cb26ec1cd842aca8.jpg',
-          role: response.message.role
+          role: response.message.role,
+          type_account: response.message.type_account
         }
-        console.log('User data to set:', userData)
         setUser(userData)
-        console.log('User state should be updated now')
+        
+        // Загружаем премиум статус
+        try {
+          const premiumResponse = await userAPI.getPremiumStatus()
+          if (premiumResponse && premiumResponse.message) {
+            setPremiumStatus(premiumResponse.message)
+          }
+        } catch (premiumErr) {
+          // Игнорируем ошибки загрузки премиум статуса
+          setPremiumStatus(null)
+        }
       } else {
-        console.log('No user data in response, setting user to null')
         setUser(null)
+        setPremiumStatus(null)
       }
     } catch (err) {
-      // Пользователь не авторизован
-      console.log('User not authenticated:', err.response?.status, err.response?.data)
+      // Пользователь не авторизован или заблокирован
+      if (err.response?.status === 403) {
+        // Пользователь заблокирован - показываем сообщение
+        alert('Ваш аккаунт заблокирован. Доступ к некоторым функциям ограничен.')
+      }
       setUser(null)
+      setPremiumStatus(null)
     } finally {
       setLoadingUser(false)
-      console.log('Loading user set to false, user state:', user)
     }
   }
 
-  // Загружаем цвет обводки аватарки из localStorage
-  const loadAvatarBorderColor = useCallback(() => {
+  // Загружаем цвет обводки аватарки из API
+  const loadAvatarBorderColor = useCallback(async () => {
     if (user && user.username) {
-      const savedColor = localStorage.getItem(`user_${user.username}_avatar_border_color`)
-      const availableColors = ['#ffffff', '#000000', '#808080', '#c4c4af', '#0066ff', '#00cc00', '#ff0000', '#ff69b4', '#ffd700', '#9932cc']
-      if (savedColor && availableColors.includes(savedColor)) {
-        setAvatarBorderColor(savedColor)
-        // Устанавливаем CSS переменную глобально
+      try {
+        const response = await userAPI.getProfileSettings()
+        if (response.message && response.message.avatar_border_color) {
+          const savedColor = response.message.avatar_border_color
+          const availableColors = ['#ffffff', '#000000', '#808080', '#c4c4af', '#0066ff', '#00cc00', '#ff0000', '#ff69b4', '#ffd700', '#9932cc']
+          if (availableColors.includes(savedColor)) {
+            setAvatarBorderColor(savedColor)
+            // Сохраняем цвет в localStorage для быстрой загрузки при следующем открытии
+            localStorage.setItem('user-avatar-border-color', savedColor)
+            // Устанавливаем CSS переменную глобально
+            document.documentElement.style.setProperty('--user-accent-color', savedColor)
+            
+            // Создаем rgba версию для hover эффектов
+            const hex = savedColor.replace('#', '')
+            const r = parseInt(hex.slice(0, 2), 16)
+            const g = parseInt(hex.slice(2, 4), 16)
+            const b = parseInt(hex.slice(4, 6), 16)
+            const rgba = `rgba(${r}, ${g}, ${b}, 0.1)`
+            document.documentElement.style.setProperty('--user-accent-color-rgba', rgba)
+            
+            // Создаем тень для box-shadow
+            const shadowRgba = `rgba(${r}, ${g}, ${b}, 0.4)`
+            document.documentElement.style.setProperty('--user-accent-color-shadow', shadowRgba)
+          } else {
+            setAvatarBorderColor('#ff0000') // Цвет по умолчанию
+          }
+        } else {
+          setAvatarBorderColor('#ff0000') // Цвет по умолчанию
+        }
+      } catch (err) {
+        // Если не удалось загрузить настройки, используем цвет по умолчанию
+        setAvatarBorderColor('#ff0000')
+      }
+    }
+  }, [user])
+
+  // Синхронная загрузка цвета из localStorage при инициализации
+  useEffect(() => {
+    const savedColor = localStorage.getItem('user-avatar-border-color')
+    const availableColors = ['#ffffff', '#000000', '#808080', '#c4c4af', '#0066ff', '#00cc00', '#ff0000', '#ff69b4', '#ffd700', '#9932cc']
+    
+    if (savedColor && availableColors.includes(savedColor)) {
+      setAvatarBorderColor(savedColor)
+      // Используем глобальную функцию updateGlobalAccentColor из App.jsx, если она доступна
+      // Это гарантирует применение всех CSS переменных сразу
+      if (window.updateGlobalAccentColor) {
+        window.updateGlobalAccentColor(savedColor)
+      } else {
+        // Если функция еще не загружена, применяем базовые переменные
         document.documentElement.style.setProperty('--user-accent-color', savedColor)
         
         // Создаем rgba версию для hover эффектов
@@ -122,11 +200,9 @@ function Layout({ children }) {
         // Создаем тень для box-shadow
         const shadowRgba = `rgba(${r}, ${g}, ${b}, 0.4)`
         document.documentElement.style.setProperty('--user-accent-color-shadow', shadowRgba)
-      } else {
-        setAvatarBorderColor('#ff0000') // Цвет по умолчанию
       }
     }
-  }, [user])
+  }, []) // Выполняется только при монтировании компонента
 
   // Загружаем цвет обводки при изменении пользователя
   useEffect(() => {
@@ -140,28 +216,21 @@ function Layout({ children }) {
     checkAuth()
   }, [])
   
-  // Логируем изменения состояния user для отладки
+  // Слушаем обновление аватара
   useEffect(() => {
-    console.log('User state changed:', user)
-    console.log('Loading user:', loadingUser)
-    console.log('Should show user menu:', user && user.username)
-    console.log('Should show auth buttons:', !loadingUser && (!user || !user.username))
-  }, [user, loadingUser])
-
-  // Слушаем изменения цвета обводки аватарки в localStorage
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key && e.key.startsWith('user_') && e.key.endsWith('_avatar_border_color') && user && user.username) {
-        if (e.key === `user_${user.username}_avatar_border_color`) {
-          loadAvatarBorderColor()
-        }
-      }
+    const handleAvatarUpdate = () => {
+      // Перезагружаем данные пользователя после обновления аватара
+      checkAuth()
     }
     
-    // Слушаем изменения в текущей вкладке
-    window.addEventListener('storage', handleStorageChange)
-    
-    // Слушаем кастомное событие для обновления в текущей вкладке
+    window.addEventListener('avatarUpdated', handleAvatarUpdate)
+    return () => {
+      window.removeEventListener('avatarUpdated', handleAvatarUpdate)
+    }
+  }, [])
+  
+  // Слушаем кастомное событие для обновления цвета обводки аватарки
+  useEffect(() => {
     const handleAvatarBorderColorUpdate = () => {
       if (user && user.username) {
         loadAvatarBorderColor()
@@ -170,7 +239,6 @@ function Layout({ children }) {
     window.addEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
     
     return () => {
-      window.removeEventListener('storage', handleStorageChange)
       window.removeEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
     }
   }, [user, loadAvatarBorderColor])
@@ -300,18 +368,6 @@ function Layout({ children }) {
     searchRetryAttemptedRef.current = false
   }
 
-  const handleLogout = async () => {
-    try {
-      await userAPI.logout()
-      setUser(null)
-      setShowUserDropdown(false)
-    } catch (err) {
-      console.error('Ошибка при выходе:', err)
-      // Все равно очищаем состояние пользователя
-      setUser(null)
-      setShowUserDropdown(false)
-    }
-  }
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -331,6 +387,8 @@ function Layout({ children }) {
       await new Promise(resolve => setTimeout(resolve, 500))
       // Обновляем состояние пользователя после успешного входа
       await checkAuth()
+      // Отправляем событие успешного входа
+      window.dispatchEvent(new CustomEvent('authSuccess'))
       setLoginLoading(false)
     } catch (err) {
       setLoginError(err.response?.data?.detail || 'Ошибка при входе')
@@ -375,15 +433,17 @@ function Layout({ children }) {
 
   return (
     <div className="layout">
+      <ScrollProgress />
       <header className={`header ${scrolled ? 'scrolled' : ''}`}>
         <div className="container">
           <div className="header-left">
             <Link to="/" className="logo">
-              <h1>AniGo</h1>
+              <h1>Yumivo</h1>
             </Link>
             <nav className="nav">
-              <Link to="/" className="nav-link">Главная</Link>
-              <Link to="/my" className="nav-link">Моё</Link>
+              <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`}>Главная</Link>
+              <Link to="/my" className={`nav-link ${location.pathname === '/my' ? 'active' : ''}`}>Моё</Link>
+              <Link to="/anime-merch" className={`nav-link ${location.pathname === '/anime-merch' ? 'active' : ''}`}>Аниме-товары</Link>
               <div className="search-container">
                 <button 
                   ref={searchLinkRef}
@@ -475,14 +535,14 @@ function Layout({ children }) {
               <div className="user-menu-container">
                 <Link 
                   to={`/profile/${user.username}`}
-                  className={`user-username ${user.id < 100 ? 'premium-user' : ''}`}
+                  className={`user-username ${(premiumStatus?.is_premium || user.type_account === 'admin' || user.type_account === 'owner') ? 'premium-user' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation()
                     setShowUserDropdown(false)
                   }}
                 >
                   {user.username}
-                  {user.id < 100 && (
+                  {(premiumStatus?.is_premium || user.type_account === 'admin' || user.type_account === 'owner') && (
                     <span className="crown-icon-small">
                       <CrownIcon size={14} />
                     </span>
@@ -511,7 +571,11 @@ function Layout({ children }) {
                         <img 
                           src={avatarUrl} 
                           alt={user.username}
-                          onError={() => setAvatarError(true)}
+                          onError={(e) => {
+                            // Останавливаем повторные попытки загрузки
+                            e.target.src = ''
+                            setAvatarError(true)
+                          }}
                           onLoad={() => setAvatarError(false)}
                         />
                       )
@@ -541,7 +605,11 @@ function Layout({ children }) {
                                 <img 
                                   src={avatarUrl} 
                                   alt={user.username}
-                                  onError={() => setAvatarError(true)}
+                                  onError={(e) => {
+                                    // Останавливаем повторные попытки загрузки
+                                    e.target.src = ''
+                                    setAvatarError(true)
+                                  }}
                                   onLoad={() => setAvatarError(false)}
                                 />
                               )
@@ -575,16 +643,78 @@ function Layout({ children }) {
                         </svg>
                         <span>Профиль</span>
                       </button>
+                      {(user && user.type_account && (user.type_account === 'admin' || user.type_account === 'owner')) && (
+                        <button 
+                          className="dropdown-item"
+                          onClick={() => {
+                            setShowUserDropdown(false)
+                            navigate('/admin')
+                          }}
+                        >
+                          <svg 
+                            width="18" 
+                            height="18" 
+                            viewBox="0 0 24 24" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            strokeWidth="2" 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round"
+                          >
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="9" y1="3" x2="9" y2="21"></line>
+                            <line x1="3" y1="9" x2="21" y2="9"></line>
+                          </svg>
+                          <span>Админ панель</span>
+                        </button>
+                      )}
                       <button 
-                        className="dropdown-item logout-item" 
-                        onClick={handleLogout}
+                        className="dropdown-item"
+                        onClick={() => {
+                          setShowUserDropdown(false)
+                          if (user && user.username) {
+                            navigate(`/settings/${user.username}`)
+                          }
+                        }}
                       >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                          <polyline points="16 17 21 12 16 7"></polyline>
-                          <line x1="21" y1="12" x2="9" y2="12"></line>
+                        <svg 
+                          width="18" 
+                          height="18" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          strokeWidth="1.5" 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round"
+                        >
+                          <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                         </svg>
-                        <span>Выйти</span>
+                        <span>Настройки</span>
+                      </button>
+                      <button 
+                        className="dropdown-item"
+                        onClick={() => {
+                          setShowUserDropdown(false)
+                          window.location.href = 'mailto:danil29070@gmail.com'
+                        }}
+                      >
+                        <svg 
+                          width="18" 
+                          height="18" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          strokeWidth="1.5" 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round"
+                        >
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                          <polyline points="14 2 14 8 20 8"></polyline>
+                          <path d="M16.5 10.5l-1.5 1.5-3-3 1.5-1.5a1.5 1.5 0 0 1 2.12 0l1 1"></path>
+                          <path d="M12 18h4"></path>
+                        </svg>
+                        <span>Поддержка</span>
                       </button>
                     </div>
                   </div>
@@ -614,7 +744,24 @@ function Layout({ children }) {
       </main>
       <footer className="footer">
         <div className="container">
-          <p>&copy; 2024 AniGo. Все права защищены.</p>
+          <p>&copy; 2026 Yumivo. Все права защищены.</p>
+          <div className="footer-links">
+            <Link to="/documents/privacy-policy">Политика конфиденциальности</Link>
+            <span className="footer-separator">|</span>
+            <Link to="/documents/terms-of-use">Условия использования</Link>
+            <span className="footer-separator">|</span>
+            <a 
+              href="https://t.me/Yumivo_ru" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="footer-telegram-link"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '0.5rem' }}>
+                <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+              </svg>
+              Мы в телеграм
+            </a>
+          </div>
         </div>
       </footer>
 

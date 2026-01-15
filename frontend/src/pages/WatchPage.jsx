@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { animeAPI, userAPI } from '../services/api'
+import { animeAPI, userAPI, adminAPI } from '../services/api'
 import { normalizeAvatarUrl } from '../utils/avatarUtils'
+import { parseMentions } from '../utils/parseMentions'
 import VideoPlayer from '../components/VideoPlayer'
 import AnimeCard from '../components/AnimeCard'
 import CrownIcon from '../components/CrownIcon'
+import AgeRestrictionModal from '../components/AgeRestrictionModal'
 import './WatchPage.css'
 
 function WatchPage() {
@@ -20,6 +22,7 @@ function WatchPage() {
   const [submittingComment, setSubmittingComment] = useState(false)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const [userRating, setUserRating] = useState(null)
+  const [tempRating, setTempRating] = useState(5) // Временное значение для слайдера
   const [submittingRating, setSubmittingRating] = useState(false)
   const [isRatingMenuOpen, setIsRatingMenuOpen] = useState(false)
   const [isFavorite, setIsFavorite] = useState(false)
@@ -30,28 +33,265 @@ function WatchPage() {
   const [commentsHasMore, setCommentsHasMore] = useState(true)
   const [hasAnyComments, setHasAnyComments] = useState(false) // Есть ли комментарии вообще
   const [avatarErrors, setAvatarErrors] = useState({}) // Ошибки загрузки аватарок комментариев
+  const [mousePosition, setMousePosition] = useState({ x: 0.5, y: 0.5 }) // Позиция мыши для голографического эффекта
+  const [isHoveringPoster, setIsHoveringPoster] = useState(false) // Наведена ли мышь на постер
   const commentsLimit = 4 // Количество комментариев на странице
+  const [lastCommentTime, setLastCommentTime] = useState(null) // Время последнего комментария
+  const [commentCooldown, setCommentCooldown] = useState(0) // Осталось секунд до следующего комментария
+  const COMMENT_COOLDOWN_SECONDS = 60 // Время между комментариями в секундах
+  const [showAgeRestriction, setShowAgeRestriction] = useState(false) // Показывать ли модальное окно возрастного ограничения
+  const [hideAgeRestrictionWarning, setHideAgeRestrictionWarning] = useState(false) // Настройка пользователя
+  const [ageRestrictionConfirmed, setAgeRestrictionConfirmed] = useState(false) // Подтверждено ли возрастное ограничение в текущей сессии
+  const [copiedTitle, setCopiedTitle] = useState(false) // Состояние для уведомления о копировании названия
+  const [isAuthenticated, setIsAuthenticated] = useState(false) // Авторизован ли пользователь
+  const [currentUser, setCurrentUser] = useState(null) // Текущий пользователь
+  
+  // useRef для debounce автоматического подтверждения рейтинга
+  const ratingTimeoutRef = useRef(null)
+  const cooldownIntervalRef = useRef(null)
+
+  // Функция для проверки авторизации
+  const checkAuthentication = async () => {
+    try {
+      const response = await userAPI.getCurrentUser()
+      setIsAuthenticated(!!(response && response.message))
+      if (response && response.message) {
+        setCurrentUser(response.message)
+      } else {
+        setCurrentUser(null)
+      }
+    } catch (err) {
+      setIsAuthenticated(false)
+      setCurrentUser(null)
+    }
+  }
+
+  // Функция для открытия модального окна регистрации/входа
+  const openAuthModal = (type = 'register') => {
+    window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { type } }))
+  }
 
   useEffect(() => {
     // Прокручиваем страницу вверх при переходе на страницу аниме
     window.scrollTo(0, 0)
+    
+    // Сбрасываем все состояния при смене аниме
+    setUserRating(null)
+    setTempRating(5)
+    setIsRatingMenuOpen(false)
+    setIsFavorite(false)
+    setComments([])
+    setCommentsPage(0)
+    setCommentsHasMore(true)
+    setHasAnyComments(false)
+    setSelectedPlayer(null) // Сбрасываем плеер при смене аниме
+    setLastCommentTime(null) // Сбрасываем время последнего комментария
+    setCommentCooldown(0) // Сбрасываем кулдаун
+    setAgeRestrictionConfirmed(false) // Сбрасываем подтверждение возрастного ограничения
+    setShowAgeRestriction(false) // Сбрасываем показ модального окна возрастного ограничения
+    
     loadAnime()
     loadRandomAnime()
     checkFavoriteStatus()
     checkUserRating()
     loadComments(0) // Загружаем первую страницу комментариев
+    loadAvatarBorderColor() // Загружаем цвет обводки аватарки
+    loadProfileSettings() // Загружаем настройки профиля
+    checkAuthentication() // Проверяем авторизацию
   }, [animeId])
 
+  // Проверяем авторизацию при монтировании компонента
   useEffect(() => {
-    if (anime && anime.players && anime.players.length > 0) {
-      // Используем первый доступный плеер
-      const player = anime.players[0]
-      if (player) {
+    checkAuthentication()
+    
+    // Слушаем событие успешного входа
+    const handleAuthSuccess = () => {
+      checkAuthentication()
+      // Перезагружаем данные, которые требуют авторизации
+      checkFavoriteStatus()
+      checkUserRating()
+    }
+    
+    window.addEventListener('authSuccess', handleAuthSuccess)
+    return () => {
+      window.removeEventListener('authSuccess', handleAuthSuccess)
+    }
+  }, [])
+
+  // Загружаем цвет обводки аватарки и устанавливаем в CSS переменную
+  const loadAvatarBorderColor = async () => {
+    try {
+      const response = await userAPI.getCurrentUser()
+      if (response && response.message && response.message.username) {
+        // Загружаем настройки профиля из API
+        const settingsResponse = await userAPI.getProfileSettings()
+        if (settingsResponse.message && settingsResponse.message.avatar_border_color) {
+          const savedColor = settingsResponse.message.avatar_border_color
+          const availableColors = ['#ffffff', '#000000', '#808080', '#c4c4af', '#0066ff', '#00cc00', '#ff0000', '#ff69b4', '#ffd700', '#9932cc']
+          
+          if (availableColors.includes(savedColor)) {
+            // Сохраняем цвет в localStorage для быстрой загрузки при следующем открытии
+            localStorage.setItem('user-avatar-border-color', savedColor)
+            // Устанавливаем CSS переменную
+            document.documentElement.style.setProperty('--user-accent-color', savedColor)
+            
+            // Создаем rgba версию для hover эффектов
+            const hex = savedColor.replace('#', '')
+            const r = parseInt(hex.slice(0, 2), 16)
+            const g = parseInt(hex.slice(2, 4), 16)
+            const b = parseInt(hex.slice(4, 6), 16)
+            const rgba = `rgba(${r}, ${g}, ${b}, 0.1)`
+            document.documentElement.style.setProperty('--user-accent-color-rgba', rgba)
+            
+            // Создаем тень для box-shadow
+            const shadowRgba = `rgba(${r}, ${g}, ${b}, 0.4)`
+            document.documentElement.style.setProperty('--user-accent-color-shadow', shadowRgba)
+          }
+        }
+      }
+    } catch (err) {
+      // Пользователь не авторизован, игнорируем
+    }
+  }
+
+  // Загружаем настройки профиля
+  const loadProfileSettings = async () => {
+    try {
+      const response = await userAPI.getProfileSettings()
+      if (response && response.message) {
+        setHideAgeRestrictionWarning(response.message.hide_age_restriction_warning || false)
+      }
+    } catch (err) {
+      // Пользователь не авторизован, игнорируем
+    }
+  }
+
+  // Проверяем рейтинг аниме и показываем модальное окно при необходимости
+  useEffect(() => {
+    if (anime && anime.rating && !hideAgeRestrictionWarning && !ageRestrictionConfirmed) {
+      const rating = anime.rating.toUpperCase()
+      // Проверяем только рейтинг R+
+      if (rating.includes('R+')) {
+        setShowAgeRestriction(true)
+      } else {
+        // Если рейтинг не R+, закрываем модальное окно
+        setShowAgeRestriction(false)
+      }
+    } else {
+      // Если нет рейтинга или настройка скрыта, закрываем модальное окно
+      setShowAgeRestriction(false)
+    }
+  }, [anime, hideAgeRestrictionWarning, ageRestrictionConfirmed])
+
+  // Обработчик подтверждения возрастного ограничения
+  const handleAgeRestrictionConfirm = () => {
+    setShowAgeRestriction(false)
+    setAgeRestrictionConfirmed(true)
+  }
+
+  // Обработчик "не показывать больше"
+  const handleDontShowAgeRestriction = async () => {
+    try {
+      await userAPI.updateProfileSettings({
+        hide_age_restriction_warning: true
+      })
+      setHideAgeRestrictionWarning(true)
+      setShowAgeRestriction(false)
+    } catch (err) {
+      console.error('Ошибка при сохранении настройки:', err)
+      // Все равно закрываем модальное окно
+      setShowAgeRestriction(false)
+    }
+  }
+
+  // Слушаем изменения цвета обводки
+  useEffect(() => {
+    const handleAvatarBorderColorUpdate = () => {
+      loadAvatarBorderColor()
+    }
+    window.addEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
+    return () => {
+      window.removeEventListener('avatarBorderColorUpdated', handleAvatarBorderColorUpdate)
+    }
+  }, [])
+
+  // Слушаем обновления настроек профиля
+  useEffect(() => {
+    const handleProfileSettingsUpdate = () => {
+      loadProfileSettings()
+    }
+    window.addEventListener('profileSettingsUpdated', handleProfileSettingsUpdate)
+    return () => {
+      window.removeEventListener('profileSettingsUpdated', handleProfileSettingsUpdate)
+    }
+  }, [])
+
+  // Автоматическое подтверждение рейтинга после остановки движения слайдера
+  useEffect(() => {
+    if (isRatingMenuOpen && tempRating !== userRating) {
+      // Очищаем предыдущий таймер
+      if (ratingTimeoutRef.current) {
+        clearTimeout(ratingTimeoutRef.current)
+      }
+      
+      // Устанавливаем новый таймер на 1 секунду
+      ratingTimeoutRef.current = setTimeout(() => {
+        handleSubmitRating(tempRating)
+      }, 1000)
+    }
+    
+    // Cleanup при размонтировании
+    return () => {
+      if (ratingTimeoutRef.current) {
+        clearTimeout(ratingTimeoutRef.current)
+      }
+    }
+  }, [tempRating, isRatingMenuOpen])
+
+  // Обратный отсчет для кулдауна комментариев
+  useEffect(() => {
+    if (commentCooldown > 0) {
+      cooldownIntervalRef.current = setInterval(() => {
+        setCommentCooldown((prev) => {
+          if (prev <= 1) {
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    } else {
+      if (cooldownIntervalRef.current) {
+        clearInterval(cooldownIntervalRef.current)
+        cooldownIntervalRef.current = null
+      }
+    }
+
+    return () => {
+      if (cooldownIntervalRef.current) {
+        clearInterval(cooldownIntervalRef.current)
+      }
+    }
+  }, [commentCooldown])
+
+  useEffect(() => {
+    if (anime && anime.players && Array.isArray(anime.players) && anime.players.length > 0) {
+      // Используем первый доступный плеер с embed_url
+      const player = anime.players.find(p => p && p.embed_url) || anime.players[0]
+      if (player && player.embed_url) {
         setSelectedPlayer({
           ...player,
           embed_url: player.embed_url
         })
+      } else {
+        // Если у плеера нет embed_url, сбрасываем selectedPlayer
+        setSelectedPlayer(null)
       }
+    } else if (anime) {
+      // Если аниме загружено, но нет плееров, сбрасываем selectedPlayer
+      setSelectedPlayer(null)
+    } else {
+      // Если аниме не загружено, сбрасываем selectedPlayer
+      setSelectedPlayer(null)
     }
   }, [anime])
 
@@ -82,10 +322,10 @@ function WatchPage() {
       }
       setError(null)
     } catch (err) {
-      if (err.response?.status === 401) {
-        // Пользователь не авторизован
+      if (err.response?.status === 403) {
+        // Пользователь заблокирован
         setAuthError(true)
-        setError('Для просмотра аниме необходимо войти в аккаунт')
+        setError('Ваш аккаунт заблокирован. Доступ к просмотру аниме ограничен.')
       } else {
         setError('Ошибка загрузки аниме')
         console.error(err)
@@ -222,17 +462,42 @@ function WatchPage() {
 
   const handleSubmitComment = async (e) => {
     e.preventDefault()
-    if (!commentText.trim()) return
+    if (!commentText.trim() || commentCooldown > 0) return
+
+    // Проверяем авторизацию перед отправкой комментария
+    if (!isAuthenticated) {
+      openAuthModal('register')
+      return
+    }
 
     try {
       setSubmittingComment(true)
       await userAPI.createComment(parseInt(animeId), commentText)
       setCommentText('')
+      // Сохраняем время отправки комментария
+      setLastCommentTime(Date.now())
+      setCommentCooldown(COMMENT_COOLDOWN_SECONDS)
+      // Инвалидируем кэш аниме после создания комментария
+      const { invalidateAnimeRelatedCache } = await import('../utils/cache')
+      invalidateAnimeRelatedCache()
       // Обновляем только комментарии без перезагрузки всей страницы
       await updateComments()
     } catch (err) {
       console.error('Ошибка при отправке комментария:', err)
-      alert('Ошибка при отправке комментария')
+      if (err.response?.status === 401) {
+        // Пользователь не авторизован
+        setIsAuthenticated(false)
+        openAuthModal('register')
+      } else if (err.response?.status === 429) {
+        // Ошибка защиты от спама
+        const errorMessage = err.response?.data?.detail || 'Вы отправляете комментарии слишком часто. Подождите немного.'
+        alert(errorMessage)
+        // Устанавливаем кулдаун из ответа сервера, если возможно
+        setLastCommentTime(Date.now())
+        setCommentCooldown(COMMENT_COOLDOWN_SECONDS)
+      } else {
+        alert('Ошибка при отправке комментария')
+      }
     } finally {
       setSubmittingComment(false)
     }
@@ -241,25 +506,54 @@ function WatchPage() {
   const handleSubmitRating = async (rating) => {
     if (rating < 1 || rating > 10) return
 
+    // Проверяем авторизацию перед отправкой рейтинга
+    if (!isAuthenticated) {
+      openAuthModal('register')
+      setIsRatingMenuOpen(false)
+      return
+    }
+
     try {
       setSubmittingRating(true)
       await userAPI.createRating(parseInt(animeId), rating)
       setUserRating(rating)
       setIsRatingMenuOpen(false)
+      // Инвалидируем кэш аниме после создания рейтинга
+      const { invalidateAnimeRelatedCache } = await import('../utils/cache')
+      invalidateAnimeRelatedCache()
       // Обновляем только рейтинг без перезагрузки всей страницы
       await updateRating()
     } catch (err) {
       console.error('Ошибка при отправке рейтинга:', err)
-      alert(err.response?.data?.detail || 'Ошибка при отправке рейтинга')
+      if (err.response?.status === 401) {
+        // Пользователь не авторизован
+        setIsAuthenticated(false)
+        openAuthModal('register')
+        setIsRatingMenuOpen(false)
+      } else {
+        alert(err.response?.data?.detail || 'Ошибка при отправке рейтинга')
+      }
     } finally {
       setSubmittingRating(false)
     }
   }
 
   const handleToggleFavorite = async () => {
+    // Проверяем авторизацию перед добавлением в избранное
+    if (!isAuthenticated) {
+      openAuthModal('register')
+      return
+    }
+
     try {
       const response = await userAPI.toggleFavorite(parseInt(animeId))
-      console.log('Toggle favorite response:', response)
+      
+      // Инвалидируем кэш пользователя после изменения избранного
+      const { invalidateUserRelatedCache } = await import('../utils/cache')
+      const currentUserResponse = await userAPI.getCurrentUser()
+      if (currentUserResponse?.message?.username) {
+        invalidateUserRelatedCache(currentUserResponse.message.username)
+      }
       
       // Обновляем состояние на основе ответа
       if (response && 'is_favorite' in response) {
@@ -272,7 +566,9 @@ function WatchPage() {
       }
     } catch (err) {
       if (err.response?.status === 401) {
-        alert('Необходимо войти в аккаунт для добавления в избранное')
+        // Пользователь не авторизован
+        setIsAuthenticated(false)
+        openAuthModal('register')
       } else {
         console.error('Ошибка при работе с избранным:', err)
         alert('Ошибка при работе с избранным')
@@ -284,17 +580,90 @@ function WatchPage() {
 
   const handleReportComment = async (commentId) => {
     try {
-      // TODO: Реализовать API для жалобы на комментарий
-      alert('Жалоба отправлена. Спасибо за обратную связь!')
+      // Находим комментарий в списке
+      const comment = comments.find(c => c.id === commentId)
+      if (!comment) {
+        alert('Комментарий не найден')
+        setOpenReportMenu(null)
+        return
+      }
+
+      // Проверяем, является ли текущий пользователь админом/владельцем или владельцем комментария
+      const isAdminOrOwner = currentUser && (currentUser.type_account === 'admin' || currentUser.type_account === 'owner')
+      const isCommentOwner = currentUser && comment.user && comment.user.id === currentUser.id
+
+      if (isAdminOrOwner || isCommentOwner) {
+        // Удаляем комментарий навсегда
+        try {
+          await adminAPI.deleteComment(commentId)
+          // Удаляем комментарий из локального состояния
+          setComments(prevComments => prevComments.filter(c => c.id !== commentId))
+          alert('Комментарий удален')
+        } catch (deleteErr) {
+          console.error('Ошибка при удалении комментария:', deleteErr)
+          if (deleteErr.response?.status === 403) {
+            alert('Нет прав для удаления этого комментария')
+          } else {
+            alert('Ошибка при удалении комментария')
+          }
+        }
+      } else {
+        // Обычная жалоба (пока просто alert, можно реализовать позже)
+        alert('Жалоба отправлена. Спасибо за обратную связь!')
+      }
       setOpenReportMenu(null)
     } catch (err) {
-      console.error('Ошибка при отправке жалобы:', err)
-      alert('Ошибка при отправке жалобы')
+      console.error('Ошибка при обработке комментария:', err)
+      alert('Ошибка при обработке комментария')
     }
   }
 
   const toggleReportMenu = (commentId) => {
     setOpenReportMenu(openReportMenu === commentId ? null : commentId)
+  }
+
+  const handlePosterMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / rect.width
+    const y = (e.clientY - rect.top) / rect.height
+    setMousePosition({ x, y })
+    setIsHoveringPoster(true)
+  }
+
+  const handlePosterMouseLeave = () => {
+    setIsHoveringPoster(false)
+    setMousePosition({ x: 0.5, y: 0.5 })
+  }
+
+  const handleCopyTitle = async () => {
+    if (!anime || !anime.title) return
+    
+    try {
+      await navigator.clipboard.writeText(anime.title)
+      setCopiedTitle(true)
+      setTimeout(() => {
+        setCopiedTitle(false)
+      }, 2000)
+    } catch (err) {
+      console.error('Ошибка при копировании названия:', err)
+      // Fallback для старых браузеров
+      const textArea = document.createElement('textarea')
+      textArea.value = anime.title
+      textArea.style.position = 'fixed'
+      textArea.style.opacity = '0'
+      document.body.appendChild(textArea)
+      textArea.select()
+      try {
+        document.execCommand('copy')
+        setCopiedTitle(true)
+        setTimeout(() => {
+          setCopiedTitle(false)
+        }, 2000)
+      } catch (fallbackErr) {
+        console.error('Ошибка при копировании (fallback):', fallbackErr)
+      }
+      document.body.removeChild(textArea)
+    }
   }
 
   if (loading) {
@@ -349,31 +718,97 @@ function WatchPage() {
 
   return (
     <div className="watch-page">
+      {showAgeRestriction && (
+        <AgeRestrictionModal
+          onConfirm={handleAgeRestrictionConfirm}
+          onDontShowAgain={handleDontShowAgeRestriction}
+        />
+      )}
       <div className="container">
         {/* Верхняя часть: постер слева, данные справа */}
         <div className="watch-header-section">
-          <div className="anime-poster-container">
-            <img
-              src={anime.poster_url || '/placeholder.jpg'}
-              alt={anime.title}
-              className="anime-poster-main"
-            />
-            {anime.score && (
-              <div className="anime-score-badge">
-                <span>★</span> {anime.score.toFixed(1)}
-              </div>
-            )}
+          <div 
+            className="anime-poster-container"
+            onMouseMove={handlePosterMouseMove}
+            onMouseLeave={handlePosterMouseLeave}
+          >
+            <div 
+              className={`holographic-poster-wrapper ${isHoveringPoster ? 'hover' : ''}`}
+              style={{
+                '--mouse-x': mousePosition.x,
+                '--mouse-y': mousePosition.y,
+              }}
+            >
+              <img
+                src={anime.poster_url || '/placeholder.jpg'}
+                alt={anime.title}
+                className="anime-poster-main"
+              />
+              {anime.score && (
+                <div className="anime-score-badge">
+                  <span>★</span> {anime.score.toFixed(1)}
+                </div>
+              )}
+            </div>
           </div>
           
           <div className="anime-info-section">
             <div className="anime-title-wrapper">
-              <h1 className="anime-title-main">{anime.title}</h1>
+              <div className="anime-title-with-copy">
+                <h1 className="anime-title-main">{anime.title}</h1>
+                <button
+                  type="button"
+                  onClick={handleCopyTitle}
+                  className={`copy-title-button ${copiedTitle ? 'copied' : ''}`}
+                  aria-label="Копировать название аниме"
+                  title={copiedTitle ? 'Скопировано!' : 'Копировать название'}
+                >
+                  <svg 
+                    width="20" 
+                    height="20" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    {copiedTitle ? (
+                      <>
+                        <path d="M20 6L9 17l-5-5"/>
+                      </>
+                    ) : (
+                      <>
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                      </>
+                    )}
+                  </svg>
+                </button>
+              </div>
               {anime.title_original && (
                 <p className="anime-original-title">{anime.title_original}</p>
               )}
             </div>
             
             <div className="anime-details-grid">
+              {(anime.studio || (anime.genres && anime.genres.length > 0)) && (
+                <div className="sort-info-tooltip details-grid-tooltip">
+                  <span className="tooltip-icon">?</span>
+                  <div className="tooltip-content">
+                    {anime.studio && (
+                      <div>Нажмите на название студии, чтобы увидеть все аниме от этой студии</div>
+                    )}
+                    {anime.studio && anime.genres && anime.genres.length > 0 && (
+                      <div className="tooltip-divider"></div>
+                    )}
+                    {anime.genres && anime.genres.length > 0 && (
+                      <div>Нажмите на название жанра, чтобы увидеть все аниме с этим жанром</div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
               {anime.score && (
                 <div className="detail-row">
                   <span className="detail-label">Оценка</span>
@@ -412,7 +847,12 @@ function WatchPage() {
               {anime.studio && (
                 <div className="detail-row">
                   <span className="detail-label">Студия</span>
-                  <span className="detail-value">{anime.studio}</span>
+                  <Link 
+                    to={`/anime/all/anime?studio=${encodeURIComponent(anime.studio)}`}
+                    className="detail-value studio-link"
+                  >
+                    {anime.studio}
+                  </Link>
                 </div>
               )}
               
@@ -428,16 +868,20 @@ function WatchPage() {
                   <span className="detail-label">Жанры</span>
                   <div className="genres-tags">
                     {anime.genres.map((genre) => (
-                      <span key={genre.id} className="genre-tag">
+                      <Link
+                        key={genre.id}
+                        to={`/anime/all/anime?genre=${encodeURIComponent(genre.name)}`}
+                        className="genre-tag genre-link"
+                      >
                         {genre.name}
-                      </span>
+                      </Link>
                     ))}
                   </div>
                 </div>
               )}
             </div>
             
-            {anime.description && (
+            {anime.description && anime.description !== 'Нет описания' && (
               <div className="anime-description-section">
                 <h3 className="section-title">Обзор</h3>
                 <div className={`description-wrapper ${isDescriptionExpanded ? 'expanded' : ''}`}>
@@ -482,100 +926,125 @@ function WatchPage() {
               )}
             </div>
 
-            {/* Кнопки действий: Оценить и Избранное */}
-            <div className="player-actions">
-              <div className="rating-button-wrapper">
+            {/* Рекомендация по uBlock Origin */}
+            <div className="player-recommendation">
+              <p className="player-recommendation-text">
+                Чтобы избежать показа рекламы во время просмотра, мы рекомендуем установить расширение{" "}
+                <a
+                  href="https://chromewebstore.google.com/detail/ublock-origin-lite/ddkjiahejlhfcafbddmgiahcphecmpfh?hl=ru"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="player-recommendation-link"
+                >
+                  uBlock Origin Lite
+                </a>{" "}
+                из официального магазина расширений Google Chrome
+              </p>
+              <p className="player-disclaimer">это не является рекламой, и мы никого не обязываем его устанавливать</p>
+            </div>
+
+            {/* Комментарии и кнопки действий: на одной высоте */}
+            <div className="comments-rating-wrapper">
+              <div className="comments-input-section">
+                {/* Форма для нового комментария */}
+                <form onSubmit={handleSubmitComment} className="comment-form">
+                  <div className="comment-input-wrapper">
+                    <textarea
+                      value={commentText}
+                      onChange={(e) => {
+                        if (e.target.value.length <= 100) {
+                          setCommentText(e.target.value)
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        // Отправка при нажатии Enter/Return без Shift
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          if (commentText.trim() && !submittingComment) {
+                            handleSubmitComment(e)
+                          }
+                        }
+                      }}
+                      placeholder="Оставьте пару слов..."
+                      className="comment-input"
+                      rows="1"
+                      maxLength={100}
+                    />
+                    <div className="comment-char-count">
+                      {commentText.length}/100
+                    </div>
+                  </div>
+                </form>
+              </div>
+
+              {/* Кнопки действий: Оценить и Избранное */}
+              <div className="player-actions">
+                <div className="rating-button-wrapper">
+                  {!isRatingMenuOpen ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Проверяем авторизацию перед открытием меню рейтинга
+                        if (!isAuthenticated) {
+                          openAuthModal('register')
+                          return
+                        }
+                        // Инициализируем временное значение при открытии меню
+                        setTempRating(userRating || 5)
+                        setIsRatingMenuOpen(true)
+                      }}
+                      className="rate-button"
+                      disabled={submittingRating}
+                    >
+                      {userRating ? `Оценка: ${userRating}` : 'Оценить'}
+                    </button>
+                  ) : (
+                    <div className="rating-menu">
+                      <div className="rating-slider-container">
+                        <span className="rating-slider-value">
+                          <span className="rating-star">★</span>
+                          {tempRating}
+                        </span>
+                        <input
+                          type="range"
+                          min="1"
+                          max="10"
+                          step="1"
+                          value={tempRating}
+                          onChange={(e) => setTempRating(parseInt(e.target.value))}
+                          className="rating-slider"
+                          disabled={submittingRating}
+                          style={{
+                            background: `linear-gradient(to right, var(--user-accent-color, var(--accent)) 0%, var(--user-accent-color, var(--accent)) ${(tempRating - 1) * 11.11}%, var(--bg-secondary) ${(tempRating - 1) * 11.11}%, var(--bg-secondary) 100%)`
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
-                  onClick={() => setIsRatingMenuOpen(!isRatingMenuOpen)}
-                  className="rate-button"
-                  disabled={submittingRating}
+                  onClick={handleToggleFavorite}
+                  className={`favorite-button ${isFavorite ? 'active' : ''}`}
+                  aria-label={isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'}
                 >
-                  {userRating ? `Оценка: ${userRating}` : 'Оценить'}
+                  <svg 
+                    width="24" 
+                    height="24" 
+                    viewBox="0 0 24 24" 
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="favorite-heart-icon"
+                  >
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                  </svg>
                 </button>
-                {isRatingMenuOpen && (
-                  <div className="rating-menu">
-                    <div className="rating-stars-menu">
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((rating) => (
-                        <button
-                          key={rating}
-                          type="button"
-                          onClick={() => handleSubmitRating(rating)}
-                          disabled={submittingRating}
-                          className={`rating-star-btn-menu ${userRating === rating ? 'selected' : ''}`}
-                          title={`Оценить на ${rating}`}
-                        >
-                          <span className="rating-star">★</span>
-                          <span className="rating-number">{rating}</span>
-                        </button>
-                      ))}
-                    </div>
-                    {submittingRating && (
-                      <p className="rating-submitting">Отправка...</p>
-                    )}
-                  </div>
-                )}
               </div>
-              <button
-                type="button"
-                onClick={handleToggleFavorite}
-                className={`favorite-button ${isFavorite ? 'active' : ''}`}
-                aria-label={isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'}
-              >
-                <svg 
-                  width="24" 
-                  height="24" 
-                  viewBox="0 0 24 24" 
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="favorite-heart-icon"
-                >
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                </svg>
-              </button>
             </div>
 
             {/* Комментарии */}
             <div className="comments-section">
-              <h3 className="section-title">Комментарии</h3>
-              
-              {/* Форма для нового комментария */}
-              <form onSubmit={handleSubmitComment} className="comment-form">
-                <div className="comment-input-wrapper">
-                  <textarea
-                    value={commentText}
-                    onChange={(e) => {
-                      if (e.target.value.length <= 100) {
-                        setCommentText(e.target.value)
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      // Отправка при нажатии Enter/Return без Shift
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        if (commentText.trim() && !submittingComment) {
-                          handleSubmitComment(e)
-                        }
-                      }
-                    }}
-                    placeholder="Оставьте пару слов..."
-                    className="comment-input"
-                    rows="3"
-                    maxLength={100}
-                  />
-                  <div className="comment-char-count">
-                    {commentText.length}/100
-                  </div>
-                </div>
-                <button
-                  type="submit"
-                  disabled={submittingComment || !commentText.trim()}
-                  className="comment-submit-btn"
-                >
-                  {submittingComment ? 'Отправка...' : 'Отправить'}
-                </button>
-              </form>
 
               {/* Список комментариев */}
               <div className="comments-list">
@@ -595,7 +1064,11 @@ function WatchPage() {
                                   src={avatarUrl}
                                   alt={comment.user?.username || 'User'}
                                   className="comment-avatar"
-                                  onError={() => setAvatarErrors(prev => ({ ...prev, [comment.id]: true }))}
+                                  onError={(e) => {
+                                    // Останавливаем повторные попытки загрузки
+                                    e.target.src = ''
+                                    setAvatarErrors(prev => ({ ...prev, [comment.id]: true }))
+                                  }}
                                   onLoad={() => setAvatarErrors(prev => {
                                     const newErrors = { ...prev }
                                     delete newErrors[comment.id]
@@ -606,7 +1079,7 @@ function WatchPage() {
                             }
                             return (
                               <div className="comment-avatar avatar-fallback" style={{ backgroundColor: '#000000' }}>
-                                <span style={{ fontSize: '1.5rem', lineHeight: '1' }}>🐱</span>
+                                <span>🐱</span>
                               </div>
                             )
                           })()}
@@ -614,10 +1087,10 @@ function WatchPage() {
                             {comment.user?.username ? (
                               <Link 
                                 to={`/profile/${comment.user.username}`} 
-                                className={`comment-username ${comment.user?.id < 100 ? 'premium-user' : ''}`}
+                                className={`comment-username ${(comment.user?.premium_status?.is_premium || comment.user?.profile_settings?.is_premium_profile || comment.user?.type_account === 'admin' || comment.user?.type_account === 'owner') ? 'premium-user' : ''}`}
                               >
                                 {comment.user.username}
-                                {comment.user?.id < 100 && (
+                                {(comment.user?.premium_status?.is_premium || comment.user?.profile_settings?.is_premium_profile || comment.user?.type_account === 'admin' || comment.user?.type_account === 'owner') && (
                                   <span className="crown-icon-small">
                                     <CrownIcon size={14} />
                                   </span>
@@ -626,7 +1099,7 @@ function WatchPage() {
                             ) : (
                               <span className="comment-username">Неизвестный</span>
                             )}
-                            <p className="comment-text">{comment.text}</p>
+                            <p className="comment-text">{parseMentions(comment.text)}</p>
                           </div>
                         </div>
                         <div className="comment-header-right">
@@ -660,7 +1133,11 @@ function WatchPage() {
                                   className="comment-report-btn"
                                   onClick={() => handleReportComment(comment.id)}
                                 >
-                                  Пожаловаться
+                                  {(() => {
+                                    const isAdminOrOwner = currentUser && (currentUser.type_account === 'admin' || currentUser.type_account === 'owner')
+                                    const isCommentOwner = currentUser && comment.user && comment.user.id === currentUser.id
+                                    return (isAdminOrOwner || isCommentOwner) ? 'Удалить' : 'Пожаловаться'
+                                  })()}
                                 </button>
                               </div>
                             )}

@@ -87,3 +87,6 @@ class AnimeDetailResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class GetAnimeByRating(BaseModel):
+    rating: int = Field(ge=1, le=10)

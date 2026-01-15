@@ -6,6 +6,7 @@ function VideoPlayer({ player }) {
   const containerRef = useRef(null)
   const progressRef = useRef(null)
   const volumeRef = useRef(null)
+  const hlsRef = useRef(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
@@ -14,6 +15,7 @@ function VideoPlayer({ player }) {
   const [showControls, setShowControls] = useState(true)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [hideControlsTimeout, setHideControlsTimeout] = useState(null)
+  const [hlsError, setHlsError] = useState(null)
 
   // Проверяем, является ли URL прямым видео URL или iframe
   // Все URL от Kodik - это iframe embed URLs, поэтому кастомный HTML5 плеер используется только для прямых видео файлов
@@ -27,9 +29,153 @@ function VideoPlayer({ player }) {
     player.embed_url.startsWith('blob:')
   )
 
+  // Проверяем, является ли URL HLS потоком
+  const isHlsStream = player?.embed_url && (
+    player.embed_url.endsWith('.m3u8') ||
+    player.embed_url.includes('.m3u8?') ||
+    player.embed_url.includes('.m3u8#')
+  )
+
+  // Инициализация HLS для потоковой передачи
   useEffect(() => {
     const video = videoRef.current
-    if (!video || !isDirectVideo) return
+    if (!video || !isDirectVideo || !isHlsStream || !player?.embed_url) return
+
+    // Очищаем предыдущий экземпляр HLS, если он существует
+    if (hlsRef.current) {
+      hlsRef.current.destroy()
+      hlsRef.current = null
+    }
+
+    // Проверяем поддержку нативного HLS (Safari)
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Нативная поддержка HLS (Safari)
+      video.src = player.embed_url
+      setHlsError(null)
+      return () => {
+        // Очистка не требуется для нативного HLS
+      }
+    }
+
+    // Динамический импорт hls.js для браузеров без нативной поддержки
+    let hlsInstance = null
+    
+    import('hls.js')
+      .then((HlsModule) => {
+        const Hls = HlsModule.default || HlsModule
+        
+        if (!Hls || !Hls.isSupported()) {
+          setHlsError('Ваш браузер не поддерживает HLS потоковую передачу. Пожалуйста, используйте современный браузер.')
+          return
+        }
+
+        // Используем HLS.js для браузеров без нативной поддержки
+        hlsInstance = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 90,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 600,
+          maxBufferSize: 60 * 1000 * 1000,
+          maxBufferHole: 0.5,
+          highBufferWatchdogPeriod: 2,
+          nudgeOffset: 0.1,
+          nudgeMaxRetry: 3,
+          maxFragLoadingTimeOut: 20000,
+          fragLoadingTimeOut: 20000,
+          manifestLoadingTimeOut: 10000,
+          levelLoadingTimeOut: 10000,
+          // Настройки для обхода CORS проблем
+          xhrSetup: (xhr, url) => {
+            // Устанавливаем withCredentials для CORS запросов
+            xhr.withCredentials = false
+            // Не устанавливаем кастомные заголовки, которые могут вызвать проблемы
+            // Сервер должен отправлять правильные CORS заголовки
+          },
+        })
+
+        hlsRef.current = hlsInstance
+
+        hlsInstance.loadSource(player.embed_url)
+        hlsInstance.attachMedia(video)
+
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+          setHlsError(null)
+        })
+
+        hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+          // Проверяем на CORS ошибки и ошибки address space
+          const errorMessage = data.details || data.message || ''
+          const isCorsError = errorMessage.includes('CORS') || 
+                             errorMessage.includes('XMLHttpRequest') ||
+                             errorMessage.includes('address space') ||
+                             errorMessage.includes('blocked by CORS policy')
+          
+          if (isCorsError) {
+            console.warn('CORS/Address Space предупреждение HLS (игнорируем):', data)
+            // Не считаем CORS предупреждения критическими, если это не фатальная ошибка
+            if (!data.fatal) {
+              return
+            }
+            // Если это фатальная CORS ошибка, пытаемся восстановить
+            console.warn('Фатальная CORS ошибка, пытаемся восстановить...')
+            try {
+              hlsInstance.startLoad()
+            } catch (err) {
+              console.error('Не удалось восстановить после CORS ошибки:', err)
+            }
+            return
+          }
+
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.error('Ошибка сети HLS, попытка восстановления...', data)
+                try {
+                  hlsInstance.startLoad()
+                } catch (err) {
+                  console.error('Не удалось восстановить соединение:', err)
+                  setHlsError('Ошибка сети при загрузке потока. Проверьте подключение к интернету.')
+                }
+                break
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.error('Ошибка медиа HLS, попытка восстановления...', data)
+                try {
+                  hlsInstance.recoverMediaError()
+                } catch (err) {
+                  console.error('Не удалось восстановить медиа:', err)
+                  setHlsError('Ошибка воспроизведения потока. Попробуйте обновить страницу.')
+                }
+                break
+              default:
+                console.error('Критическая ошибка HLS, перезагрузка...', data)
+                hlsInstance.destroy()
+                hlsRef.current = null
+                setHlsError('Ошибка загрузки HLS потока. Попробуйте обновить страницу.')
+                break
+            }
+          } else {
+            console.warn('Предупреждение HLS:', data)
+          }
+        })
+      })
+      .catch((error) => {
+        console.error('Ошибка загрузки hls.js:', error)
+        setHlsError('Не удалось загрузить HLS библиотеку. Убедитесь, что зависимость hls.js установлена: npm install hls.js')
+      })
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy()
+        hlsRef.current = null
+      }
+    }
+  }, [isDirectVideo, isHlsStream, player?.embed_url])
+
+  // Обработка обычных видео файлов и событий видео
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !isDirectVideo || isHlsStream) return
 
     const updateTime = () => setCurrentTime(video.currentTime)
     const updateDuration = () => setDuration(video.duration)
@@ -52,7 +198,41 @@ function VideoPlayer({ player }) {
       video.removeEventListener('pause', handlePause)
       video.removeEventListener('ended', handleEnded)
     }
-  }, [isDirectVideo, volume, isMuted])
+  }, [isDirectVideo, isHlsStream, volume, isMuted])
+
+  // Обработка событий для HLS потоков
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !isDirectVideo || !isHlsStream) return
+
+    const updateTime = () => setCurrentTime(video.currentTime)
+    const updateDuration = () => {
+      if (video.duration && isFinite(video.duration)) {
+        setDuration(video.duration)
+      }
+    }
+    const handlePlay = () => setIsPlaying(true)
+    const handlePause = () => setIsPlaying(false)
+    const handleEnded = () => setIsPlaying(false)
+
+    video.addEventListener('timeupdate', updateTime)
+    video.addEventListener('loadedmetadata', updateDuration)
+    video.addEventListener('durationchange', updateDuration)
+    video.addEventListener('play', handlePlay)
+    video.addEventListener('pause', handlePause)
+    video.addEventListener('ended', handleEnded)
+
+    video.volume = isMuted ? 0 : volume
+
+    return () => {
+      video.removeEventListener('timeupdate', updateTime)
+      video.removeEventListener('loadedmetadata', updateDuration)
+      video.removeEventListener('durationchange', updateDuration)
+      video.removeEventListener('play', handlePlay)
+      video.removeEventListener('pause', handlePause)
+      video.removeEventListener('ended', handleEnded)
+    }
+  }, [isDirectVideo, isHlsStream, volume, isMuted])
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -178,11 +358,19 @@ function VideoPlayer({ player }) {
         }
       }}
     >
+      {hlsError && (
+        <div className="hls-error-message">
+          {hlsError}
+        </div>
+      )}
       <video
         ref={videoRef}
-        src={player.embed_url}
+        src={isHlsStream ? undefined : player.embed_url}
         className="custom-video-player"
         onClick={togglePlay}
+        playsInline
+        crossOrigin="anonymous"
+        preload="auto"
       />
 
       <div className={`video-controls ${showControls ? 'visible' : ''}`}>
