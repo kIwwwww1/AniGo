@@ -12,7 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 load_dotenv()
 
-SECRET_KEY = str(getenv('SECRET_KEY'))
+# SECRET_KEY обязателен для безопасности!
+SECRET_KEY_ENV = getenv('SECRET_KEY')
+if not SECRET_KEY_ENV or SECRET_KEY_ENV == 'None':
+    raise ValueError(
+        "SECRET_KEY не установлен! Установите SECRET_KEY в .env файле. "
+        "Сгенерируйте ключ командой: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+    )
+SECRET_KEY = str(SECRET_KEY_ENV)
 SECRET_ALGORITHM = str(getenv('ALGORITHM', 'HS256'))    
 COOKIES_SESSION_ID_KEY = str(getenv('COOKIES_SESSION_ID_KEY', 'session_id'))
 THIRTY_DAYS = 30 * 24 * 60 * 60 
