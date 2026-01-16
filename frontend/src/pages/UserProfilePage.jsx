@@ -274,6 +274,7 @@ function UserProfilePage() {
           // Проверяем псевдоэлемент ::before
           const beforeStyle = getComputedStyle(headerElement, '::before')
           
+          console.log({
             inlineStyle: {
               bgImage: headerElement.style.getPropertyValue('--bg-image'),
               bgSize: headerElement.style.getPropertyValue('--bg-size'),
